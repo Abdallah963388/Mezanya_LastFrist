@@ -4,9 +4,9 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
+import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
-import '../../../wallets/domain/entities/wallet_entity.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({
@@ -937,7 +937,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (sheetCtx, setSheet) {
-            final theme = Theme.of(sheetCtx);
+            Theme.of(sheetCtx);
 
             // ── Outside-budget option ──
             Widget outsideOption() {

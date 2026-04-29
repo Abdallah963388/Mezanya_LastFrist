@@ -95,9 +95,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   Future<void> _loadGoogle() async {
     _account = _googleSignIn.currentUser;
 
-    if (_account == null) {
-      _account = await _googleSignIn.signInSilently();
-    }
+    _account ??= await _googleSignIn.signInSilently();
   }
 
   Future<void> _loadSettings() async {

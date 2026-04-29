@@ -3,9 +3,11 @@
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/services/budget_recurring_plan_service.dart';
 
 Future<AllocationEditorResult?> openAllocationEditorScreen(
   BuildContext context, {
@@ -69,6 +71,26 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   @override
   void dispose() => super.dispose();
 
+  DateTime get _displayCycleReference => DateTime(
+        _displayMonth.year,
+        _displayMonth.month,
+        _budget.startDay.clamp(1, 28),
+      );
+
+  DateTime get _displayCycleStart => _budget.cycleStartFor(_displayCycleReference);
+
+  DateTime get _displayCycleEnd => _budget.cycleEndFor(_displayCycleReference);
+
+  List<DebtEntity> get _visibleDebtsForDisplayCycle => _budget.debts.where((debt) {
+        final recurring = _linkedRecurringDebt(debt);
+        return BudgetRecurringPlanService.isDueInCycle(
+          debt: debt,
+          recurring: recurring,
+          cycleStart: _displayCycleStart,
+          cycleEnd: _displayCycleEnd,
+        );
+      }).toList();
+
   double get _totalIncome => _budget.incomeSources.fold<double>(
         0,
         (sum, income) => sum + (income.isVariable ? 0 : income.amount),
@@ -87,10 +109,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       );
 
   double get _debtsTotal {
-    final now = DateTime.now();
-    final cycleStart = _budget.cycleStartFor(now);
-    final cycleEnd = _budget.cycleEndFor(now);
-    return _budget.debtsTotalForCycle(cycleStart, cycleEnd);
+    return _budget.debts.fold<double>(
+      0,
+      (sum, debt) => sum + _debtAmountForCycle(_budget, debt, _displayCycleStart, _displayCycleEnd),
+    );
   }
 
   double get _committed => _allocationsTotal + _linkedTotal + _debtsTotal;
@@ -195,7 +217,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   Future<void> _handleStartDayChange(int newDay) async {
     if (!mounted) return;
     final now = DateTime.now();
-    final newCycleStart = DateTime(now.year, now.month, newDay);
     final isPartialCycle = now.day > newDay;
 
     // لو اليوزر في منتصف الدورة الجديدة
@@ -261,11 +282,33 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       0,
       (sum, wallet) => sum + wallet.monthlyAmount,
     );
-    final debtsTotal = setup.debtsTotalForCycle(
-      setup.cycleStartFor(DateTime.now()),
-      setup.cycleEndFor(DateTime.now()),
+    final displayCycleReference = DateTime(
+      _displayMonth.year,
+      _displayMonth.month,
+      setup.startDay.clamp(1, 28),
+    );
+    final cycleStart = setup.cycleStartFor(displayCycleReference);
+    final cycleEnd = setup.cycleEndFor(displayCycleReference);
+    final debtsTotal = setup.debts.fold<double>(
+      0,
+      (sum, debt) => sum + _debtAmountForCycle(setup, debt, cycleStart, cycleEnd),
     );
     return allocationsTotal + linkedTotal + debtsTotal;
+  }
+
+  double _debtAmountForCycle(
+    BudgetSetupEntity setup,
+    DebtEntity debt,
+    DateTime cycleStart,
+    DateTime cycleEnd,
+  ) {
+    final recurring = _linkedRecurringDebtFromSetup(setup, debt);
+    return BudgetRecurringPlanService.amountDueInCycle(
+      debt: debt,
+      recurring: recurring,
+      cycleStart: cycleStart,
+      cycleEnd: cycleEnd,
+    );
   }
 
   String _id(String prefix) =>
@@ -344,6 +387,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       weekday: recurring.weekday,
       weekdays: recurring.weekdays,
       monthOfYear: recurring.monthOfYear,
+      anchorDate: recurring.anchorDate,
       scheduledTime: recurring.scheduledTime,
       reminderLeadDays: recurring.reminderLeadDays,
       incomeSourceId: income.id,
@@ -452,6 +496,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         weekday: recurring.weekday,
         weekdays: recurring.weekdays,
         monthOfYear: recurring.monthOfYear,
+        anchorDate: recurring.anchorDate,
         scheduledTime: recurring.scheduledTime,
         reminderLeadDays: recurring.reminderLeadDays,
         incomeSourceId: current.id,
@@ -476,6 +521,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           weekday: recurring.weekday,
           weekdays: recurring.weekdays,
           monthOfYear: recurring.monthOfYear,
+          anchorDate: recurring.anchorDate,
           scheduledTime: recurring.scheduledTime,
           reminderLeadDays: recurring.reminderLeadDays,
           incomeSourceId: current.id,
@@ -741,23 +787,40 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     if (_budget.incomeSources.isEmpty) return;
     final linkedRecurring =
         current == null ? null : _linkedRecurringDebt(current);
-    final draftRecurring = linkedRecurring ??
-        RecurringTransactionEntity(
-          id: current?.recurringTransactionId ?? '',
-          name: current?.name ?? '',
-          type: 'expense',
-          amount: current?.amount ?? 0,
-          dayOfMonth: (current?.executionDay ?? 1).clamp(1, 28),
-          executionType: current?.type ?? 'confirm',
-          walletId: widget.cubit.state.wallets.isNotEmpty
-              ? widget.cubit.state.wallets.first.id
-              : '',
-          budgetScope: 'within-budget',
-          recurrencePattern: 'monthly',
-          icon: 'receipt',
-          iconColor: '#c65d2e',
-          incomeSourceId: null,
-          isDebtOrSubscription: true,
+    final draftRecurring = (linkedRecurring ??
+            RecurringTransactionEntity(
+              id: current?.recurringTransactionId ?? '',
+              name: current?.name ?? '',
+              type: 'expense',
+              amount: current?.amount ?? 0,
+              dayOfMonth: (current?.executionDay ?? 1).clamp(1, 28),
+              executionType: current?.type ?? 'confirm',
+              walletId: widget.cubit.state.wallets.isNotEmpty
+                  ? widget.cubit.state.wallets.first.id
+                  : '',
+              budgetScope: 'within-budget',
+              recurrencePattern: current?.recurrencePattern ?? 'monthly',
+              icon: 'receipt',
+              iconColor: '#c65d2e',
+              monthOfYear: current?.monthOfYear,
+              incomeSourceId: null,
+              isDebtOrSubscription: true,
+              expensePlanKind:
+                  current?.isSubscription == true ? 'subscription' : 'installment',
+              debtPrincipalTotal: current?.principalTotal ??
+                  (current?.isInstallment == true ? current!.amount : null),
+            ))
+        .copyWith(
+          recurrencePattern: current?.recurrencePattern != null &&
+                  current!.recurrencePattern != 'monthly'
+              ? current.recurrencePattern
+              : (linkedRecurring?.recurrencePattern ?? 'monthly'),
+          monthOfYear: current?.monthOfYear ?? linkedRecurring?.monthOfYear,
+          expensePlanKind: linkedRecurring?.expensePlanKind ??
+              (current?.isSubscription == true ? 'subscription' : 'installment'),
+          debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
+              current?.principalTotal ??
+              (current?.isInstallment == true ? current!.amount : null),
         );
 
     final result =
@@ -780,11 +843,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
     final recurringId =
         linkedRecurring?.id ?? current?.recurringTransactionId ?? _id('rec');
-    final debtAmount = recurring.amount;
+    final isSubscription = recurring.expensePlanKind == 'subscription';
+    final principal = recurring.debtPrincipalTotal;
     final debt = DebtEntity(
       id: current?.id ?? _id('debt'),
       name: recurring.name,
-      amount: debtAmount,
+      amount: recurring.amount,
       executionDay: recurring.dayOfMonth.clamp(1, 31),
       type: recurring.executionType,
       fundingSource: current?.fundingSource ??
@@ -792,6 +856,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               ? _budget.incomeSources.first.id
               : ''),
       recurringTransactionId: recurringId,
+      kind: isSubscription ? 'subscription' : 'installment',
+      principalTotal:
+          isSubscription ? null : (principal != null && principal > 0 ? principal : null),
+      recurrencePattern: recurring.recurrencePattern,
+      monthOfYear: recurring.monthOfYear,
     );
 
     final nextDebts = current == null
@@ -826,9 +895,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         weekday: recurringToSave.weekday,
         weekdays: recurringToSave.weekdays,
         monthOfYear: recurringToSave.monthOfYear,
+        anchorDate: recurringToSave.anchorDate,
         scheduledTime: recurringToSave.scheduledTime,
         reminderLeadDays: recurringToSave.reminderLeadDays,
         isDebtOrSubscription: true,
+        expensePlanKind: recurringToSave.expensePlanKind,
         debtPrincipalTotal: recurringToSave.debtPrincipalTotal,
         notes: recurringToSave.notes,
       );
@@ -1322,20 +1393,23 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             onPressed: () => _showDebtDialog(),
             tint: const Color(0xFFC65D2E),
           ),
-          children: _budget.debts.isEmpty
+          children: _visibleDebtsForDisplayCycle.isEmpty
               ? [
                   _emptyState(
-                      'سجل الأقساط أو الديون الشهرية حتى تظهر ضمن الالتزامات.')
+                      'لا توجد التزامات مستحقة في هذه الدورة. يمكنك إدارة كل المعاملات المتكررة من صفحة المعاملات المتكررة.')
                 ]
-              : _budget.debts.map(
+              : _visibleDebtsForDisplayCycle.map(
                   (debt) {
                     final recurring = _linkedRecurringDebt(debt);
                     final iconName = recurring?.icon ?? 'receipt';
                     final iconColor = recurring?.iconColor ?? '#c65d2e';
+                    final detailText = debt.isSubscription
+                        ? _recurrenceLabel(recurring?.recurrencePattern ?? debt.recurrencePattern)
+                        : 'يوم ${debt.executionDay}';
                     return _planTile(
                       title: debt.name,
                       amountText: debt.amount.toStringAsFixed(2),
-                      detailText: 'يوم ${debt.executionDay}',
+                      detailText: detailText,
                       leadingWidget: _iconBadge(
                         iconName: iconName,
                         colorHex: iconColor,
@@ -2261,25 +2335,17 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   RecurringTransactionEntity? _linkedRecurringDebt(DebtEntity debt) {
-    final recurringList = widget.cubit.state.recurringTransactions;
-    if ((debt.recurringTransactionId ?? '').isNotEmpty) {
-      final exact =
-          recurringList.where((item) => item.id == debt.recurringTransactionId);
-      if (exact.isNotEmpty) {
-        return exact.first;
-      }
-    }
-    final fallback = recurringList.where(
-      (item) =>
-          item.type == 'expense' &&
-          item.budgetScope == 'within-budget' &&
-          item.isDebtOrSubscription &&
-          item.name == debt.name,
+    return BudgetRecurringPlanService.linkedRecurring(
+      widget.cubit.state.recurringTransactions,
+      debt,
     );
-    if (fallback.isEmpty) {
-      return null;
-    }
-    return fallback.first;
+  }
+
+  RecurringTransactionEntity? _linkedRecurringDebtFromSetup(
+    BudgetSetupEntity setup,
+    DebtEntity debt,
+  ) {
+    return _linkedRecurringDebt(debt);
   }
 
   // DateTime? _parseClockTime(String? value) {

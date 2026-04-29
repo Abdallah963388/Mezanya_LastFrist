@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../budget/domain/services/budget_recurring_plan_service.dart';
 import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../domain/entities/notification_entity.dart';
 import '../widgets/notification_center_widgets.dart';
 
@@ -21,6 +23,8 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedTab = 'new';
+  bool _showingRecurringDecisionDialog = false;
+  final Set<String> _dismissedRecurringPromptKeys = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +33,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
+        _scheduleRecurringDecisionPrompt(state);
         final pendingCards = _pendingNotificationCards(state);
         final historyItems = _historyNotifications(state);
 
@@ -67,13 +72,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  void _scheduleRecurringDecisionPrompt(AppStateEntity state) {
+    if (_showingRecurringDecisionDialog || !mounted) return;
+    final decision = _nextRecurringDecision(state);
+    if (decision == null) return;
+    final key = _promptKey(decision.recurring, decision.prompt.occurrence);
+    if (_dismissedRecurringPromptKeys.contains(key)) return;
+    _showingRecurringDecisionDialog = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _showingRecurringDecisionDialog = false;
+        return;
+      }
+      final action = await _showRecurringDecisionDialog(decision);
+      if (!mounted) {
+        _showingRecurringDecisionDialog = false;
+        return;
+      }
+      if (action == null) {
+        _dismissedRecurringPromptKeys.add(key);
+      } else {
+        await _handleRecurringDecisionAction(action, decision);
+      }
+      _showingRecurringDecisionDialog = false;
+    });
+  }
+
   List<Widget> _pendingNotificationCards(AppStateEntity state) {
     final cards = <Widget>[];
     final budget = state.budgetSetup;
+    final now = DateTime.now();
     final month = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    final cycleStart = budget.cycleStartFor(now);
+    final cycleEnd = budget.cycleEndFor(now);
     final monthTransactions = state.transactions.where((transaction) {
       return transaction.createdAt.year == month.year &&
           transaction.createdAt.month == month.month;
+    }).toList();
+    final cycleTransactions = state.transactions.where((transaction) {
+      return !transaction.createdAt.isBefore(cycleStart) &&
+          !transaction.createdAt.isAfter(cycleEnd);
     }).toList();
     final incomeTransactions = monthTransactions
         .where((transaction) => transaction.type == 'income')
@@ -127,12 +165,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     for (final debt in budget.debts) {
       final recurring = _linkedRecurringDebt(state, debt);
-      final paidAmount = monthTransactions
-          .where((transaction) => transaction.notes?.contains(debt.name) == true)
-          .fold<double>(0, (sum, transaction) => sum + transaction.amount);
-      final remaining = (debt.amount - paidAmount).clamp(0.0, debt.amount);
       final pendingMeta = _expensePendingMeta(recurring);
-      if (remaining <= 0 || pendingMeta == null || !pendingMeta.pending) {
+      if (pendingMeta == null || !pendingMeta.pending) {
+        continue;
+      }
+      final paidAmount = cycleTransactions
+          .where(
+              (transaction) => transaction.notes?.contains(debt.name) == true)
+          .fold<double>(0, (sum, transaction) => sum + transaction.amount);
+      final decisionAmount = BudgetRecurringPlanService.pendingDecisionAmount(
+        debt: debt,
+        recurring: recurring,
+        cyclePaid: paidAmount,
+      );
+      if (decisionAmount <= 0) {
         continue;
       }
 
@@ -141,7 +187,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           accent: const Color(0xFFC65D2E),
           title: debt.name,
           subtitle: pendingMeta.status,
-          amount: remaining,
+          amount: decisionAmount,
           badge: 'دين أو اشتراك',
           meta: _walletName(recurring?.walletId ?? ''),
           icon: Icons.credit_card_rounded,
@@ -157,11 +203,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
             ),
             PendingNotificationAction(
-              label: 'تأجيل',
+              label: 'تخطي المرة',
               filled: false,
               onPressed: recurring == null
                   ? () {}
-                  : () => _snoozeRecurringExpense(
+                  : () => _skipRecurringExpenseOccurrence(
                         recurring,
                         pendingMeta.occurrence,
                       ),
@@ -337,51 +383,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   RecurringTransactionEntity? _linkedRecurringDebt(
     AppStateEntity state,
     DebtEntity debt,
-  ) {
-    final recurring = state.recurringTransactions.where(
-      (item) =>
-          item.type == 'expense' &&
-          item.budgetScope == 'within-budget' &&
-          item.isDebtOrSubscription &&
-          (((debt.recurringTransactionId ?? '').isNotEmpty &&
-                  item.id == debt.recurringTransactionId) ||
-              (item.name == debt.name)),
-    );
-    return recurring.isEmpty ? null : recurring.first;
-  }
+  ) => BudgetRecurringPlanService.linkedRecurring(
+        state.recurringTransactions,
+        debt,
+      );
 
   _ExpensePendingMeta? _expensePendingMeta(
     RecurringTransactionEntity? recurring,
   ) {
-    if (recurring == null || recurring.executionType != 'confirm') {
+    if (recurring == null) {
       return null;
     }
-
-    final occurrence = _nextRecurringOccurrence(recurring, DateTime.now());
-    if (occurrence == null) return null;
-
-    final snoozedUntil =
-        recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
-            ? null
-            : DateTime.tryParse(recurring.snoozedUntil!);
-    final reminderAt = _notificationMoment(recurring, occurrence);
     final now = DateTime.now();
-    if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
-      return _ExpensePendingMeta(
-        pending: false,
-        status:
-            'مؤجل حتى ${DateFormat('d/M HH:mm', 'ar').format(snoozedUntil)}',
-        occurrence: occurrence,
-      );
-    }
-    if (now.isBefore(reminderAt)) return null;
-
+    final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
+    if (prompt == null) return null;
     return _ExpensePendingMeta(
       pending: true,
-      status: now.isBefore(occurrence)
-          ? 'مستحق قريبًا · ${DateFormat('d/M HH:mm', 'ar').format(occurrence)}'
-          : 'مستحق الآن · ${DateFormat('d/M HH:mm', 'ar').format(occurrence)}',
-      occurrence: occurrence,
+      status: switch (prompt.state) {
+        RecurringExpensePromptState.upcoming =>
+          'مستحق قريبًا · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+        RecurringExpensePromptState.due =>
+          'مستحق الآن · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+        RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
+            ? 'دورة فائتة تحتاج قرارًا · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}'
+            : 'استحقاق متأخر · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+      },
+      occurrence: prompt.occurrence,
     );
   }
 
@@ -389,74 +416,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final lastDay = DateTime(month.year, month.month + 1, 0).day;
     final day = source.date.clamp(1, lastDay);
     return DateTime(month.year, month.month, day);
-  }
-
-  DateTime _notificationMoment(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) {
-    final lead = recurring.reminderLeadDays ?? 0;
-    if (recurring.recurrencePattern == 'daily' ||
-        recurring.recurrencePattern == 'weekly' ||
-        recurring.recurrencePattern == 'biweekly' ||
-        recurring.recurrencePattern == 'every_3_weeks') {
-      return occurrence.subtract(Duration(hours: lead));
-    }
-    return occurrence.subtract(Duration(days: lead));
-  }
-
-  DateTime? _parseRecurringTime(String? value) {
-    if (value == null || value.isEmpty || !value.contains(':')) return null;
-    final parts = value.split(':');
-    if (parts.length != 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null) return null;
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day, hour, minute);
-  }
-
-  DateTime? _nextRecurringOccurrence(
-    RecurringTransactionEntity recurring,
-    DateTime now,
-  ) {
-    final parsedTime = _parseRecurringTime(recurring.scheduledTime);
-    final hour = parsedTime?.hour ?? now.hour;
-    final minute = parsedTime?.minute ?? now.minute;
-
-    DateTime atDate(DateTime day) =>
-        DateTime(day.year, day.month, day.day, hour, minute);
-
-    if (recurring.recurrencePattern == 'daily') {
-      final today = atDate(now);
-      return today.isAfter(now) ? today : today.add(const Duration(days: 1));
-    }
-
-    if (recurring.weekdays.isNotEmpty) {
-      for (var offset = 0; offset <= 21; offset++) {
-        final day = now.add(Duration(days: offset));
-        if (recurring.weekdays.contains(day.weekday)) {
-          final candidate = atDate(day);
-          if (candidate.isAfter(now)) return candidate;
-        }
-      }
-    }
-
-    final candidate = DateTime(
-      now.year,
-      now.month,
-      recurring.dayOfMonth.clamp(1, 28),
-      hour,
-      minute,
-    );
-    if (candidate.isAfter(now)) return candidate;
-    return DateTime(
-      now.year,
-      now.month + 1,
-      recurring.dayOfMonth.clamp(1, 28),
-      hour,
-      minute,
-    );
   }
 
   Future<void> _recordIncome(
@@ -567,11 +526,155 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime occurrence,
   ) async {
     final now = DateTime.now();
-    final delayed = now.add(const Duration(hours: 1));
-    final nextSnooze = delayed.isAfter(occurrence) ? occurrence : delayed;
+    final nextSnooze = now.add(const Duration(hours: 1));
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(snoozedUntil: nextSnooze.toIso8601String()),
     );
+  }
+
+  Future<void> _skipRecurringExpenseOccurrence(
+    RecurringTransactionEntity recurring,
+    DateTime occurrence,
+  ) async {
+    await widget.cubit.updateRecurringTransaction(
+      recurring.copyWith(
+        lastHandledOccurrenceAt: occurrence.toIso8601String(),
+        snoozedUntil: '',
+      ),
+    );
+  }
+
+  _RecurringDecisionCandidate? _nextRecurringDecision(AppStateEntity state) {
+    final now = DateTime.now();
+    final cycleStart = state.budgetSetup.cycleStartFor(now);
+    final cycleEnd = state.budgetSetup.cycleEndFor(now);
+    final cycleTransactions = state.transactions.where((transaction) {
+      return !transaction.createdAt.isBefore(cycleStart) &&
+          !transaction.createdAt.isAfter(cycleEnd);
+    }).toList();
+
+    for (final debt in state.budgetSetup.debts) {
+      final recurring = _linkedRecurringDebt(state, debt);
+      if (recurring == null) continue;
+      final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
+      if (prompt == null ||
+          prompt.state == RecurringExpensePromptState.upcoming) {
+        continue;
+      }
+      final paidAmount = cycleTransactions
+          .where(
+              (transaction) => transaction.notes?.contains(debt.name) == true)
+          .fold<double>(0, (sum, transaction) => sum + transaction.amount);
+      final remaining = BudgetRecurringPlanService.pendingDecisionAmount(
+        debt: debt,
+        recurring: recurring,
+        cyclePaid: paidAmount,
+      );
+      if (remaining <= 0) continue;
+      return _RecurringDecisionCandidate(
+        debt: debt,
+        recurring: recurring,
+        prompt: prompt,
+        remaining: remaining,
+      );
+    }
+    return null;
+  }
+
+  String _promptKey(
+    RecurringTransactionEntity recurring,
+    DateTime occurrence,
+  ) {
+    return '${recurring.id}-${occurrence.toIso8601String()}';
+  }
+
+  Future<_RecurringDecisionAction?> _showRecurringDecisionDialog(
+    _RecurringDecisionCandidate candidate,
+  ) {
+    final dueLabel = DateFormat('d/M/yyyy - HH:mm', 'ar')
+        .format(candidate.prompt.occurrence);
+    final title = candidate.prompt.catchUpFromAuto
+        ? 'معاملة فائتة تحتاج قرارًا'
+        : 'معاملة متكررة مستحقة';
+    final body = candidate.prompt.catchUpFromAuto
+        ? 'هذه الدورة فات موعدها ولم يتم تنفيذها تلقائيًا. يمكنك تنفيذها الآن، أو تأجيلها قليلًا، أو تخطي هذه الدورة والانتقال للي بعدها.'
+        : 'المعاملة ${candidate.debt.name} مستحقة الآن. يمكنك تنفيذها الآن، أو تأجيلها قليلًا، أو تخطي الدورة الحالية.';
+
+    return showDialog<_RecurringDecisionAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              candidate.debt.name,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(body),
+            const SizedBox(height: 12),
+            Text('المبلغ: ${candidate.remaining.toStringAsFixed(2)}'),
+            const SizedBox(height: 4),
+            Text('موعد الاستحقاق: $dueLabel'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(_RecurringDecisionAction.skip);
+            },
+            child: const Text('تخطي هذه المرة'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(context).pop(_RecurringDecisionAction.snooze);
+            },
+            child: const Text('تأجيل ساعة'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop(_RecurringDecisionAction.executeNow);
+            },
+            child: const Text('تنفيذ الآن'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleRecurringDecisionAction(
+    _RecurringDecisionAction action,
+    _RecurringDecisionCandidate candidate,
+  ) async {
+    final key = _promptKey(candidate.recurring, candidate.prompt.occurrence);
+    switch (action) {
+      case _RecurringDecisionAction.executeNow:
+        _dismissedRecurringPromptKeys.remove(key);
+        await _recordDebt(
+          candidate.debt,
+          candidate.recurring,
+          candidate.prompt.occurrence,
+        );
+        break;
+      case _RecurringDecisionAction.snooze:
+        _dismissedRecurringPromptKeys.remove(key);
+        await _snoozeRecurringExpense(
+          candidate.recurring,
+          candidate.prompt.occurrence,
+        );
+        break;
+      case _RecurringDecisionAction.skip:
+        _dismissedRecurringPromptKeys.remove(key);
+        await _skipRecurringExpenseOccurrence(
+          candidate.recurring,
+          candidate.prompt.occurrence,
+        );
+        break;
+    }
   }
 
   String _walletName(String walletId) {
@@ -664,4 +767,24 @@ class _ExpensePendingMeta {
   final bool pending;
   final String status;
   final DateTime occurrence;
+}
+
+enum _RecurringDecisionAction {
+  executeNow,
+  snooze,
+  skip,
+}
+
+class _RecurringDecisionCandidate {
+  const _RecurringDecisionCandidate({
+    required this.debt,
+    required this.recurring,
+    required this.prompt,
+    required this.remaining,
+  });
+
+  final DebtEntity debt;
+  final RecurringTransactionEntity recurring;
+  final RecurringExpensePrompt prompt;
+  final double remaining;
 }

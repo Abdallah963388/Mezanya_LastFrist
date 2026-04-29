@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../budget/domain/services/budget_recurring_plan_service.dart';
 import '../../../budget/presentation/screens/budget_tracking_screen.dart';
 import '../../../home/presentation/screens/money_dashboard_screen.dart';
 import '../../../notifications/presentation/screens/notifications_center_screen.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/add_transaction_screen.dart';
 import '../../../wallets/presentation/screens/wallets_screen.dart';
 import '../widgets/main_shell_app_bar.dart';
@@ -155,9 +157,16 @@ class _MainShellScreenState extends State<MainShellScreen> {
   int _pendingNotificationCount(AppStateEntity state) {
     final month = DateTime(DateTime.now().year, DateTime.now().month, 1);
     final budget = state.budgetSetup;
+    final now = DateTime.now();
+    final cycleStart = budget.cycleStartFor(now);
+    final cycleEnd = budget.cycleEndFor(now);
     final monthTransactions = state.transactions.where((transaction) {
       return transaction.createdAt.year == month.year &&
           transaction.createdAt.month == month.month;
+    }).toList();
+    final cycleTransactions = state.transactions.where((transaction) {
+      return !transaction.createdAt.isBefore(cycleStart) &&
+          !transaction.createdAt.isAfter(cycleEnd);
     }).toList();
     final incomeTransactions = monthTransactions
         .where((transaction) => transaction.type == 'income')
@@ -184,7 +193,6 @@ class _MainShellScreenState extends State<MainShellScreen> {
       final dueDate =
           DateTime(month.year, month.month, income.date.clamp(1, 28));
       final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
-      final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final reminderDate =
           dueDate.subtract(Duration(days: reminderLeadDays));
@@ -199,25 +207,24 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
 
     for (final debt in budget.debts) {
-      final recurringTransactions = state.recurringTransactions.where(
-        (item) =>
-            item.type == 'expense' &&
-            item.budgetScope == 'within-budget' &&
-            item.isDebtOrSubscription &&
-            (((debt.recurringTransactionId ?? '').isNotEmpty &&
-                    item.id == debt.recurringTransactionId) ||
-                (item.name == debt.name && item.isDebtOrSubscription)),
+      final recurring = BudgetRecurringPlanService.linkedRecurring(
+        state.recurringTransactions,
+        debt,
       );
-      if (recurringTransactions.isEmpty ||
-          recurringTransactions.first.executionType != 'confirm') {
+      if (recurring == null || recurring.executionType != 'confirm') {
         continue;
       }
-
-      final paidAmount = monthTransactions
+      final paidAmount = cycleTransactions
           .where((transaction) => transaction.notes?.contains(debt.name) == true)
           .fold<double>(0, (sum, transaction) => sum + transaction.amount);
+      final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
+      final remaining = BudgetRecurringPlanService.pendingDecisionAmount(
+        debt: debt,
+        recurring: recurring,
+        cyclePaid: paidAmount,
+      );
 
-      if ((debt.amount - paidAmount) > 0) {
+      if (remaining > 0 && prompt != null) {
         count++;
       }
     }

@@ -205,6 +205,10 @@ class SharedPrefsAppRepository implements AppRepository {
         );
       }
 
+      // Recurring debts and subscriptions are handled by the recurring engine,
+      // so income deposit should not trigger any debt deduction here.
+      remaining = 0;
+
       // Then planned debt deductions execute from the same deposited amount.
       for (final debt in current.budgetSetup.debts.where((d) => d.fundingSource == sourceId)) {
         if (remaining <= 0) {

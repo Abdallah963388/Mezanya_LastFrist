@@ -5,6 +5,7 @@ import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
+import '../../domain/services/recurring_schedule_engine.dart';
 
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
@@ -1186,7 +1187,7 @@ class _RecurringTransactionComposerScreenState
         ? principalRaw
         : null;
 
-    final recurring = RecurringTransactionEntity(
+    final recurringDraft = RecurringTransactionEntity(
       id: widget.initialRecurring?.id ?? '',
       name: _nameController.text.trim(),
       type: _type,
@@ -1205,6 +1206,7 @@ class _RecurringTransactionComposerScreenState
       weekday: _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
       weekdays: _selectedWeekdays.toList()..sort(),
       monthOfYear: _recurrencePattern == 'yearly' ? _yearlyMonth : null,
+      anchorDate: widget.initialRecurring?.anchorDate,
       scheduledTime: _showRecurrenceDetails ? _formatTime(_selectedTime) : null,
       reminderLeadDays:
           effectiveExecutionType == 'confirm' ? _reminderLeadDays : null,
@@ -1228,6 +1230,11 @@ class _RecurringTransactionComposerScreenState
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
+    );
+    final recurring = recurringDraft.copyWith(
+      anchorDate: recurringDraft.anchorDate ??
+          RecurringScheduleEngine.defaultAnchorDate(recurringDraft)
+              .toIso8601String(),
     );
 
     if (widget.returnOnSave) {
@@ -1253,6 +1260,7 @@ class _RecurringTransactionComposerScreenState
         weekday: recurring.weekday,
         weekdays: recurring.weekdays,
         monthOfYear: recurring.monthOfYear,
+        anchorDate: recurring.anchorDate,
         scheduledTime: recurring.scheduledTime,
         reminderLeadDays: recurring.reminderLeadDays,
         allocationId: recurring.allocationId,
@@ -1281,6 +1289,7 @@ class _RecurringTransactionComposerScreenState
           weekday: recurring.weekday,
           weekdays: recurring.weekdays,
           monthOfYear: recurring.monthOfYear,
+          anchorDate: recurring.anchorDate,
           scheduledTime: recurring.scheduledTime,
           reminderLeadDays: recurring.reminderLeadDays,
           allocationId: recurring.allocationId,

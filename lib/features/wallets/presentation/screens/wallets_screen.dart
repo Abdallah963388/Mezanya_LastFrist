@@ -1863,58 +1863,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  Widget _metricChip({
-    required String label,
-    required String value,
-    bool emphasize = false,
-    Color? valueColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F3E7),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF7D7461)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: emphasize ? 20 : 18,
-              fontWeight: FontWeight.w900,
-              color: valueColor ?? const Color(0xFF241F17),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _pillLabel(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3EEDF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFF73695A),
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
 
   MapEntry<String, String> _heroMetric(String label, String value) {
     return MapEntry(label, value);
@@ -2047,90 +1996,90 @@ enum _JarAdjustmentMode { allocate, cancel }
 
 enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar }
 
-class _SectionShell extends StatelessWidget {
-  const _SectionShell({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-    required this.actionLabel,
-    required this.onAction,
-    this.trailing,
-  });
+// class _SectionShell extends StatelessWidget {
+//   const _SectionShell({
+//     required this.title,
+//     required this.subtitle,
+//     required this.child,
+//     required this.actionLabel,
+//     required this.onAction,
+//     this.trailing,
+//   });
 
-  final String title;
-  final String subtitle;
-  final Widget child;
-  final String actionLabel;
-  final VoidCallback onAction;
-  final Widget? trailing;
+//   final String title;
+//   final String subtitle;
+//   final Widget child;
+//   final String actionLabel;
+//   final VoidCallback onAction;
+//   final Widget? trailing;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBF1),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: const Color(0xFFE0D7C8)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF165B47).withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (trailing != null) trailing!,
-              const Spacer(),
-              Expanded(
-                flex: 6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      title,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Color(0xFF6E6558),
-                        height: 1.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.add_rounded),
-              label: Text(actionLabel),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+//       decoration: BoxDecoration(
+//         color: const Color(0xFFFFFBF1),
+//         borderRadius: BorderRadius.circular(30),
+//         border: Border.all(color: const Color(0xFFE0D7C8)),
+//         boxShadow: [
+//           BoxShadow(
+//             color: const Color(0xFF165B47).withValues(alpha: 0.05),
+//             blurRadius: 20,
+//             offset: const Offset(0, 12),
+//           ),
+//         ],
+//       ),
+//       child: Column(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           Row(
+//             children: [
+//               if (trailing != null) trailing!,
+//               const Spacer(),
+//               Expanded(
+//                 flex: 6,
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.end,
+//                   children: [
+//                     Text(
+//                       title,
+//                       textAlign: TextAlign.right,
+//                       style: const TextStyle(
+//                         fontSize: 28,
+//                         fontWeight: FontWeight.w900,
+//                       ),
+//                     ),
+//                     const SizedBox(height: 6),
+//                     Text(
+//                       subtitle,
+//                       textAlign: TextAlign.right,
+//                       style: const TextStyle(
+//                         color: Color(0xFF6E6558),
+//                         height: 1.5,
+//                         fontWeight: FontWeight.w600,
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//             ],
+//           ),
+//           const SizedBox(height: 14),
+//           child,
+//           const SizedBox(height: 10),
+//           SizedBox(
+//             width: double.infinity,
+//             child: OutlinedButton.icon(
+//               onPressed: onAction,
+//               icon: const Icon(Icons.add_rounded),
+//               label: Text(actionLabel),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 // class _DetailsSheetShell extends StatelessWidget {
 //   const _DetailsSheetShell({required this.child});

@@ -10,9 +10,11 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/services/budget_recurring_plan_service.dart';
 import 'budget_setup_screen.dart';
 
 class BudgetTrackingScreen extends StatefulWidget {
@@ -302,7 +304,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
 
     // fallback: مفتاح الشهر القديم للتوافق مع البيانات السابقة
-    final oldKey = '${_cycleStart.year}-${_cycleStart.month.toString().padLeft(2, '0')}';
+    final oldKey =
+        '${_cycleStart.year}-${_cycleStart.month.toString().padLeft(2, '0')}';
     final oldSnapshot = state.monthlyBudgetSnapshots[oldKey];
     if (oldSnapshot != null && oldSnapshot.isNotEmpty) {
       return BudgetSetupEntity.fromMap(oldSnapshot);
@@ -1289,8 +1292,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   //   return false;
   // }
 
-  bool _isCurrentMonthView() =>
-      _isCurrentCycle(widget.cubit.state.budgetSetup);
+  bool _isCurrentMonthView() => _isCurrentCycle(widget.cubit.state.budgetSetup);
 
   RecurringTransactionEntity? _linkedRecurringIncome(
     AppStateEntity state,
@@ -1687,9 +1689,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       final pendingMeta = _expensePendingMeta(recurring);
       final isPending =
           pendingMeta?['pending'] == true && monthPaid < debt.amount;
-      final remainingInstallments = debt.amount > 0
-          ? ((remaining - monthPaid) / debt.amount).ceil()
-          : 0;
+      final remainingInstallments =
+          debt.amount > 0 ? ((remaining - monthPaid) / debt.amount).ceil() : 0;
 
       widgets.add(_entityTile(
         title: debt.name,
@@ -1722,23 +1723,31 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     // ── الاشتراكات ──────────────────────────────────────────────────────────
     for (final debt in subscriptions) {
       final recurring = _linkedRecurringDebt(state, debt);
-      final isDueThisCycle =
-          debt.isDueInCycle(_cycleStart, _cycleEnd);
+      final occurrencesInCycle = BudgetRecurringPlanService.occurrencesInCycle(
+        debt: debt,
+        recurring: recurring,
+        cycleStart: _cycleStart,
+        cycleEnd: _cycleEnd,
+      );
+      final isDueThisCycle = occurrencesInCycle > 0;
+      if (!isDueThisCycle) {
+        continue;
+      }
       final cyclePaid = monthTx
           .where((t) => _transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
-      final cycleDue = debt.amountDueInCycle(_cycleStart, _cycleEnd);
-      final pendingMeta = isDueThisCycle ? _expensePendingMeta(recurring) : null;
+      final cycleDue = BudgetRecurringPlanService.amountDueInCycle(
+        debt: debt,
+        recurring: recurring,
+        cycleStart: _cycleStart,
+        cycleEnd: _cycleEnd,
+      );
+      final amountPerOccurrence = BudgetRecurringPlanService.amountPerOccurrence(
+        debt: debt,
+        recurring: recurring,
+      );
+      final pendingMeta = _expensePendingMeta(recurring);
       final isPending = pendingMeta?['pending'] == true && cyclePaid < cycleDue;
-
-      // الاشتراكات السنوية غير المستحقة في الدورة الحالية تظهر بشكل مختلف
-      final isNotDueYet = !isDueThisCycle;
-      final nextDue = recurring != null
-          ? _nextRecurringOccurrence(recurring, DateTime.now())
-          : null;
-      final nextDueLabel = nextDue != null
-          ? 'الاستحقاق القادم: ${_monthWordLabel(nextDue)}'
-          : _recurrenceLabel(debt.recurrencePattern);
 
       widgets.add(_entityTile(
         title: debt.name,
@@ -1747,18 +1756,17 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           recurring?.iconColor ?? '#4a7c59',
           size: 54,
         ),
-        amountText: debt.amount.toStringAsFixed(2),
-        metaText: isNotDueYet
-            ? nextDueLabel
-            : (cyclePaid >= cycleDue
-                ? 'تم الدفع ✓'
-                : 'مستحق · ${debt.amount.toStringAsFixed(2)}'),
-        supportingText: _recurrenceLabel(debt.recurrencePattern),
-        progress: isNotDueYet
+        amountText: cycleDue.toStringAsFixed(2),
+        metaText: cyclePaid >= cycleDue
+            ? 'تم الدفع ✓'
+            : occurrencesInCycle > 1
+                ? 'مستحق $occurrencesInCycle مرات · ${amountPerOccurrence.toStringAsFixed(2)} لكل مرة'
+                : 'مستحق · ${amountPerOccurrence.toStringAsFixed(2)}',
+        supportingText:
+            _recurrenceLabel(recurring?.recurrencePattern ?? debt.recurrencePattern),
+        progress: cycleDue <= 0
             ? null
-            : (cycleDue <= 0
-                ? null
-                : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble()),
+            : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
         progressColor: Colors.teal,
         tint: isPending ? const Color(0xFFC65D2E) : null,
         onTap: () => _openDebtDetailsSheet(debt, monthTx, cycleDue - cyclePaid),
@@ -2249,18 +2257,41 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final theme = Theme.of(context);
     const accent = Color(0xFFC65D2E);
     final recurring = _linkedRecurringDebt(widget.cubit.state, debt);
-    final dueDate = DateTime(
-      _month.year,
-      _month.month,
-      debt.executionDay.clamp(1, 28),
-    );
+    final now = DateTime.now();
+    final dueDate = debt.isSubscription && recurring != null
+        ? (RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
+            RecurringScheduleEngine.nextOccurrence(recurring, now) ??
+            DateTime(
+              _month.year,
+              _month.month,
+              debt.executionDay.clamp(1, 28),
+            ))
+        : DateTime(
+            _month.year,
+            _month.month,
+            debt.executionDay.clamp(1, 28),
+          );
     final paid = tx.fold<double>(0, (s, t) => s + t.amount);
-    final paidRatio =
-        debt.amount <= 0 ? null : (paid / debt.amount).clamp(0.0, 1.0);
+    final principal = debt.principalTotal ?? debt.amount;
+    final dueThisCycle = BudgetRecurringPlanService.amountDueInCycle(
+      debt: debt,
+      recurring: recurring,
+      cycleStart: _cycleStart,
+      cycleEnd: _cycleEnd,
+    );
+    final paidRatio = debt.isSubscription
+        ? (dueThisCycle <= 0 ? null : (paid / dueThisCycle).clamp(0.0, 1.0))
+        : (principal <= 0 ? null : (paid / principal).clamp(0.0, 1.0));
     final sortedTx = [...tx]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final pctLabel =
         paidRatio == null ? '0' : (paidRatio * 100).round().toString();
+    final headerLabel = debt.isSubscription
+        ? 'استحقاق ${_monthWordLabel(dueDate)} · ${_recurrenceLabel(recurring?.recurrencePattern ?? debt.recurrencePattern)}'
+        : 'استحقاق ${_monthWordLabel(dueDate)} · الأصل ${principal.toStringAsFixed(2)}';
+    final progressLabel = debt.isSubscription
+        ? 'تم سداد $pctLabel٪ · المدفوع ${paid.toStringAsFixed(2)} من قيمة الدورة ${dueThisCycle.toStringAsFixed(2)}'
+        : 'تم سداد $pctLabel٪ · المتبقي ${remaining.toStringAsFixed(2)} من أصل ${principal.toStringAsFixed(2)}';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -2307,7 +2338,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'استحقاق ${_monthWordLabel(dueDate)} · الأصل ${debt.amount.toStringAsFixed(2)}',
+                          headerLabel,
                           style: TextStyle(
                             fontSize: 13,
                             color: theme.colorScheme.onSurfaceVariant,
@@ -2329,7 +2360,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                'تم سداد $pctLabel٪ · المتبقي ${remaining.toStringAsFixed(2)} من أصل ${debt.amount.toStringAsFixed(2)}',
+                progressLabel,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -2496,22 +2527,39 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final fallbackWalletId = state.wallets.isNotEmpty
         ? state.wallets.first.id
         : 'wallet-cash-default';
-    final draftRecurring = linkedRecurring ??
-        RecurringTransactionEntity(
-          id: current.recurringTransactionId ?? '',
-          name: current.name,
-          type: 'expense',
-          amount: 0,
-          dayOfMonth: current.executionDay.clamp(1, 28),
-          executionType: current.type,
-          walletId: fallbackWalletId,
-          budgetScope: 'within-budget',
-          recurrencePattern: 'monthly',
-          icon: 'receipt',
-          iconColor: '#c65d2e',
-          isDebtOrSubscription: true,
-          debtPrincipalTotal: current.amount > 0 ? current.amount : null,
-        );
+    final draftRecurring = (linkedRecurring ??
+            RecurringTransactionEntity(
+              id: current.recurringTransactionId ?? '',
+              name: current.name,
+              type: 'expense',
+              amount: current.amount,
+              dayOfMonth: current.executionDay.clamp(1, 28),
+              executionType: current.type,
+              walletId: fallbackWalletId,
+              budgetScope: 'within-budget',
+              recurrencePattern: current.recurrencePattern,
+              icon: 'receipt',
+              iconColor: '#c65d2e',
+              monthOfYear: current.monthOfYear,
+              isDebtOrSubscription: true,
+              expensePlanKind:
+                  current.isSubscription ? 'subscription' : 'installment',
+              debtPrincipalTotal: current.principalTotal ??
+                  (current.isInstallment && current.amount > 0
+                      ? current.amount
+                      : null),
+            ))
+        .copyWith(
+      recurrencePattern: current.recurrencePattern != 'monthly'
+          ? current.recurrencePattern
+          : (linkedRecurring?.recurrencePattern ?? current.recurrencePattern),
+      monthOfYear: current.monthOfYear ?? linkedRecurring?.monthOfYear,
+      expensePlanKind: linkedRecurring?.expensePlanKind ??
+          (current.isSubscription ? 'subscription' : 'installment'),
+      debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
+          current.principalTotal ??
+          (current.isInstallment && current.amount > 0 ? current.amount : null),
+    );
     final result =
         await Navigator.of(context).push<RecurringTransactionComposerResult>(
       MaterialPageRoute(
@@ -2551,17 +2599,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     final recurringId =
         linkedRecurring?.id ?? current.recurringTransactionId ?? _id('rec');
+    final isSubscription = recurring.expensePlanKind == 'subscription';
     final principal = recurring.debtPrincipalTotal;
-    final debtAmount =
-        principal != null && principal > 0 ? principal : recurring.amount;
     final updated = DebtEntity(
       id: current.id,
       name: recurring.name,
-      amount: debtAmount,
+      amount: recurring.amount,
       executionDay: recurring.dayOfMonth.clamp(1, 31),
       type: recurring.executionType,
       fundingSource: current.fundingSource,
       recurringTransactionId: recurringId,
+      kind: isSubscription ? 'subscription' : 'installment',
+      principalTotal: isSubscription
+          ? null
+          : (principal != null && principal > 0 ? principal : null),
+      recurrencePattern: recurring.recurrencePattern,
+      monthOfYear: recurring.monthOfYear,
     );
     final next =
         setup.debts.map((d) => d.id == current.id ? updated : d).toList();
@@ -2591,9 +2644,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         weekday: recurringToSave.weekday,
         weekdays: recurringToSave.weekdays,
         monthOfYear: recurringToSave.monthOfYear,
+        anchorDate: recurringToSave.anchorDate,
         scheduledTime: recurringToSave.scheduledTime,
         reminderLeadDays: recurringToSave.reminderLeadDays,
         isDebtOrSubscription: true,
+        expensePlanKind: recurringToSave.expensePlanKind,
         debtPrincipalTotal: recurringToSave.debtPrincipalTotal,
         notes: recurringToSave.notes,
       );
@@ -2602,101 +2657,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
   }
 
-  Future<void> _addDebtDirect() async {
-    final setup = widget.cubit.state.budgetSetup;
-    if (setup.incomeSources.isEmpty) {
-      return;
-    }
-    final fallbackWalletId = widget.cubit.state.wallets.isNotEmpty
-        ? widget.cubit.state.wallets.first.id
-        : 'wallet-cash-default';
-    final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
-      MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
-          initialType: 'expense',
-          initialWithinBudget: true,
-          initialRecurring: RecurringTransactionEntity(
-            id: '',
-            name: '',
-            type: 'expense',
-            amount: 0,
-            dayOfMonth: 1,
-            executionType: 'confirm',
-            walletId: fallbackWalletId,
-            budgetScope: 'within-budget',
-            recurrencePattern: 'monthly',
-            icon: 'receipt',
-            iconColor: '#c65d2e',
-            isDebtOrSubscription: true,
-          ),
-          returnOnSave: true,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
-    final recurring = result?.recurring;
-    if (recurring == null) {
-      return;
-    }
-
-    final recurringId = _id('rec');
-    final principal = recurring.debtPrincipalTotal;
-    final debtAmount =
-        principal != null && principal > 0 ? principal : recurring.amount;
-    final debt = DebtEntity(
-      id: _id('debt'),
-      name: recurring.name,
-      amount: debtAmount,
-      executionDay: recurring.dayOfMonth.clamp(1, 31),
-      type: recurring.executionType,
-      fundingSource: setup.incomeSources.first.id,
-      recurringTransactionId: recurringId,
-    );
-    await widget.cubit
-        .updateBudgetSetup(setup.copyWith(debts: [...setup.debts, debt]));
-    await widget.cubit.addRecurringTransaction(
-      id: recurringId,
-      name: recurring.name,
-      type: 'expense',
-      amount: recurring.amount,
-      dayOfMonth: recurring.dayOfMonth,
-      executionType: recurring.executionType,
-      walletId: recurring.walletId,
-      budgetScope: 'within-budget',
-      recurrencePattern: recurring.recurrencePattern,
-      icon: recurring.icon,
-      iconColor: recurring.iconColor,
-      weekday: recurring.weekday,
-      weekdays: recurring.weekdays,
-      monthOfYear: recurring.monthOfYear,
-      scheduledTime: recurring.scheduledTime,
-      reminderLeadDays: recurring.reminderLeadDays,
-      isDebtOrSubscription: true,
-      debtPrincipalTotal: recurring.debtPrincipalTotal,
-      notes: recurring.notes,
-    );
-  }
-
   RecurringTransactionEntity? _linkedRecurringDebt(
     AppStateEntity state,
     DebtEntity debt,
-  ) {
-    final recurring = state.recurringTransactions.where(
-      (item) =>
-          item.type == 'expense' &&
-          item.budgetScope == 'within-budget' &&
-          item.isDebtOrSubscription &&
-          (((debt.recurringTransactionId ?? '').isNotEmpty &&
-                  item.id == debt.recurringTransactionId) ||
-              (item.name == debt.name)),
-    );
-    if (recurring.isEmpty) {
-      return null;
-    }
-    return recurring.first;
-  }
+  ) => BudgetRecurringPlanService.linkedRecurring(
+        state.recurringTransactions,
+        debt,
+      );
 
   bool _transactionCountsTowardDebt(
     TransactionEntity t,
@@ -2718,122 +2685,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return list;
   }
 
-  DateTime? _parseRecurringTime(String? value) {
-    if (value == null || value.isEmpty || !value.contains(':')) {
-      return null;
-    }
-    final parts = value.split(':');
-    if (parts.length != 2) {
-      return null;
-    }
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null) {
-      return null;
-    }
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day, hour, minute);
-  }
-
   DateTime? _nextRecurringOccurrence(
     RecurringTransactionEntity recurring,
     DateTime now,
-  ) {
-    final time = _parseRecurringTime(recurring.scheduledTime) ?? now;
-    DateTime atDate(DateTime day) =>
-        DateTime(day.year, day.month, day.day, time.hour, time.minute);
-
-    if (recurring.recurrencePattern == 'daily') {
-      final today = atDate(now);
-      return today.isAfter(now) ? today : today.add(const Duration(days: 1));
-    }
-    if (recurring.weekdays.isNotEmpty) {
-      for (var offset = 0; offset <= 21; offset++) {
-        final day = now.add(Duration(days: offset));
-        if (recurring.weekdays.contains(day.weekday)) {
-          final candidate = atDate(day);
-          if (candidate.isAfter(now)) {
-            return candidate;
-          }
-        }
-      }
-    }
-    if (recurring.recurrencePattern == 'monthly' ||
-        recurring.recurrencePattern == 'every_2_months' ||
-        recurring.recurrencePattern == 'every_3_months' ||
-        recurring.recurrencePattern == 'every_6_months') {
-      final interval = switch (recurring.recurrencePattern) {
-        'every_2_months' => 2,
-        'every_3_months' => 3,
-        'every_6_months' => 6,
-        _ => 1,
-      };
-      for (var step = 0; step < 12; step++) {
-        final monthDate = DateTime(now.year, now.month + (step * interval));
-        final candidate = DateTime(
-          monthDate.year,
-          monthDate.month,
-          recurring.dayOfMonth.clamp(1, 28),
-          time.hour,
-          time.minute,
-        );
-        if (candidate.isAfter(now)) {
-          return candidate;
-        }
-      }
-    }
-    if (recurring.recurrencePattern == 'yearly') {
-      final month = recurring.monthOfYear ?? now.month;
-      final thisYear = DateTime(
-        now.year,
-        month,
-        recurring.dayOfMonth.clamp(1, 28),
-        time.hour,
-        time.minute,
-      );
-      if (thisYear.isAfter(now)) {
-        return thisYear;
-      }
-      return DateTime(
-        now.year + 1,
-        month,
-        recurring.dayOfMonth.clamp(1, 28),
-        time.hour,
-        time.minute,
-      );
-    }
-    return null;
-  }
-
-  Duration _reminderDuration(RecurringTransactionEntity recurring) {
-    final value = recurring.reminderLeadDays ?? 0;
-    if (recurring.recurrencePattern == 'daily' ||
-        recurring.recurrencePattern == 'weekly' ||
-        recurring.recurrencePattern == 'biweekly' ||
-        recurring.recurrencePattern == 'every_3_weeks') {
-      return Duration(hours: value.clamp(0, 3));
-    }
-    return Duration(days: value.clamp(0, 3));
-  }
+  ) =>
+      RecurringScheduleEngine.nextOccurrence(recurring, now);
 
   Map<String, dynamic>? _expensePendingMeta(
       RecurringTransactionEntity? recurring) {
-    if (recurring == null || recurring.executionType != 'confirm') {
+    if (recurring == null) {
       return null;
     }
     final now = DateTime.now();
-    final dueNow = _dueOccurrenceNow(recurring, now);
-    final occurrence = dueNow ?? _nextRecurringOccurrence(recurring, now);
-    if (occurrence == null) {
-      return null;
-    }
-    if (_occurrenceWasHandled(recurring, occurrence)) {
-      return <String, dynamic>{
-        'status': 'تم تنفيذ هذه الدورة',
-        'occurrence': occurrence,
-        'pending': false,
-      };
-    }
+    final fallbackOccurrence = _dueOccurrenceNow(recurring, now) ??
+        _nextRecurringOccurrence(recurring, now);
     final snoozedUntil = recurring.snoozedUntil == null
         ? null
         : DateTime.tryParse(recurring.snoozedUntil!);
@@ -2841,106 +2706,48 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       return <String, dynamic>{
         'status':
             'مؤجل حتى ${DateFormat('d/M - h:mm a', 'ar').format(snoozedUntil)}',
-        'occurrence': occurrence,
-        'pending': true,
-      };
-    }
-    final reminderAt = occurrence.subtract(_reminderDuration(recurring));
-    if (now.isBefore(reminderAt)) {
-      return <String, dynamic>{
-        'status':
-            'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
-        'occurrence': occurrence,
+        'occurrence': fallbackOccurrence,
         'pending': false,
       };
     }
+    final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
+    if (prompt != null) {
+      return <String, dynamic>{
+        'status': switch (prompt.state) {
+          RecurringExpensePromptState.upcoming =>
+            'مستحق قريبًا ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+          RecurringExpensePromptState.due =>
+            'مستحق الآن ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+          RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
+              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}'
+              : 'استحقاق متأخر ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+        },
+        'occurrence': prompt.occurrence,
+        'pending': true,
+      };
+    }
+
+    final occurrence = fallbackOccurrence;
+    if (occurrence == null) return null;
     return <String, dynamic>{
-      'status': dueNow == null
-          ? 'معلق حتى ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}'
-          : 'مستحق الآن ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
+      'status':
+          'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
       'occurrence': occurrence,
-      'pending': true,
+      'pending': false,
     };
   }
 
   bool _occurrenceWasHandled(
     RecurringTransactionEntity recurring,
     DateTime occurrence,
-  ) {
-    final handled = recurring.lastHandledOccurrenceAt == null
-        ? null
-        : DateTime.tryParse(recurring.lastHandledOccurrenceAt!);
-    if (handled == null) {
-      return false;
-    }
-    final normalized = DateTime(
-      occurrence.year,
-      occurrence.month,
-      occurrence.day,
-      occurrence.hour,
-      occurrence.minute,
-    );
-    return !handled.isBefore(normalized);
-  }
+  ) =>
+      RecurringScheduleEngine.wasOccurrenceHandled(recurring, occurrence);
 
   DateTime? _dueOccurrenceNow(
     RecurringTransactionEntity recurring,
     DateTime now,
-  ) {
-    final time = _parseRecurringTime(recurring.scheduledTime) ?? now;
-    DateTime atDate(DateTime day) =>
-        DateTime(day.year, day.month, day.day, time.hour, time.minute);
-
-    if (recurring.recurrencePattern == 'daily') {
-      final today = atDate(now);
-      return today.isAfter(now) ? null : today;
-    }
-
-    if (recurring.weekdays.isNotEmpty) {
-      for (var offset = 0; offset <= 21; offset++) {
-        final day = now.subtract(Duration(days: offset));
-        if (recurring.weekdays.contains(day.weekday)) {
-          final candidate = atDate(day);
-          if (!candidate.isAfter(now)) {
-            return candidate;
-          }
-        }
-      }
-      return null;
-    }
-
-    if (recurring.recurrencePattern == 'yearly') {
-      final month = recurring.monthOfYear ?? now.month;
-      final candidate = DateTime(
-        now.year,
-        month,
-        recurring.dayOfMonth.clamp(1, 28),
-        time.hour,
-        time.minute,
-      );
-      return candidate.isAfter(now) ? null : candidate;
-    }
-
-    final interval = switch (recurring.recurrencePattern) {
-      'every_2_months' => 2,
-      'every_3_months' => 3,
-      'every_6_months' => 6,
-      _ => 1,
-    };
-    final candidate = DateTime(
-      now.year,
-      now.month,
-      recurring.dayOfMonth.clamp(1, 28),
-      time.hour,
-      time.minute,
-    );
-    if (candidate.isAfter(now)) {
-      return null;
-    }
-    final monthDiff =
-        (candidate.year - now.year) * 12 + candidate.month - now.month;
-    return monthDiff % interval == 0 ? candidate : null;
-  }
+  ) =>
+      RecurringScheduleEngine.dueOccurrenceNow(recurring, now);
 
   Future<void> _processAutomaticDebts(
     AppStateEntity state,
@@ -2958,27 +2765,39 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         if (recurring == null || recurring.executionType != 'auto') {
           continue;
         }
+        final snoozedUntil =
+            recurring.snoozedUntil == null || recurring.snoozedUntil!.isEmpty
+                ? null
+                : DateTime.tryParse(recurring.snoozedUntil!);
+        if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
+          continue;
+        }
         final occurrence = _dueOccurrenceNow(recurring, now);
         if (occurrence == null ||
             _occurrenceWasHandled(recurring, occurrence)) {
           continue;
         }
-        final paid = monthTx
-            .where((t) => _transactionCountsTowardDebt(t, debt))
-            .fold<double>(0, (sum, t) => sum + t.amount);
-        final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
-        if (remaining <= 0) {
-          await widget.cubit.updateRecurringTransaction(
-            recurring.copyWith(
-              lastHandledOccurrenceAt: occurrence.toIso8601String(),
-              snoozedUntil: '',
-            ),
-          );
+        if (!RecurringScheduleEngine.isSameCalendarDay(occurrence, now)) {
           continue;
+        }
+        if (debt.isInstallment) {
+          final paid = monthTx
+              .where((t) => _transactionCountsTowardDebt(t, debt))
+              .fold<double>(0, (sum, t) => sum + t.amount);
+          final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
+          if (remaining <= 0) {
+            await widget.cubit.updateRecurringTransaction(
+              recurring.copyWith(
+                lastHandledOccurrenceAt: occurrence.toIso8601String(),
+                snoozedUntil: '',
+              ),
+            );
+            continue;
+          }
         }
         await widget.cubit.addTransaction(
           walletId: recurring.walletId,
-          amount: remaining,
+          amount: recurring.amount,
           type: 'expense',
           budgetScope: 'within-budget',
           createdAt: now,
@@ -3095,18 +2914,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  Future<void> _snoozeRecurringExpense(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) async {
-    final now = DateTime.now();
-    final delayed = now.add(const Duration(hours: 1));
-    final nextSnooze = delayed.isAfter(occurrence) ? occurrence : delayed;
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: nextSnooze.toIso8601String()),
-    );
-  }
-
   Future<void> _confirmDebtPayment(
     AppStateEntity state,
     BudgetSetupEntity budget,
@@ -3114,10 +2921,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     RecurringTransactionEntity recurring,
   ) async {
     final now = DateTime.now();
-    final occurrence = _dueOccurrenceNow(recurring, now) ?? 
+    final occurrence = _dueOccurrenceNow(recurring, now) ??
         _nextRecurringOccurrence(recurring, now);
     if (occurrence == null) return;
-    
+
     await _recordDebtFromTracking(debt, recurring, occurrence);
   }
 

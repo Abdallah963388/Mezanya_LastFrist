@@ -5,7 +5,6 @@ class AppTheme {
     const primary = Color(0xFF2F6F5E);
     const primaryDim = Color(0xFF1F4F43);
     const bgWarmPaper = Color(0xFFFAF4E8);
-    const surfaceCLow = Color(0xFFF4EAD9);
     const surfaceC = Color(0xFFE7D9C4);
     const surfaceCLowest = Color(0xFFFFFBF2);
     const textDark = Color(0xFF2D2A22);

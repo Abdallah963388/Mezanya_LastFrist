@@ -14,6 +14,7 @@ class RecurringTransactionEntity {
     this.weekday,
     this.weekdays = const [],
     this.monthOfYear,
+    this.anchorDate,
     this.scheduledTime,
     this.reminderLeadDays,
     this.allocationId,
@@ -45,6 +46,7 @@ class RecurringTransactionEntity {
   final int? weekday;
   final List<int> weekdays;
   final int? monthOfYear;
+  final String? anchorDate;
   final String? scheduledTime;
   final int? reminderLeadDays;
   final String? allocationId;
@@ -75,6 +77,7 @@ class RecurringTransactionEntity {
     int? weekday,
     List<int>? weekdays,
     int? monthOfYear,
+    String? anchorDate,
     String? scheduledTime,
     int? reminderLeadDays,
     String? allocationId,
@@ -105,6 +108,7 @@ class RecurringTransactionEntity {
       weekday: weekday ?? this.weekday,
       weekdays: weekdays ?? this.weekdays,
       monthOfYear: monthOfYear ?? this.monthOfYear,
+      anchorDate: anchorDate ?? this.anchorDate,
       scheduledTime: scheduledTime ?? this.scheduledTime,
       reminderLeadDays: reminderLeadDays ?? this.reminderLeadDays,
       allocationId: allocationId ?? this.allocationId,
@@ -140,6 +144,7 @@ class RecurringTransactionEntity {
       'weekday': weekday,
       'weekdays': weekdays,
       'monthOfYear': monthOfYear,
+      'anchorDate': anchorDate,
       'scheduledTime': scheduledTime,
       'reminderLeadDays': reminderLeadDays,
       'allocationId': allocationId,
@@ -175,6 +180,7 @@ class RecurringTransactionEntity {
           .map((item) => item as int)
           .toList(),
       monthOfYear: map['monthOfYear'] as int?,
+      anchorDate: map['anchorDate'] as String?,
       scheduledTime: map['scheduledTime'] as String?,
       reminderLeadDays: map['reminderLeadDays'] as int?,
       allocationId: map['allocationId'] as String?,
