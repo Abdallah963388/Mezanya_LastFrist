@@ -10,6 +10,7 @@ class IncomeSourceEntity {
     required this.targetWalletId,
     this.isVariable = false,
     this.isDefault = false,
+    this.snoozedUntil,
   });
 
   final String id;
@@ -21,6 +22,43 @@ class IncomeSourceEntity {
   final bool isVariable;
   final bool isDefault;
 
+  /// تأجيل مؤقت — ISO string، فارغ = مش مأجل
+  final String? snoozedUntil;
+
+  bool get isSnoozed {
+    if (snoozedUntil == null || snoozedUntil!.isEmpty) return false;
+    final until = DateTime.tryParse(snoozedUntil!);
+    return until != null && DateTime.now().isBefore(until);
+  }
+
+  DateTime? get snoozedUntilDate {
+    if (snoozedUntil == null || snoozedUntil!.isEmpty) return null;
+    return DateTime.tryParse(snoozedUntil!);
+  }
+
+  IncomeSourceEntity copyWith({
+    String? id,
+    String? name,
+    double? amount,
+    int? date,
+    String? type,
+    String? targetWalletId,
+    bool? isVariable,
+    bool? isDefault,
+    String? snoozedUntil,
+  }) =>
+      IncomeSourceEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        amount: amount ?? this.amount,
+        date: date ?? this.date,
+        type: type ?? this.type,
+        targetWalletId: targetWalletId ?? this.targetWalletId,
+        isVariable: isVariable ?? this.isVariable,
+        isDefault: isDefault ?? this.isDefault,
+        snoozedUntil: snoozedUntil ?? this.snoozedUntil,
+      );
+
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
@@ -30,6 +68,7 @@ class IncomeSourceEntity {
         'targetWalletId': targetWalletId,
         'isVariable': isVariable,
         'isDefault': isDefault,
+        'snoozedUntil': snoozedUntil,
       };
 
   factory IncomeSourceEntity.fromMap(Map<String, dynamic> map) =>
@@ -42,6 +81,7 @@ class IncomeSourceEntity {
         targetWalletId: map['targetWalletId'] as String? ?? '',
         isVariable: map['isVariable'] as bool? ?? false,
         isDefault: map['isDefault'] as bool? ?? false,
+        snoozedUntil: map['snoozedUntil'] as String?,
       );
 }
 
@@ -205,6 +245,9 @@ class LinkedWalletEntity {
       );
 }
 
+/// kind values:
+///   'installment'  — دين/قسط: له أصل كلي [principalTotal] وقسط شهري ثابت [amount]
+///   'subscription' — اشتراك: لا أصل له، يتكرر حسب [recurrencePattern]
 class DebtEntity {
   const DebtEntity({
     required this.id,
@@ -214,15 +257,123 @@ class DebtEntity {
     required this.type,
     required this.fundingSource,
     this.recurringTransactionId,
+    this.kind = 'installment',
+    this.principalTotal,
+    this.recurrencePattern = 'monthly',
+    this.monthOfYear,
   });
 
   final String id;
   final String name;
+
+  /// للأقساط: قيمة القسط الشهري.
+  /// للاشتراكات: قيمة الدفعة الواحدة حسب [recurrencePattern].
   final double amount;
+
   final int executionDay;
   final String type;
   final String fundingSource;
   final String? recurringTransactionId;
+
+  /// 'installment' | 'subscription'
+  final String kind;
+
+  /// أصل الدين الكلي — يُستخدم فقط لو [kind] == 'installment'
+  final double? principalTotal;
+
+  /// تكرار الاشتراك — يُستخدم فقط لو [kind] == 'subscription'
+  /// قيم: 'weekly' | 'biweekly' | 'every_3_weeks' | 'monthly' |
+  ///       'every_2_months' | 'every_3_months' | 'every_6_months' | 'yearly'
+  final String recurrencePattern;
+
+  /// شهر الاستحقاق السنوي (1–12) — يُستخدم فقط لو recurrencePattern == 'yearly'
+  final int? monthOfYear;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  bool get isInstallment => kind == 'installment';
+  bool get isSubscription => kind == 'subscription';
+
+  /// هل الاشتراك ده هيُستحق في الدورة الحالية؟
+  /// [cycleStart] = أول يوم في الدورة الحالية
+  /// [cycleEnd]   = آخر يوم في الدورة الحالية
+  bool isDueInCycle(DateTime cycleStart, DateTime cycleEnd) {
+    if (isInstallment) return true; // الأقساط دايمًا شهرية
+    return _hasDueDateInRange(cycleStart, cycleEnd);
+  }
+
+  /// عدد المرات اللي الاشتراك بيتكرر فيها في نطاق الدورة
+  int occurrencesInCycle(DateTime cycleStart, DateTime cycleEnd) {
+    if (isInstallment) return 1;
+    var count = 0;
+    var cursor = cycleStart;
+    while (!cursor.isAfter(cycleEnd)) {
+      if (_matchesDay(cursor)) count++;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return count;
+  }
+
+  /// إجمالي المبلغ المستحق في الدورة
+  double amountDueInCycle(DateTime cycleStart, DateTime cycleEnd) {
+    if (isInstallment) return amount;
+    return amount * occurrencesInCycle(cycleStart, cycleEnd);
+  }
+
+  bool _hasDueDateInRange(DateTime start, DateTime end) {
+    var cursor = start;
+    while (!cursor.isAfter(end)) {
+      if (_matchesDay(cursor)) return true;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return false;
+  }
+
+  bool _matchesDay(DateTime day) {
+    if (day.day != executionDay.clamp(1, 28)) return false;
+    switch (recurrencePattern) {
+      case 'monthly':
+        return true;
+      case 'yearly':
+        return day.month == (monthOfYear ?? executionDay);
+      case 'every_2_months':
+        return day.month % 2 == executionDay % 2;
+      case 'every_3_months':
+        return day.month % 3 == 0;
+      case 'every_6_months':
+        return day.month % 6 == 0;
+      default:
+        return true;
+    }
+  }
+
+  DebtEntity copyWith({
+    String? id,
+    String? name,
+    double? amount,
+    int? executionDay,
+    String? type,
+    String? fundingSource,
+    String? recurringTransactionId,
+    String? kind,
+    double? principalTotal,
+    String? recurrencePattern,
+    int? monthOfYear,
+  }) =>
+      DebtEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        amount: amount ?? this.amount,
+        executionDay: executionDay ?? this.executionDay,
+        type: type ?? this.type,
+        fundingSource: fundingSource ?? this.fundingSource,
+        recurringTransactionId:
+            recurringTransactionId ?? this.recurringTransactionId,
+        kind: kind ?? this.kind,
+        principalTotal: principalTotal ?? this.principalTotal,
+        recurrencePattern: recurrencePattern ?? this.recurrencePattern,
+        monthOfYear: monthOfYear ?? this.monthOfYear,
+      );
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -232,6 +383,10 @@ class DebtEntity {
         'type': type,
         'fundingSource': fundingSource,
         'recurringTransactionId': recurringTransactionId,
+        'kind': kind,
+        'principalTotal': principalTotal,
+        'recurrencePattern': recurrencePattern,
+        'monthOfYear': monthOfYear,
       };
 
   factory DebtEntity.fromMap(Map<String, dynamic> map) => DebtEntity(
@@ -242,6 +397,10 @@ class DebtEntity {
         type: map['type'] as String? ?? 'confirm',
         fundingSource: map['fundingSource'] as String? ?? '',
         recurringTransactionId: map['recurringTransactionId'] as String?,
+        kind: map['kind'] as String? ?? 'installment',
+        principalTotal: (map['principalTotal'] as num?)?.toDouble(),
+        recurrencePattern: map['recurrencePattern'] as String? ?? 'monthly',
+        monthOfYear: map['monthOfYear'] as int?,
       );
 }
 
@@ -269,6 +428,38 @@ class BudgetSetupEntity {
   final double totalIncome;
   final double totalAllocated;
   final double unallocatedAmount;
+
+  // ── Cycle helpers ────────────────────────────────────────────────────────
+
+  /// بداية الدورة الحالية بناءً على [startDay].
+  /// مثال: startDay=5, today=20 أبريل → 5 أبريل
+  ///        startDay=5, today=3 أبريل  → 5 مارس
+  DateTime cycleStartFor(DateTime now) {
+    final thisMonth = DateTime(now.year, now.month, startDay.clamp(1, 28));
+    return now.isBefore(thisMonth)
+        ? DateTime(now.year, now.month - 1, startDay.clamp(1, 28))
+        : thisMonth;
+  }
+
+  /// نهاية الدورة = ثانية قبل بداية الدورة الجاية
+  DateTime cycleEndFor(DateTime now) {
+    final s = cycleStartFor(now);
+    return DateTime(s.year, s.month + 1, startDay.clamp(1, 28))
+        .subtract(const Duration(seconds: 1));
+  }
+
+  /// مفتاح الدورة للـ snapshots  →  "2025-04-05"
+  String cycleKeyFor(DateTime now) {
+    final s = cycleStartFor(now);
+    return '${s.year}-${s.month.toString().padLeft(2, '0')}-${s.day.toString().padLeft(2, '0')}';
+  }
+
+  /// إجمالي الديون/الاشتراكات المستحقة في نطاق دورة محدد
+  double debtsTotalForCycle(DateTime cycleStart, DateTime cycleEnd) =>
+      debts.fold<double>(
+        0,
+        (sum, d) => sum + d.amountDueInCycle(cycleStart, cycleEnd),
+      );
 
   factory BudgetSetupEntity.initial(String walletId) => const BudgetSetupEntity(
         startDay: 1,

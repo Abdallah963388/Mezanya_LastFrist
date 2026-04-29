@@ -53,13 +53,65 @@ class _StaticInfoCard extends StatelessWidget {
 }
 
 class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  /// [_cycleStart] = أول يوم في الدورة المعروضة حالياً
+  late DateTime _cycleStart;
   bool _isIncomeExpanded = false;
-  // final bool _isDebtExpanded = false;
   bool _processingAutomaticDebts = false;
   String? _dismissedAutoIncomeMonthKey;
   String _id(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}';
+
+  @override
+  void initState() {
+    super.initState();
+    final budget = widget.cubit.state.budgetSetup;
+    _cycleStart = budget.cycleStartFor(DateTime.now());
+  }
+
+  // ── الدورة الحالية ────────────────────────────────────────────────────────
+
+  DateTime get _cycleEnd {
+    final budget = widget.cubit.state.budgetSetup;
+    return budget.cycleEndFor(_cycleStart);
+  }
+
+  /// للتوافق مع الكود القديم الذي يستخدم _month
+  DateTime get _month => _cycleStart;
+
+  void _goToPreviousCycle(BudgetSetupEntity budget) {
+    setState(() {
+      _cycleStart = DateTime(
+        _cycleStart.year,
+        _cycleStart.month - 1,
+        budget.startDay.clamp(1, 28),
+      );
+    });
+  }
+
+  void _goToNextCycle(BudgetSetupEntity budget) {
+    setState(() {
+      _cycleStart = DateTime(
+        _cycleStart.year,
+        _cycleStart.month + 1,
+        budget.startDay.clamp(1, 28),
+      );
+    });
+  }
+
+  bool _isCurrentCycle(BudgetSetupEntity budget) {
+    final expected = budget.cycleStartFor(DateTime.now());
+    return _cycleStart.year == expected.year &&
+        _cycleStart.month == expected.month &&
+        _cycleStart.day == expected.day;
+  }
+
+  bool _isFutureCycle(BudgetSetupEntity budget) {
+    return _cycleStart.isAfter(budget.cycleStartFor(DateTime.now()));
+  }
+
+  bool _isPastCycle(BudgetSetupEntity budget) {
+    return _cycleStart.isBefore(budget.cycleStartFor(DateTime.now()));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,13 +135,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             expenseTx.fold<double>(0, (s, t) => s + t.amount);
         final remainingIncome = totalIncomeActual - totalExpenseActual;
         // final totalDebts = budget.debts.fold<double>(0, (s, d) => s + d.amount);
-        final isCurrentMonthView = _isCurrentMonthView();
+        final isCurrentMonthView = _isCurrentCycle(budget);
         final hasPendingIncome =
             isCurrentMonthView && _hasPendingIncome(budget, incomeTx);
-        // final hasPendingDebt =
-        //     isCurrentMonthView && _hasPendingDebt(state, budget, monthTx);
-        final monthKey =
-            '${_month.year}-${_month.month.toString().padLeft(2, '0')}';
+        final monthKey = budget.cycleKeyFor(_cycleStart);
         final shouldAutoExpandIncome =
             hasPendingIncome && _dismissedAutoIncomeMonthKey != monthKey;
         final isIncomeExpanded = _isIncomeExpanded || shouldAutoExpandIncome;
@@ -199,26 +248,30 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Widget _monthBar(BuildContext context) {
-    final monthLabel = DateFormat('MMMM yyyy', 'ar').format(_month);
+    final budget = widget.cubit.state.budgetSetup;
+    final cycleEnd = _cycleEnd;
+    // عرض نطاق الدورة: "5 أبريل — 4 مايو 2025"
+    final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
+    final endLabel = DateFormat('d MMM yyyy', 'ar').format(cycleEnd);
+    final rangeLabel = '$startLabel — $endLabel';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           children: [
             IconButton(
-              onPressed: () => setState(
-                  () => _month = DateTime(_month.year, _month.month - 1, 1)),
+              onPressed: () => _goToPreviousCycle(budget),
               icon: const Icon(Icons.chevron_left),
             ),
             Expanded(
               child: Center(
-                child: Text(monthLabel,
+                child: Text(rangeLabel,
                     style: Theme.of(context).textTheme.titleMedium),
               ),
             ),
             IconButton(
-              onPressed: () => setState(
-                  () => _month = DateTime(_month.year, _month.month + 1, 1)),
+              onPressed: () => _goToNextCycle(budget),
               icon: const Icon(Icons.chevron_right),
             ),
           ],
@@ -228,32 +281,38 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   List<TransactionEntity> _monthTransactions(List<TransactionEntity> tx) {
+    final end = _cycleEnd;
     return tx
         .where((t) =>
-            t.createdAt.year == _month.year &&
-            t.createdAt.month == _month.month &&
+            !t.createdAt.isBefore(_cycleStart) &&
+            !t.createdAt.isAfter(end) &&
             !_isJarReserveTx(t))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   BudgetSetupEntity _budgetForMonth(AppStateEntity state) {
-    final monthKey =
-        '${_month.year}-${_month.month.toString().padLeft(2, '0')}';
-    final snapshot = state.monthlyBudgetSnapshots[monthKey];
-    if (snapshot != null && snapshot.isNotEmpty) {
-      return BudgetSetupEntity.fromMap(snapshot);
+    final budget = state.budgetSetup;
+    final cycleKey = budget.cycleKeyFor(_cycleStart);
+
+    // جرب الـ snapshot الجديد بمفتاح الدورة
+    final cycleSnapshot = state.monthlyBudgetSnapshots[cycleKey];
+    if (cycleSnapshot != null && cycleSnapshot.isNotEmpty) {
+      return BudgetSetupEntity.fromMap(cycleSnapshot);
     }
-    final now = DateTime.now();
-    final isCurrent = _month.year == now.year && _month.month == now.month;
-    if (isCurrent) {
-      return state.budgetSetup;
+
+    // fallback: مفتاح الشهر القديم للتوافق مع البيانات السابقة
+    final oldKey = '${_cycleStart.year}-${_cycleStart.month.toString().padLeft(2, '0')}';
+    final oldSnapshot = state.monthlyBudgetSnapshots[oldKey];
+    if (oldSnapshot != null && oldSnapshot.isNotEmpty) {
+      return BudgetSetupEntity.fromMap(oldSnapshot);
     }
-    final end = DateTime(_month.year, _month.month + 1, 0, 23, 59, 59);
+
+    if (_isCurrentCycle(budget)) return state.budgetSetup;
+
+    final end = _cycleEnd;
     for (final log in state.logs) {
-      if (log.timestamp.isAfter(end)) {
-        continue;
-      }
+      if (log.timestamp.isAfter(end)) continue;
       try {
         final map = jsonDecode(log.afterState) as Map<String, dynamic>;
         return AppStateEntity.fromMap(map).budgetSetup;
@@ -264,17 +323,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return state.budgetSetup;
   }
 
-  bool _isFutureMonth() {
-    final now = DateTime.now();
-    final current = DateTime(now.year, now.month, 1);
-    return _month.isAfter(current);
-  }
+  bool _isFutureMonth() => _isFutureCycle(widget.cubit.state.budgetSetup);
 
-  bool _isPastMonth() {
-    final now = DateTime.now();
-    final current = DateTime(now.year, now.month, 1);
-    return _month.isBefore(current);
-  }
+  bool _isPastMonth() => _isPastCycle(widget.cubit.state.budgetSetup);
 
   bool _hasBudgetPlan(BudgetSetupEntity budget) {
     return budget.allocations.isNotEmpty;
@@ -811,6 +862,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return DateFormat('d MMMM', 'ar').format(date);
   }
 
+  String _recurrenceLabel(String pattern) => switch (pattern) {
+        'daily' => 'يومي',
+        'weekly' => 'أسبوعي',
+        'biweekly' => 'كل أسبوعين',
+        'every_3_weeks' => 'كل 3 أسابيع',
+        'monthly' => 'شهري',
+        'every_2_months' => 'كل شهرين',
+        'every_3_months' => 'كل 3 شهور',
+        'every_6_months' => 'كل 6 شهور',
+        'yearly' => 'سنوي',
+        _ => pattern,
+      };
+
   Color _colorFromHex(String hex) {
     final cleaned = hex.replaceAll('#', '');
     final normalized = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
@@ -1225,10 +1289,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   //   return false;
   // }
 
-  bool _isCurrentMonthView() {
-    final now = DateTime.now();
-    return _month.year == now.year && _month.month == now.month;
-  }
+  bool _isCurrentMonthView() =>
+      _isCurrentCycle(widget.cubit.state.budgetSetup);
 
   RecurringTransactionEntity? _linkedRecurringIncome(
     AppStateEntity state,
@@ -1267,9 +1329,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         !today.isBefore(reminderDate) &&
         today.isBefore(dueDate);
     final isDueOrLate = !today.isBefore(dueDate);
-    if (!canEarly && !isDueOrLate) {
-      return null;
+    if (!canEarly && !isDueOrLate) return null;
+
+    // ── snooze check ──────────────────────────────────────────────────────
+    if (source.isSnoozed) {
+      final until = source.snoozedUntilDate!;
+      return <String, dynamic>{
+        'pending': false,
+        'snoozed': true,
+        'canEarly': false,
+        'isDueOrLate': isDueOrLate,
+        'status': 'مؤجل حتى ${DateFormat('d/M - HH:mm', 'ar').format(until)}',
+        'dateLabel': '${dueDate.day}/${dueDate.month}',
+        'timeLabel': null,
+      };
     }
+
     final dateLabel = '${dueDate.day}/${dueDate.month}';
     final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
         ? recurring!.scheduledTime!
@@ -1279,6 +1354,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : 'بكر • $dateLabel${timeLabel == null ? '' : ' • $timeLabel'}';
     return <String, dynamic>{
       'pending': true,
+      'snoozed': false,
       'canEarly': canEarly,
       'isDueOrLate': isDueOrLate,
       'status': status,
@@ -1589,60 +1665,120 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     BudgetSetupEntity budget,
     List<TransactionEntity> monthTx,
   ) {
-    return [
-      ...budget.debts.map((debt) {
-        final recurring = _linkedRecurringDebt(state, debt);
-        final allDebtTx = _allDebtPayments(state, debt);
-        final paid = allDebtTx.fold<double>(0, (s, t) => s + t.amount);
-        final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
-        final paidRatio =
-            debt.amount <= 0 ? 0.0 : (paid / debt.amount).clamp(0.0, 1.0);
-        final pct = (paidRatio * 100).round().clamp(0, 100);
-        final pendingMeta = _expensePendingMeta(recurring);
-        final isPending = pendingMeta?['pending'] == true && remaining > 0;
-        return _entityTile(
-          title: debt.name,
-          leading: _iconBadge(
-            recurring?.icon ?? 'receipt',
-            recurring?.iconColor ?? '#c65d2e',
-            size: 54,
-          ),
-          amountText: remaining.toStringAsFixed(2),
-          metaText:
-              '$pct% مسدد · ${_monthWordLabel(DateTime(_month.year, _month.month, debt.executionDay.clamp(1, 28)))}',
-          supportingText: 'الأصل ${debt.amount.toStringAsFixed(2)}',
-          progress: paidRatio,
-          progressColor: Colors.green,
-          tint: isPending ? const Color(0xFFC65D2E) : null,
-          onTap: () => _openDebtDetailsSheet(debt, allDebtTx, remaining),
-          actions: isPending && recurring != null
-              ? <Widget>[
-                  _compactActionButton(
-                    label: 'تأكيد الخصم',
-                    onPressed: () => _recordDebtFromTracking(
-                      debt,
-                      recurring,
-                      pendingMeta!['occurrence'] as DateTime,
-                    ),
-                  ),
-                  _compactActionButton(
-                    label: 'تأجيل',
-                    filled: false,
-                    onPressed: () => _snoozeRecurringExpense(
-                      recurring,
-                      pendingMeta!['occurrence'] as DateTime,
-                    ),
-                  ),
-                ]
-              : const <Widget>[],
-        );
-      }),
-      if (budget.debts.isEmpty)
-        _sectionEmptyCard(
-          text: 'لا توجد ديون لهذا الشهر',
-          onTap: _isPastMonth() ? null : _addDebtDirect,
+    // نفصل الأقساط عن الاشتراكات
+    final installments = budget.debts.where((d) => d.isInstallment).toList();
+    final subscriptions = budget.debts.where((d) => d.isSubscription).toList();
+
+    final widgets = <Widget>[];
+
+    // ── الأقساط ────────────────────────────────────────────────────────────
+    for (final debt in installments) {
+      final recurring = _linkedRecurringDebt(state, debt);
+      final allDebtTx = _allDebtPayments(state, debt);
+      final paid = allDebtTx.fold<double>(0, (s, t) => s + t.amount);
+      final principal = debt.principalTotal ?? debt.amount;
+      final remaining = (principal - paid).clamp(0.0, principal);
+      final paidRatio =
+          principal <= 0 ? 0.0 : (paid / principal).clamp(0.0, 1.0);
+      final pct = (paidRatio * 100).round().clamp(0, 100);
+      final monthPaid = monthTx
+          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .fold<double>(0, (s, t) => s + t.amount);
+      final pendingMeta = _expensePendingMeta(recurring);
+      final isPending =
+          pendingMeta?['pending'] == true && monthPaid < debt.amount;
+      final remainingInstallments = debt.amount > 0
+          ? ((remaining - monthPaid) / debt.amount).ceil()
+          : 0;
+
+      widgets.add(_entityTile(
+        title: debt.name,
+        leading: _iconBadge(
+          recurring?.icon ?? 'receipt',
+          recurring?.iconColor ?? '#c65d2e',
+          size: 54,
         ),
-    ];
+        amountText: remaining.toStringAsFixed(2),
+        metaText:
+            '$pct% مسدد · القسط ${debt.amount.toStringAsFixed(2)} · ${remainingInstallments > 0 ? '$remainingInstallments قسط متبقي' : 'مكتمل'}',
+        supportingText: 'الأصل ${principal.toStringAsFixed(2)}',
+        progress: paidRatio,
+        progressColor: Colors.green,
+        tint: isPending ? const Color(0xFFC65D2E) : null,
+        onTap: () => _openDebtDetailsSheet(debt, allDebtTx, remaining),
+        actions: isPending && recurring != null
+            ? <Widget>[
+                _compactActionButton(
+                  label: 'تأكيد الخصم',
+                  onPressed: () {
+                    _confirmDebtPayment(state, budget, debt, recurring);
+                  },
+                ),
+              ]
+            : <Widget>[],
+      ));
+    }
+
+    // ── الاشتراكات ──────────────────────────────────────────────────────────
+    for (final debt in subscriptions) {
+      final recurring = _linkedRecurringDebt(state, debt);
+      final isDueThisCycle =
+          debt.isDueInCycle(_cycleStart, _cycleEnd);
+      final cyclePaid = monthTx
+          .where((t) => _transactionCountsTowardDebt(t, debt))
+          .fold<double>(0, (s, t) => s + t.amount);
+      final cycleDue = debt.amountDueInCycle(_cycleStart, _cycleEnd);
+      final pendingMeta = isDueThisCycle ? _expensePendingMeta(recurring) : null;
+      final isPending = pendingMeta?['pending'] == true && cyclePaid < cycleDue;
+
+      // الاشتراكات السنوية غير المستحقة في الدورة الحالية تظهر بشكل مختلف
+      final isNotDueYet = !isDueThisCycle;
+      final nextDue = recurring != null
+          ? _nextRecurringOccurrence(recurring, DateTime.now())
+          : null;
+      final nextDueLabel = nextDue != null
+          ? 'الاستحقاق القادم: ${_monthWordLabel(nextDue)}'
+          : _recurrenceLabel(debt.recurrencePattern);
+
+      widgets.add(_entityTile(
+        title: debt.name,
+        leading: _iconBadge(
+          recurring?.icon ?? 'subscriptions',
+          recurring?.iconColor ?? '#4a7c59',
+          size: 54,
+        ),
+        amountText: debt.amount.toStringAsFixed(2),
+        metaText: isNotDueYet
+            ? nextDueLabel
+            : (cyclePaid >= cycleDue
+                ? 'تم الدفع ✓'
+                : 'مستحق · ${debt.amount.toStringAsFixed(2)}'),
+        supportingText: _recurrenceLabel(debt.recurrencePattern),
+        progress: isNotDueYet
+            ? null
+            : (cycleDue <= 0
+                ? null
+                : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble()),
+        progressColor: Colors.teal,
+        tint: isPending ? const Color(0xFFC65D2E) : null,
+        onTap: () => _openDebtDetailsSheet(debt, monthTx, cycleDue - cyclePaid),
+        actions: isPending && recurring != null
+            ? <Widget>[
+                _compactActionButton(
+                  label: 'تأكيد الدفع',
+                  onPressed: () =>
+                      _confirmDebtPayment(state, budget, debt, recurring),
+                ),
+              ]
+            : const <Widget>[],
+      ));
+    }
+
+    if (widgets.isEmpty) {
+      widgets.add(const _StaticInfoCard(text: 'لا توجد ديون أو اشتراكات.'));
+    }
+
+    return widgets;
   }
 
   Future<void> _openAllocationSheet(
@@ -2969,6 +3105,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(snoozedUntil: nextSnooze.toIso8601String()),
     );
+  }
+
+  Future<void> _confirmDebtPayment(
+    AppStateEntity state,
+    BudgetSetupEntity budget,
+    DebtEntity debt,
+    RecurringTransactionEntity recurring,
+  ) async {
+    final now = DateTime.now();
+    final occurrence = _dueOccurrenceNow(recurring, now) ?? 
+        _nextRecurringOccurrence(recurring, now);
+    if (occurrence == null) return;
+    
+    await _recordDebtFromTracking(debt, recurring, occurrence);
   }
 
   Future<void> _openTxSheet(

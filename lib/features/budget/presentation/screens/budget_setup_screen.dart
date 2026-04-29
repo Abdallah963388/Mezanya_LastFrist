@@ -86,10 +86,12 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         (sum, wallet) => sum + wallet.monthlyAmount,
       );
 
-  double get _debtsTotal => _budget.debts.fold<double>(
-        0,
-        (sum, debt) => sum + debt.amount,
-      );
+  double get _debtsTotal {
+    final now = DateTime.now();
+    final cycleStart = _budget.cycleStartFor(now);
+    final cycleEnd = _budget.cycleEndFor(now);
+    return _budget.debtsTotalForCycle(cycleStart, cycleEnd);
+  }
 
   double get _committed => _allocationsTotal + _linkedTotal + _debtsTotal;
 
@@ -189,6 +191,58 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     await widget.cubit.updateBudgetSetup(normalized);
   }
 
+  /// لما اليوزر يغير يوم بداية الدورة — نسأله هيبدأ من النهارده ولا الدورة الجاية
+  Future<void> _handleStartDayChange(int newDay) async {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final newCycleStart = DateTime(now.year, now.month, newDay);
+    final isPartialCycle = now.day > newDay;
+
+    // لو اليوزر في منتصف الدورة الجديدة
+    if (isPartialCycle) {
+      final nextCycleStart = DateTime(now.year, now.month + 1, newDay);
+      final currentEnd = nextCycleStart.subtract(const Duration(days: 1));
+
+      final choice = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('يوم بداية الدورة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'أنت حاليًا في منتصف الدورة المحددة.\n\n'
+                '• الدورة الحالية: ${now.day}/${now.month} — ${currentEnd.day}/${currentEnd.month}\n'
+                '• الدورة الكاملة القادمة تبدأ يوم $newDay/${nextCycleStart.month}',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'هتبدأ الإعداد ده من النهارده ولا هتطبقه من الدورة الجاية؟',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('next'),
+              child: const Text('من الدورة الجاية'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop('now'),
+              child: const Text('من النهارده'),
+            ),
+          ],
+        ),
+      );
+
+      if (choice == null) return; // ألغى
+    }
+
+    await _saveBudget(_budget.copyWith(startDay: newDay));
+  }
+
   double _totalIncomeFrom(BudgetSetupEntity setup) {
     return setup.incomeSources.fold<double>(
       0,
@@ -207,9 +261,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       0,
       (sum, wallet) => sum + wallet.monthlyAmount,
     );
-    final debtsTotal = setup.debts.fold<double>(
-      0,
-      (sum, debt) => sum + debt.amount,
+    final debtsTotal = setup.debtsTotalForCycle(
+      setup.cycleStartFor(DateTime.now()),
+      setup.cycleEndFor(DateTime.now()),
     );
     return allocationsTotal + linkedTotal + debtsTotal;
   }
@@ -1076,9 +1130,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       labelText: 'بداية الدورة',
                       prefixIcon: Icon(Icons.event_rounded),
                     ),
-                    onFieldSubmitted: (value) {
-                      final day = (int.tryParse(value) ?? 1).clamp(1, 31);
-                      _saveBudget(_budget.copyWith(startDay: day));
+                    onFieldSubmitted: (value) async {
+                      final day = (int.tryParse(value) ?? 1).clamp(1, 28);
+                      if (day == _budget.startDay) return;
+                      await _handleStartDayChange(day);
                     },
                   );
                   final cycleField = DropdownButtonFormField<String>(
