@@ -131,6 +131,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final monthTx = _monthTransactions(state.transactions);
         final incomeTx = monthTx.where((t) => t.type == 'income').toList();
         final expenseTx = monthTx.where((t) => t.type == 'expense').toList();
+        final incomeSectionChildren =
+            _incomeInlineCards(state, budget, incomeTx, monthTx);
         final totalIncomeActual =
             incomeTx.fold<double>(0, (s, t) => s + t.amount);
         final totalExpenseActual =
@@ -178,7 +180,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               const SizedBox(height: 12),
               _inlineSectionCard(
                 title: 'الدخل الكلي',
-                subtitle: 'كل مصادر الدخل المخطط لها لهذا الشهر',
+                subtitle: incomeSectionChildren.length == 1 &&
+                        incomeSectionChildren.first is _StaticInfoCard
+                    ? 'لا توجد مصادر دخل مضافة في هذه الدورة بعد'
+                    : 'كل مصادر الدخل المخطط لها لهذا الشهر',
                 amount: totalIncomeActual,
                 isExpanded: isIncomeExpanded,
                 incomeTotalLayout: true,
@@ -196,7 +201,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   });
                 },
                 expandedChildren:
-                    _incomeInlineCards(state, budget, incomeTx, monthTx),
+                    incomeSectionChildren,
+              ),
+              const SizedBox(height: 18),
+              _cycleInsightsSection(
+                state: state,
+                budget: budget,
+                totalIncomeActual: totalIncomeActual,
+                totalExpenseActual: totalExpenseActual,
+                remainingIncome: remainingIncome,
               ),
               const SizedBox(height: 18),
               _sectionTitle('المخصصات'),
@@ -204,7 +217,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ...budget.allocations.isEmpty
                   ? <Widget>[
                       _sectionEmptyCard(
-                        text: 'إعداد الميزانية الشهرية',
+                        text: 'لا يوجد مخصص في هذه الدورة.',
                         onTap: futureMonth || !pastMonth
                             ? _openBudgetSetupScreen
                             : null,
@@ -331,7 +344,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   bool _isPastMonth() => _isPastCycle(widget.cubit.state.budgetSetup);
 
   bool _hasBudgetPlan(BudgetSetupEntity budget) {
-    return budget.allocations.isNotEmpty;
+    final hasUserConfiguredJar = budget.linkedWallets.any(
+      (jar) =>
+          jar.id != 'linked-savings-default' ||
+          jar.monthlyAmount > 0 ||
+          jar.balance > 0 ||
+          jar.funding.isNotEmpty,
+    );
+    return budget.incomeSources.isNotEmpty ||
+        budget.allocations.isNotEmpty ||
+        budget.debts.isNotEmpty ||
+        hasUserConfiguredJar ||
+        budget.totalIncome > 0 ||
+        budget.totalAllocated > 0 ||
+        budget.unallocatedAmount > 0;
   }
 
   void _openBudgetSetupScreen() {
@@ -579,7 +605,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           Text(
             futureMonth
                 ? 'هذا الشهر لم يبدأ بعد. يمكنك تجهيز خطته الآن، لكنها لن تتحول إلى عرض الميزانية والمعاملات إلا عندما يبدأ الشهر فعليًا.'
-                : 'بدون مخصصات لن تظهر خطة الميزانية. جهز دخلك ومخصصاتك أولًا ثم راجع الشهر من هنا.',
+                : 'أضف أي عنصر في الخطة مثل دخل أو مخصص أو حصالة أو التزام، وبعدها ستظهر لك شاشة متابعة الميزانية هنا.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -1455,38 +1481,207 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   List<TransactionEntity> _monthTransactionsForIncomeSource(
-    BudgetSetupEntity budget,
-    List<TransactionEntity> monthTx,
-    IncomeSourceEntity source,
     List<TransactionEntity> sourceIncomeTx,
   ) {
-    final allocIds = budget.allocations
-        .where((a) => a.funding.any((f) => f.incomeSourceId == source.id))
-        .map((a) => a.id)
-        .toSet();
-    final debtNames = budget.debts
-        .where((d) => d.fundingSource == source.id)
-        .map((d) => d.name)
-        .toSet();
+    final incomeOnly = [...sourceIncomeTx];
+    incomeOnly.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return incomeOnly;
+  }
 
-    final out = <TransactionEntity>[
-      ...sourceIncomeTx,
-      ...monthTx.where((t) =>
-          t.type == 'expense' &&
-          t.allocationId != null &&
-          allocIds.contains(t.allocationId)),
-      ...monthTx.where((t) =>
-          t.type == 'expense' &&
-          debtNames.any((n) => t.notes?.contains(n) == true)),
-    ];
+  Widget _cycleInsightsSection({
+    required AppStateEntity state,
+    required BudgetSetupEntity budget,
+    required double totalIncomeActual,
+    required double totalExpenseActual,
+    required double remainingIncome,
+  }) {
+    final plannedIncome = budget.incomeSources
+        .where((item) => !item.isVariable)
+        .fold<double>(0, (sum, item) => sum + item.amount);
+    final plannedAllocations = budget.allocations.fold<double>(
+      0,
+      (sum, item) => sum + item.funding.fold<double>(0, (s, f) => s + f.plannedAmount),
+    );
+    final plannedJars = budget.linkedWallets.fold<double>(
+      0,
+      (sum, item) => sum + item.monthlyAmount,
+    );
+    final plannedDebts = budget.debts.fold<double>(0, (sum, debt) {
+      final recurring = _linkedRecurringDebt(state, debt);
+      return sum +
+          BudgetRecurringPlanService.amountDueInCycle(
+            debt: debt,
+            recurring: recurring,
+            cycleStart: _cycleStart,
+            cycleEnd: _cycleEnd,
+          );
+    });
+    final plannedCommitments = plannedAllocations + plannedJars + plannedDebts;
+    final utilizationRatio = totalIncomeActual <= 0
+        ? 0.0
+        : (totalExpenseActual / totalIncomeActual).clamp(0.0, 1.0);
+    final coverageRatio = plannedCommitments <= 0
+        ? 1.0
+        : (totalIncomeActual / plannedCommitments).clamp(0.0, 2.0);
+    final analysisText = totalIncomeActual <= 0
+        ? 'لم يُسجل دخل فعلي في هذه الدورة بعد، لذلك التحليل الحالي يعتمد على الخطة أكثر من التنفيذ.'
+        : remainingIncome < 0
+            ? 'مصروفات الدورة تجاوزت الدخل الفعلي حتى الآن، فالأولوية هنا ضبط الاستهلاك أو تأجيل بعض البنود.'
+            : plannedCommitments > totalIncomeActual
+                ? 'الخطة الحالية أثقل من الدخل المنفذ حتى الآن، لذلك قد تحتاج لتقليل بعض المخصصات أو متابعة الدخل المتوقع.'
+                : 'تنفيذ الدورة متماسك حتى الآن، والدخل يغطي الالتزامات المخططة مع وجود مساحة متبقية.';
 
-    final seen = <String>{};
-    final deduped = <TransactionEntity>[];
-    for (final t in out) {
-      if (seen.add(t.id)) deduped.add(t);
-    }
-    deduped.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return deduped;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('تحليل الدورة'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _cycleInsightCard(
+              title: 'المستهلك',
+              value: totalExpenseActual,
+              subtitle: totalIncomeActual > 0
+                  ? '${(utilizationRatio * 100).round()}٪ من الدخل الفعلي'
+                  : 'لا يوجد دخل منفذ',
+              icon: Icons.trending_down_rounded,
+              tint: const Color(0xFFC65D2E),
+            ),
+            _cycleInsightCard(
+              title: 'المتبقي',
+              value: remainingIncome,
+              subtitle: remainingIncome >= 0 ? 'متاح حتى نهاية الدورة' : 'عجز في التنفيذ الحالي',
+              icon: Icons.account_balance_wallet_rounded,
+              tint: remainingIncome >= 0
+                  ? const Color(0xFF0F9D7A)
+                  : const Color(0xFF8E4A37),
+            ),
+            _cycleInsightCard(
+              title: 'الخطة المخططة',
+              value: plannedCommitments,
+              subtitle:
+                  'مخصصات ${budget.allocations.length} · حصالات ${budget.linkedWallets.length} · التزامات ${budget.debts.length}',
+              icon: Icons.fact_check_rounded,
+              tint: const Color(0xFF3F6E8C),
+            ),
+            _cycleInsightCard(
+              title: 'التغطية',
+              value: coverageRatio * 100,
+              suffix: '%',
+              subtitle: plannedCommitments <= 0
+                  ? 'لا توجد التزامات مخططة'
+                  : 'الدخل الفعلي مقابل الخطة',
+              icon: Icons.auto_graph_rounded,
+              tint: const Color(0xFF5B8C5A),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.38),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ملخص الخطة والتنفيذ',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                analysisText,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.5,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              _row('مصادر الدخل المخططة', plannedIncome),
+              _row('إجمالي المخصصات المخططة', plannedAllocations),
+              _row('إجمالي الحصالات المخططة', plannedJars),
+              _row('الالتزامات المستحقة في الدورة', plannedDebts),
+              _row(
+                'غير المخصص حاليًا',
+                budget.unallocatedAmount,
+                danger: budget.unallocatedAmount < 0,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _cycleInsightCard({
+    required String title,
+    required double value,
+    required String subtitle,
+    required IconData icon,
+    required Color tint,
+    String suffix = '',
+  }) {
+    final theme = Theme.of(context);
+    final width = (MediaQuery.of(context).size.width - 52) / 2;
+    return Container(
+      width: width < 150 ? double.infinity : width,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: tint.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: tint, size: 20),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${value.toStringAsFixed(2)}$suffix',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Widget> _incomeInlineCards(
@@ -1495,7 +1690,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     List<TransactionEntity> incomeTx,
     List<TransactionEntity> monthTx,
   ) {
-    return [
+    final children = <Widget>[
       ...budget.incomeSources.map((source) {
         final sourceTx =
             incomeTx.where((t) => t.incomeSourceId == source.id).toList();
@@ -1599,6 +1794,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ),
           ),
     ];
+    if (children.isEmpty) {
+      children.add(const _StaticInfoCard(text: 'لا يوجد دخل مسجل أو مخطط في هذه الدورة.'));
+    }
+    return children;
   }
 
   Widget _allocationSummaryTile(AppStateEntity state,
@@ -2069,8 +2268,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final canEarly = pendingMeta?['canEarly'] == true;
     final isDueOrLate = pendingMeta?['isDueOrLate'] == true;
     final recurring = _linkedRecurringIncome(widget.cubit.state, source);
-    final cycleTx = _monthTransactionsForIncomeSource(
-        budget, monthTx, source, sourceIncomeTx);
+    final cycleTx = _monthTransactionsForIncomeSource(sourceIncomeTx);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -2081,7 +2279,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         accent: accent,
         transactions: cycleTx,
         initialMonth: _month,
-        emptyMessage: 'لا توجد معاملات مرتبطة بهذا الدخل في المدة المحددة.',
+        emptyMessage: 'لا توجد معاملات دخل مسجلة لهذا المصدر في المدة المحددة.',
         sheetContext: sheetContext,
         tileBuilder: (item) =>
             _trackingMonthTransactionTile(sheetContext, theme, item),

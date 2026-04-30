@@ -4,8 +4,10 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../categories/domain/entities/category_entity.dart';
+import '../../data/subscription_service_presets.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/services/recurring_schedule_engine.dart';
+import '../widgets/subscription_service_picker_sheet.dart';
 
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
@@ -77,6 +79,7 @@ class _RecurringTransactionComposerScreenState
   final Set<String> _selectedCategoryIds = <String>{};
   String? _allocationId;
   String? _targetJarId;
+  String? _selectedSubscriptionPresetId;
 
   @override
   void initState() {
@@ -126,6 +129,8 @@ class _RecurringTransactionComposerScreenState
               : <int>{DateTime.now().weekday},
     );
     _selectedTime = _parseStoredTime(recurring?.scheduledTime);
+    _selectedSubscriptionPresetId =
+        subscriptionPresetByName(recurring?.name)?.id;
 
     if (_type == 'income' && _withinBudget && _isVariableIncome) {
       _executionType = 'manual';
@@ -216,6 +221,10 @@ class _RecurringTransactionComposerScreenState
           children: [
             _typeSwitcher(theme),
             const SizedBox(height: 14),
+            if (_type == 'expense') ...[
+              _expenseKindSection(),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -328,13 +337,9 @@ class _RecurringTransactionComposerScreenState
               ),
             ),
             const SizedBox(height: 12),
-            if (_type == 'expense' && _withinBudget) ...[
-              _expenseKindSection(),
+            if (_type == 'expense' && _isExpenseSubscription) ...[
+              _subscriptionSuggestionSection(),
               const SizedBox(height: 12),
-              if (_isExpenseSubscription) ...[
-                _subscriptionSuggestionSection(),
-                const SizedBox(height: 12),
-              ],
             ],
             if (_withinBudget) ...[
               _surfaceSection(
@@ -560,6 +565,7 @@ class _RecurringTransactionComposerScreenState
                   _targetJarId = null;
                   _expensePlanKind = 'normal';
                   _isDebtOrSubscription = false;
+                  _selectedSubscriptionPresetId = null;
                 });
               },
             ),
@@ -640,6 +646,7 @@ class _RecurringTransactionComposerScreenState
                       _expensePlanKind = 'normal';
                       _isDebtOrSubscription = false;
                       _debtPrincipalController.clear();
+                      _selectedSubscriptionPresetId = null;
                     });
                   },
                 ),
@@ -652,8 +659,12 @@ class _RecurringTransactionComposerScreenState
                   selected: _isExpenseInstallment,
                   onTap: () {
                     setState(() {
+                      _withinBudget = true;
                       _expensePlanKind = 'installment';
                       _isDebtOrSubscription = true;
+                      _allocationId = null;
+                      _targetJarId = null;
+                      _selectedSubscriptionPresetId = null;
                     });
                   },
                 ),
@@ -666,9 +677,12 @@ class _RecurringTransactionComposerScreenState
                   selected: _isExpenseSubscription,
                   onTap: () {
                     setState(() {
+                      _withinBudget = true;
                       _expensePlanKind = 'subscription';
                       _isDebtOrSubscription = true;
                       _debtPrincipalController.clear();
+                      _allocationId = null;
+                      _targetJarId = null;
                     });
                   },
                 ),
@@ -730,57 +744,50 @@ class _RecurringTransactionComposerScreenState
   }
 
   Widget _subscriptionSuggestionSection() {
-    const presets = <Map<String, String>>[
-      {
-        'name': 'Netflix',
-        'icon': 'movie',
-        'color': '#E53935',
-      },
-      {
-        'name': 'Shahid',
-        'icon': 'live_tv',
-        'color': '#2F6F5E',
-      },
-      {
-        'name': 'Spotify',
-        'icon': 'music_note',
-        'color': '#1DB954',
-      },
-      {
-        'name': 'Amazon Prime',
-        'icon': 'local_shipping',
-        'color': '#1E88E5',
-      },
-    ];
+    final highlightedPresets = subscriptionServicePresets.take(8).toList();
+    final selectedPreset = subscriptionPresetById(_selectedSubscriptionPresetId);
 
     return _surfaceSection(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'اقتراحات سريعة للاشتراكات',
+            'الخدمة المشترك فيها',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'يمكنك اختيار خدمة جاهزة أو تجاهلها وكتابة الاسم والأيقونة بنفسك.',
+          Text(
+            selectedPreset == null
+                ? 'اختر من قائمة الخدمات الجاهزة ليتم تعبئة الاسم والأيقونة واللون تلقائيًا.'
+                : 'الخدمة المحددة الآن: ${selectedPreset.name}',
+          ),
+          const SizedBox(height: 10),
+          FilledButton.tonalIcon(
+            onPressed: _pickSubscriptionService,
+            icon: const Icon(Icons.travel_explore_rounded),
+            label: Text(
+              selectedPreset == null
+                  ? 'اختيار من الخدمات الجاهزة'
+                  : 'تغيير الخدمة',
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: presets.map((preset) {
+            children: highlightedPresets.map((preset) {
               return ActionChip(
-                label: Text(preset['name']!),
+                label: Text(preset.name),
                 avatar: Icon(
-                  _subscriptionIcon(preset['icon']!),
+                  _subscriptionIcon(preset.iconName),
                   size: 18,
-                  color: _parseColor(preset['color']!),
+                  color: _parseColor(preset.colorHex),
                 ),
                 onPressed: () => _applySubscriptionPreset(
-                  name: preset['name']!,
-                  icon: preset['icon']!,
-                  color: preset['color']!,
+                  name: preset.name,
+                  icon: preset.iconName,
+                  color: preset.colorHex,
+                  presetId: preset.id,
                 ),
               );
             }).toList(),
@@ -1127,17 +1134,33 @@ class _RecurringTransactionComposerScreenState
     required String name,
     required String icon,
     required String color,
+    String? presetId,
   }) {
     setState(() {
-      if (_nameController.text.trim().isEmpty ||
-          _isExpenseSubscription) {
+      if (_nameController.text.trim().isEmpty || _isExpenseSubscription) {
         _nameController.text = name;
       }
       _iconName = icon;
       _iconColor = color;
+      _selectedSubscriptionPresetId = presetId;
+      _withinBudget = true;
       _expensePlanKind = 'subscription';
       _isDebtOrSubscription = true;
     });
+  }
+
+  Future<void> _pickSubscriptionService() async {
+    final preset = await showSubscriptionServicePickerSheet(
+      context,
+      selectedPresetId: _selectedSubscriptionPresetId,
+    );
+    if (preset == null) return;
+    _applySubscriptionPreset(
+      name: preset.name,
+      icon: preset.iconName,
+      color: preset.colorHex,
+      presetId: preset.id,
+    );
   }
 
   IconData _subscriptionIcon(String key) {

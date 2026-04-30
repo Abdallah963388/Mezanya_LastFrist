@@ -56,9 +56,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final state = widget.cubit.state;
     _walletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _incomeSourceId = 'wallet-only';
-    _incomeJarId = state.budgetSetup.linkedWallets.isNotEmpty
-        ? state.budgetSetup.linkedWallets.first.id
-        : '';
+    _incomeJarId = '';
     if (widget.recurringMode) {
       _type = widget.recurringType ?? 'expense';
       final r = widget.initialRecurring;
@@ -75,7 +73,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _budgetScope = r.budgetScope;
         _incomeBudgetScope = r.budgetScope;
         _incomeSourceId = r.incomeSourceId ?? _incomeSourceId;
-        _incomeJarId = r.targetJarId ?? _incomeJarId;
+        _incomeJarId = r.targetJarId ?? '';
         if (r.allocationId != null) {
           _budgetTargetId = 'alloc:${r.allocationId!}';
         } else if (r.targetJarId != null) {
@@ -107,7 +105,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _incomeBudgetScope = t.budgetScope == 'within-budget'
             ? 'within-budget'
             : 'outside-budget';
-        _incomeJarId = t.toWalletId ?? _incomeJarId;
+        _incomeJarId = t.toWalletId ?? '';
       }
     }
   }
@@ -231,6 +229,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
     if (_type == 'income' &&
         _incomeBudgetScope == 'within-budget' &&
+        _incomeSourceId == 'wallet-only' &&
         _incomeJarId.isEmpty) {
       return false;
     }
@@ -274,6 +273,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final selectedIncomeJarName = selectedIncomeJar.isEmpty
         ? 'اختر الحصالة'
         : selectedIncomeJar.first.name;
+    final selectedIncomeSource = budget.incomeSources
+        .where((item) => item.id == _incomeSourceId)
+        .toList();
+    final incomeTargetLabel = _incomeJarId.isNotEmpty
+        ? 'حصالتي: $selectedIncomeJarName'
+        : selectedIncomeSource.isNotEmpty
+            ? 'مصدر دخل: ${selectedIncomeSource.first.name}'
+            : 'إيداع لمحفظة $selectedWalletName فقط';
 
     // ── categories ──
     final allocationCategories = selectedAllocation.isEmpty
@@ -466,52 +473,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── INCOME fields ──
                     if (_type == 'income') ...[
                       const SizedBox(height: 2),
-                      DropdownButtonFormField<String>(
-                        initialValue: _incomeSourceId,
-                        decoration:
-                            const InputDecoration(labelText: 'مصدر الدخل'),
-                        items: [
-                          const DropdownMenuItem(
-                              value: 'wallet-only',
-                              child: Text('إيداع للمحفظة فقط')),
-                          ...budget.incomeSources.map((i) => DropdownMenuItem(
-                              value: i.id, child: Text(i.name))),
-                        ],
-                        onChanged: (v) => setState(
-                            () => _incomeSourceId = v ?? 'wallet-only'),
+                      _RowCard(
+                        label: 'هدف الدخل',
+                        value: incomeTargetLabel,
+                        icon: Icons.download_for_offline_rounded,
+                        onTap: () => _openIncomeTargetPicker(budget, selectedWalletName),
                       ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            const Text('داخل الميزانية'),
-                            const Spacer(),
-                            Switch(
-                              value: _incomeBudgetScope == 'within-budget',
-                              onChanged: (v) {
-                                setState(() => _incomeBudgetScope =
-                                    v ? 'within-budget' : 'outside-budget');
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_incomeBudgetScope == 'within-budget') ...[
-                        const SizedBox(height: 8),
-                        _RowCard(
-                          label: 'الحصالة',
-                          value: selectedIncomeJarName,
-                          icon: Icons.savings_outlined,
-                          onTap: () => _openIncomeJarPicker(budget),
-                        ),
-                      ],
                     ],
 
                     const SizedBox(height: 10),
@@ -610,9 +577,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 }
                                 if (_type == 'income' &&
                                     _incomeBudgetScope == 'within-budget' &&
+                                    _incomeSourceId == 'wallet-only' &&
                                     _incomeJarId.isEmpty) {
                                   _showValidationError(
-                                      'اختر حصالة للدخل داخل الميزانية.');
+                                      'اختر مصدر دخل أو حصالة للدخل داخل الميزانية.');
                                   return;
                                 }
                                 if (widget.recurringMode &&
@@ -673,8 +641,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             'alloc:', '')
                                         : null,
                                     targetJarId: _type == 'income' &&
-                                            _incomeBudgetScope ==
-                                                'within-budget'
+                                            _incomeBudgetScope == 'within-budget' &&
+                                            _incomeJarId.isNotEmpty
                                         ? _incomeJarId
                                         : (_type == 'expense' &&
                                                 _budgetTargetId
@@ -726,8 +694,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   await widget.cubit.addTransaction(
                                     walletId: _walletId,
                                     toWalletId: _type == 'income' &&
-                                            _incomeBudgetScope ==
-                                                'within-budget'
+                                            _incomeBudgetScope == 'within-budget' &&
+                                            _incomeJarId.isNotEmpty
                                         ? _incomeJarId
                                         : selectedJarId,
                                     amount: amount,
@@ -1101,36 +1069,231 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // INCOME JAR PICKER
+  // INCOME TARGET PICKER
   // ─────────────────────────────────────────────────────────────────────────
-  void _openIncomeJarPicker(BudgetSetupEntity budget) {
+  void _openIncomeTargetPicker(
+    BudgetSetupEntity budget,
+    String walletName,
+  ) {
     final jars = budget.linkedWallets;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.72,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.78,
         child: ListView(
           padding: const EdgeInsets.all(14),
-          children: jars
-              .map(
-                (jar) => Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(jar.name),
-                    subtitle: Text('الرصيد: ${jar.balance.toStringAsFixed(2)}'),
-                    trailing: _incomeJarId == jar.id
-                        ? Icon(Icons.check_circle,
-                            color: Theme.of(context).colorScheme.primary)
-                        : null,
-                    onTap: () {
-                      setState(() => _incomeJarId = jar.id);
-                      Navigator.pop(context);
-                    },
+          children: [
+            _AllocationOption(
+              isSelected:
+                  _incomeBudgetScope == 'outside-budget' &&
+                  _incomeSourceId == 'wallet-only' &&
+                  _incomeJarId.isEmpty,
+              onTap: () {
+                setState(() {
+                  _incomeBudgetScope = 'outside-budget';
+                  _incomeSourceId = 'wallet-only';
+                  _incomeJarId = '';
+                });
+                Navigator.pop(sheetCtx);
+              },
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6F2),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.download_for_offline_rounded,
+                      color: Color(0xFF2F6F5E),
+                    ),
                   ),
-                ),
-              )
-              .toList(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'إيداع للمحفظة فقط',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'الإيداع يذهب إلى محفظة $walletName فقط.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color:
+                                Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_incomeBudgetScope == 'outside-budget' &&
+                      _incomeSourceId == 'wallet-only' &&
+                      _incomeJarId.isEmpty)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF1E7F5C),
+                    ),
+                ],
+              ),
+            ),
+            if (budget.incomeSources.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const _SheetSectionLabel(label: 'مصادر الدخل'),
+              const SizedBox(height: 10),
+              ...budget.incomeSources.map((source) {
+                final selected =
+                    _incomeBudgetScope == 'within-budget' &&
+                    _incomeJarId.isEmpty &&
+                    _incomeSourceId == source.id;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _AllocationOption(
+                    isSelected: selected,
+                    onTap: () {
+                      setState(() {
+                        _incomeBudgetScope = 'within-budget';
+                        _incomeSourceId = source.id;
+                        _incomeJarId = '';
+                      });
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: Color(0xFF1E7F5C),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                source.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                source.isVariable
+                                    ? 'مصدر دخل متغير داخل الميزانية'
+                                    : 'مخطط ${source.amount.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(sheetCtx)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF1E7F5C),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+            if (jars.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const _SheetSectionLabel(label: 'الحصالات'),
+              const SizedBox(height: 10),
+              ...jars.map((jar) {
+                final selected =
+                    _incomeBudgetScope == 'within-budget' &&
+                    _incomeJarId == jar.id;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _AllocationOption(
+                    isSelected: selected,
+                    onTap: () {
+                      setState(() {
+                        _incomeBudgetScope = 'within-budget';
+                        _incomeSourceId = 'wallet-only';
+                        _incomeJarId = jar.id;
+                      });
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE7F4F1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.savings_rounded,
+                            color: Color(0xFF2F6F5E),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                jar.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'الرصيد ${jar.balance.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(sheetCtx)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF1E7F5C),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ],
         ),
       ),
     );

@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
+import '../../domain/entities/transaction_entity.dart';
+import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
 
 class RecurringTransactionsScreen extends StatefulWidget {
@@ -20,9 +22,10 @@ class _RecurringTransactionsScreenState
     extends State<RecurringTransactionsScreen> {
   static const Color _incomeAccent = Color(0xFF2F6F5E);
   static const Color _expenseAccent = Color(0xFFC65D2E);
+  static const Color _subscriptionAccent = Color(0xFF2E5CC6);
   static const Color _sharedCardBackground = Color(0xFFF9F3E7);
 
-  String _tab = 'income';
+  String _tab = 'subscriptions';
 
   @override
   Widget build(BuildContext context) {
@@ -31,14 +34,18 @@ class _RecurringTransactionsScreenState
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final records = state.recurringTransactions
-            .where((item) => item.type == _tab)
-            .toList()
-          ..sort((a, b) => a.dayOfMonth.compareTo(b.dayOfMonth));
-        final inBudget =
-            records.where((item) => item.budgetScope == 'within-budget').toList();
-        final outBudget =
-            records.where((item) => item.budgetScope != 'within-budget').toList();
+        final records = state.recurringTransactions.where(_matchesTab).toList()
+          ..sort((a, b) {
+            final nameCompare = a.name.compareTo(b.name);
+            if (nameCompare != 0) return nameCompare;
+            return a.dayOfMonth.compareTo(b.dayOfMonth);
+          });
+        final inBudget = records
+            .where((item) => item.budgetScope == 'within-budget')
+            .toList();
+        final outBudget = records
+            .where((item) => item.budgetScope != 'within-budget')
+            .toList();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -50,36 +57,28 @@ class _RecurringTransactionsScreenState
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: FilledButton.icon(
-                onPressed: _tab == 'expense'
-                    ? _openExpenseEntryChooser
-                    : () => _openRecurringComposer(mode: _tab),
+                onPressed: _handleAddPressed,
                 icon: const Icon(Icons.add_rounded),
-                label: Text(
-                  _tab == 'income'
-                      ? 'إضافة دخل متكرر'
-                      : 'إضافة مصروف متكرر',
-                ),
+                label: Text(_addButtonLabel()),
               ),
             ),
             const SizedBox(height: 16),
             _scopeSection(
               state: state,
               title: 'داخل الميزانية',
-              subtitle:
-                  'المعاملات التي تدخل في خطة الميزانية مثل الدخل الثابت أو التقسيط أو الاشتراكات.',
+              subtitle: _scopeSubtitle(withinBudget: true),
               records: inBudget,
-              emptyLabel: 'لا توجد معاملات متكررة داخل الميزانية.',
-              accent: _incomeAccent,
+              emptyLabel: _emptyScopeLabel(withinBudget: true),
+              accent: _currentAccent,
             ),
             const SizedBox(height: 14),
             _scopeSection(
               state: state,
               title: 'عام',
-              subtitle:
-                  'المعاملات المتكررة خارج حسابات الميزانية الشهرية.',
+              subtitle: _scopeSubtitle(withinBudget: false),
               records: outBudget,
-              emptyLabel: 'لا توجد معاملات متكررة عامة.',
-              accent: _expenseAccent,
+              emptyLabel: _emptyScopeLabel(withinBudget: false),
+              accent: _currentAccent,
             ),
           ],
         );
@@ -87,12 +86,87 @@ class _RecurringTransactionsScreenState
     );
   }
 
+  bool _matchesTab(RecurringTransactionEntity item) {
+    if (_tab == 'income') {
+      return item.type == 'income';
+    }
+    if (_tab == 'subscriptions') {
+      return item.type == 'expense' && item.expensePlanKind == 'subscription';
+    }
+    return item.type == 'expense' && item.expensePlanKind != 'subscription';
+  }
+
+  Color get _currentAccent {
+    if (_tab == 'income') return _incomeAccent;
+    if (_tab == 'subscriptions') return _subscriptionAccent;
+    return _expenseAccent;
+  }
+
+  String _tabTitle() {
+    if (_tab == 'income') return 'الدخل المتكرر';
+    if (_tab == 'subscriptions') return 'الاشتراكات المتكررة';
+    return 'المصروفات المتكررة';
+  }
+
+  String _addButtonLabel() {
+    if (_tab == 'income') return 'إضافة دخل متكرر';
+    if (_tab == 'subscriptions') return 'إضافة اشتراك متكرر';
+    return 'إضافة مصروف متكرر';
+  }
+
+  String _scopeSubtitle({required bool withinBudget}) {
+    if (_tab == 'income') {
+      return withinBudget
+          ? 'الدخل المتكرر الذي يدخل في خطة الميزانية ومصادر دخلها.'
+          : 'الدخل المتكرر العام خارج تخطيط الميزانية الشهرية.';
+    }
+    if (_tab == 'subscriptions') {
+      return withinBudget
+          ? 'اشتراكاتك المرتبطة بالميزانية مثل خدمات البث والأدوات الدورية.'
+          : 'اشتراكات عامة لا تدخل في خطة الميزانية الحالية.';
+    }
+    return withinBudget
+        ? 'المصروفات والأقساط المتكررة المرتبطة بخطة الميزانية.'
+        : 'مصروفات متكررة عامة خارج حسابات الميزانية الشهرية.';
+  }
+
+  String _emptyScopeLabel({required bool withinBudget}) {
+    if (_tab == 'income') {
+      return withinBudget
+          ? 'لا توجد معاملات دخل متكررة داخل الميزانية.'
+          : 'لا توجد معاملات دخل متكررة عامة.';
+    }
+    if (_tab == 'subscriptions') {
+      return withinBudget
+          ? 'لا توجد اشتراكات متكررة مرتبطة بالميزانية.'
+          : 'لا توجد اشتراكات متكررة عامة.';
+    }
+    return withinBudget
+        ? 'لا توجد مصروفات أو أقساط متكررة داخل الميزانية.'
+        : 'لا توجد مصروفات متكررة عامة.';
+  }
+
+  void _handleAddPressed() {
+    if (_tab == 'expense') {
+      _openExpenseEntryChooser();
+      return;
+    }
+    if (_tab == 'subscriptions') {
+      _openRecurringComposer(
+        mode: 'expense',
+        initialExpensePlanKind: 'subscription',
+      );
+      return;
+    }
+    _openRecurringComposer(mode: _tab);
+  }
+
   Widget _heroHeader(List<RecurringTransactionEntity> records) {
     final theme = Theme.of(context);
     final total = records
         .where((item) => !item.isVariableIncome)
         .fold<double>(0, (sum, item) => sum + item.amount);
-    final accent = _tab == 'income' ? _incomeAccent : _expenseAccent;
+    final accent = _currentAccent;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -126,7 +200,9 @@ class _RecurringTransactionsScreenState
             child: Icon(
               _tab == 'income'
                   ? Icons.event_available_rounded
-                  : Icons.receipt_long_rounded,
+                  : _tab == 'subscriptions'
+                      ? Icons.subscriptions_rounded
+                      : Icons.receipt_long_rounded,
               color: Colors.white,
               size: 30,
             ),
@@ -137,7 +213,7 @@ class _RecurringTransactionsScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _tab == 'income' ? 'الدخل المتكرر' : 'المصروفات المتكررة',
+                  _tabTitle(),
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -164,7 +240,8 @@ class _RecurringTransactionsScreenState
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
@@ -172,9 +249,15 @@ class _RecurringTransactionsScreenState
       ),
       child: Row(
         children: [
-          _switchTile('income', 'الدخل', Icons.south_west_rounded),
+          _switchTile(
+            'subscriptions',
+            'الاشتراكات',
+            Icons.subscriptions_rounded,
+          ),
           const SizedBox(width: 8),
           _switchTile('expense', 'المصروف', Icons.north_east_rounded),
+          const SizedBox(width: 8),
+          _switchTile('income', 'الدخل', Icons.south_west_rounded),
         ],
       ),
     );
@@ -208,14 +291,17 @@ class _RecurringTransactionsScreenState
               Icon(
                 icon,
                 size: 20,
-                color: selected ? _incomeAccent : null,
+                color: selected ? _currentAccent : null,
               ),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                  color: selected ? _incomeAccent : null,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    color: selected ? _currentAccent : null,
+                  ),
                 ),
               ),
             ],
@@ -414,7 +500,7 @@ class _RecurringTransactionsScreenState
                         _miniTag(execution),
                         _miniTag(scope),
                         if (wallet != '-') _miniTag(wallet),
-                        if (record.isDebtOrSubscription)
+                        if (record.type == 'expense')
                           _miniTag(_expensePlanKindLabel(record)),
                       ],
                     ),
@@ -460,6 +546,7 @@ class _RecurringTransactionsScreenState
     RecurringTransactionEntity record,
   ) async {
     final accent = _parseColor(record.iconColor);
+    final relatedTransactions = _relatedTransactions(state, record);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -523,7 +610,7 @@ class _RecurringTransactionsScreenState
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          '${_typeLabel(record.type)} · ${_executionLabel(record.executionType)}',
+                          '${_typeLabel(record)} · ${_executionLabel(record.executionType)}',
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: Theme.of(context)
@@ -550,6 +637,8 @@ class _RecurringTransactionsScreenState
             ),
             const SizedBox(height: 14),
             _DetailsTable(rows: _detailsRows(state, record)),
+            const SizedBox(height: 14),
+            _relatedTransactionsSection(relatedTransactions),
             const SizedBox(height: 14),
             Row(
               children: [
@@ -585,15 +674,85 @@ class _RecurringTransactionsScreenState
     );
   }
 
+  Widget _relatedTransactionsSection(List<TransactionEntity> transactions) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'المعاملات المرتبطة',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            transactions.isEmpty
+                ? 'لا توجد معاملات مسجلة لهذه العملية المتكررة حتى الآن.'
+                : 'آخر المعاملات المسجلة المرتبطة بهذه العملية.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (transactions.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...transactions.map(_relatedTransactionTile),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _relatedTransactionTile(TransactionEntity transaction) {
+    final date = '${transaction.createdAt.day.toString().padLeft(2, '0')}/'
+        '${transaction.createdAt.month.toString().padLeft(2, '0')}/'
+        '${transaction.createdAt.year}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        tileColor:
+            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.28,
+                ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        title: Text(
+          transaction.amount.toStringAsFixed(2),
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        subtitle: Text(
+          transaction.notes?.trim().isNotEmpty == true
+              ? '${transaction.notes}\n$date'
+              : date,
+        ),
+        isThreeLine: transaction.notes?.trim().isNotEmpty == true,
+        trailing: const Icon(Icons.chevron_left_rounded),
+        onTap: () => openTransactionDetailsSheet(
+          context,
+          cubit: widget.cubit,
+          transaction: transaction,
+        ),
+      ),
+    );
+  }
+
   Map<String, String> _detailsRows(
     AppStateEntity state,
     RecurringTransactionEntity record,
   ) {
     return {
       'اسم المعاملة': record.name,
-      'النوع': _typeLabel(record.type),
-      'القيمة':
-          record.isVariableIncome ? 'دخل متغير' : record.amount.toStringAsFixed(2),
+      'النوع': _typeLabel(record),
+      'القيمة': record.isVariableIncome
+          ? 'دخل متغير'
+          : record.amount.toStringAsFixed(2),
       'المحفظة': _walletName(state, record.walletId),
       'النطاق':
           record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام',
@@ -608,9 +767,9 @@ class _RecurringTransactionsScreenState
       if (record.targetJarId != null)
         'الحصالة': _jarName(state, record.targetJarId),
       if (record.categoryIds.isNotEmpty)
-        'الفئات': record.categoryIds.map((id) => _categoryName(state, id)).join('، '),
-      if (record.isDebtOrSubscription)
-        'التصنيف': _expensePlanKindLabel(record),
+        'الفئات':
+            record.categoryIds.map((id) => _categoryName(state, id)).join('، '),
+      if (record.type == 'expense') 'التصنيف': _expensePlanKindLabel(record),
       if (record.expensePlanKind == 'installment' &&
           record.debtPrincipalTotal != null)
         'إجمالي الأصل': record.debtPrincipalTotal!.toStringAsFixed(2),
@@ -620,8 +779,9 @@ class _RecurringTransactionsScreenState
   }
 
   String _recurrenceLabel(RecurringTransactionEntity record) {
-    final timeSuffix =
-        (record.scheduledTime ?? '').isEmpty ? '' : ' · ${record.scheduledTime}';
+    final timeSuffix = (record.scheduledTime ?? '').isEmpty
+        ? ''
+        : ' · ${record.scheduledTime}';
     final weekdayLabel = record.weekdays.isNotEmpty
         ? record.weekdays.map(_weekdayName).join('، ')
         : _weekdayName(record.weekday);
@@ -633,7 +793,8 @@ class _RecurringTransactionsScreenState
       'every_2_months' => 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix',
       'every_3_months' => 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix',
       'every_6_months' => 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'yearly' => 'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
+      'yearly' =>
+        'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
       'manual-variable' => 'يدوي متغير',
       _ => 'شهري يوم ${record.dayOfMonth}$timeSuffix',
     };
@@ -661,8 +822,17 @@ class _RecurringTransactionsScreenState
     };
   }
 
-  String _typeLabel(String value) {
-    return value == 'income' ? 'دخل' : 'مصروف';
+  String _typeLabel(RecurringTransactionEntity record) {
+    if (record.type == 'income') {
+      return 'دخل';
+    }
+    if (record.expensePlanKind == 'subscription') {
+      return 'اشتراك';
+    }
+    if (record.expensePlanKind == 'installment') {
+      return 'قسط';
+    }
+    return 'مصروف';
   }
 
   String _reminderLabel(RecurringTransactionEntity record) {
@@ -710,17 +880,57 @@ class _RecurringTransactionsScreenState
   String _expensePlanKindLabel(RecurringTransactionEntity record) {
     final kind = record.expensePlanKind;
     if (kind == 'installment') {
-      return 'تقسيط';
+      return 'قسط';
     }
     if (kind == 'subscription') {
-      return 'اشتراك شهري';
+      return 'اشتراك';
     }
-    return 'دين أو اشتراك';
+    return 'مصروف';
   }
 
   Color _parseColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
     return Color(0xFF000000 | (value ?? 0x2F6F5E));
+  }
+
+  List<TransactionEntity> _relatedTransactions(
+    AppStateEntity state,
+    RecurringTransactionEntity record,
+  ) {
+    final items = state.transactions.where((transaction) {
+      if (transaction.type != record.type) {
+        return false;
+      }
+      if (record.type == 'income') {
+        if ((record.incomeSourceId ?? '').isNotEmpty) {
+          return transaction.incomeSourceId == record.incomeSourceId;
+        }
+        return transaction.walletId == record.walletId;
+      }
+      if (transaction.walletId != record.walletId) {
+        return false;
+      }
+      if ((record.allocationId ?? '').isNotEmpty) {
+        return transaction.allocationId == record.allocationId;
+      }
+      if ((record.targetJarId ?? '').isNotEmpty) {
+        return transaction.toWalletId == record.targetJarId ||
+            transaction.walletId == record.targetJarId;
+      }
+      if (record.categoryIds.isNotEmpty &&
+          transaction.categoryId != null &&
+          record.categoryIds.contains(transaction.categoryId)) {
+        return true;
+      }
+      final notes = (transaction.notes ?? '').toLowerCase();
+      final recurringName = record.name.trim().toLowerCase();
+      if (notes.contains(recurringName)) {
+        return true;
+      }
+      return (transaction.amount - record.amount).abs() < 0.01;
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return items.take(12).toList();
   }
 
   Future<void> _openRecurringComposer({
@@ -757,7 +967,7 @@ class _RecurringTransactionsScreenState
               const Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: Text(
-                  'اختر نوع المصروف المتكرر',
+                  'اختر نوع العملية المتكررة',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
                 ),
               ),
@@ -765,14 +975,14 @@ class _RecurringTransactionsScreenState
               const Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: Text(
-                  'حتى تفتح لك الفورم المناسبة بدون زحمة أو حقول غير لازمة.',
+                  'اختر بين المصروف العادي أو القسط أو الاشتراك حتى تفتح لك الفورمة المناسبة مباشرة.',
                   textAlign: TextAlign.right,
                 ),
               ),
               const SizedBox(height: 16),
               _entryChoiceTile(
                 title: 'مصروف متكرر عادي',
-                subtitle: 'لأي مصروف يتكرر بشكل طبيعي',
+                subtitle: 'لأي مصروف يتكرر بشكل طبيعي داخل أو خارج الميزانية',
                 icon: Icons.repeat_rounded,
                 onTap: () {
                   Navigator.of(context).pop();
@@ -781,7 +991,7 @@ class _RecurringTransactionsScreenState
               ),
               const SizedBox(height: 10),
               _entryChoiceTile(
-                title: 'إضافة تقسيط',
+                title: 'إضافة قسط',
                 subtitle: 'عند وجود أصل دين أو خدمة مقسطة على دفعات',
                 icon: Icons.account_balance_outlined,
                 onTap: () {
@@ -794,7 +1004,7 @@ class _RecurringTransactionsScreenState
               ),
               const SizedBox(height: 10),
               _entryChoiceTile(
-                title: 'إضافة اشتراك شهري',
+                title: 'إضافة اشتراك',
                 subtitle: 'مثل نتفلكس أو شاهد أو أي خدمة دورية',
                 icon: Icons.subscriptions_rounded,
                 onTap: () {
@@ -858,13 +1068,13 @@ class _RecurringTransactionsScreenState
             ),
             const SizedBox(width: 12),
             Container(
-              width: 52,
-              height: 52,
+              width: 54,
+              height: 54,
               decoration: BoxDecoration(
-                color: const Color(0xFFEAF2E8),
+                color: const Color(0xFFF9F3E7),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon, color: const Color(0xFF2F6F5E)),
+              child: Icon(icon, color: _currentAccent),
             ),
           ],
         ),
@@ -880,43 +1090,38 @@ class _DetailsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colorScheme.outlineVariant),
+        border: Border.all(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.7),
+        ),
       ),
       child: Column(
         children: rows.entries.map((entry) {
-          final isLast = entry.key == rows.entries.last.key;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              border: isLast
-                  ? null
-                  : Border(
-                      bottom: BorderSide(color: colorScheme.outlineVariant),
-                    ),
-            ),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 118,
-                  child: Text(
-                    entry.key,
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     entry.value,
+                    textAlign: TextAlign.start,
                     style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  entry.key,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
