@@ -16,6 +16,7 @@ import '../../../transactions/presentation/widgets/transaction_details_sheet.dar
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 import 'budget_setup_screen.dart';
+import 'cycle_analysis_screen.dart';
 
 class BudgetTrackingScreen extends StatefulWidget {
   const BudgetTrackingScreen({super.key, required this.cubit});
@@ -200,16 +201,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     }
                   });
                 },
-                expandedChildren:
-                    incomeSectionChildren,
-              ),
-              const SizedBox(height: 18),
-              _cycleInsightsSection(
-                state: state,
-                budget: budget,
-                totalIncomeActual: totalIncomeActual,
-                totalExpenseActual: totalExpenseActual,
-                remainingIncome: remainingIncome,
+                expandedChildren: incomeSectionChildren,
               ),
               const SizedBox(height: 18),
               _sectionTitle('المخصصات'),
@@ -240,9 +232,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               const SizedBox(height: 12),
               ..._debtInlineCards(state, budget, monthTx),
               const SizedBox(height: 18),
-              _sectionTitle('الملخص'),
+              _sectionTitle('ملخص الدورة'),
               const SizedBox(height: 12),
-              _summaryBreakdownCard(budget: budget),
+              _cycleSummaryCard(
+                state: state,
+                budget: budget,
+                totalIncomeActual: totalIncomeActual,
+                totalExpenseActual: totalExpenseActual,
+                remainingIncome: remainingIncome,
+              ),
               if (!pastMonth) ...[
                 const SizedBox(height: 16),
                 FilledButton.icon(
@@ -682,6 +680,169 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _cycleSummaryCard({
+    required AppStateEntity state,
+    required BudgetSetupEntity budget,
+    required double totalIncomeActual,
+    required double totalExpenseActual,
+    required double remainingIncome,
+  }) {
+    final theme = Theme.of(context);
+    final plannedIncome = budget.incomeSources
+        .where((i) => !i.isVariable)
+        .fold<double>(0, (s, i) => s + i.amount);
+    final plannedAllocations = budget.allocations.fold<double>(
+      0,
+      (s, a) => s + a.funding.fold<double>(0, (ss, f) => ss + f.plannedAmount),
+    );
+    final plannedJars =
+        budget.linkedWallets.fold<double>(0, (s, j) => s + j.monthlyAmount);
+    final plannedDebts = budget.debts.fold<double>(0, (s, d) {
+      final rec = _linkedRecurringDebt(state, d);
+      return s +
+          BudgetRecurringPlanService.amountDueInCycle(
+            debt: d,
+            recurring: rec,
+            cycleStart: _cycleStart,
+            cycleEnd: _cycleEnd,
+          );
+    });
+    final netSaving = remainingIncome.clamp(0, double.infinity).toDouble();
+    final spendRatio = totalIncomeActual <= 0
+        ? 0.0
+        : (totalExpenseActual / totalIncomeActual).clamp(0.0, 1.0);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          // ── Header row ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('ملخص الدورة',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                ),
+                // زرار تحليل الدورة
+                InkWell(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CycleAnalysisScreen(
+                        cubit: widget.cubit,
+                        cycleStart: _cycleStart,
+                        cycleEnd: _cycleEnd,
+                        totalIncomeActual: totalIncomeActual,
+                        totalExpenseActual: totalExpenseActual,
+                        remainingIncome: remainingIncome,
+                        plannedIncome: plannedIncome,
+                        plannedAllocations: plannedAllocations,
+                        plannedJars: plannedJars,
+                        plannedDebts: plannedDebts,
+                      ),
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E7F5C).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.auto_graph_rounded,
+                            size: 16, color: Color(0xFF1E7F5C)),
+                        const SizedBox(width: 5),
+                        Text('تحليل الدورة',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF1E7F5C),
+                              fontWeight: FontWeight.w800,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // ── Spend progress ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('المستهلك',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    Text(
+                      '${(spendRatio * 100).round()}٪  ·  ${totalExpenseActual.toStringAsFixed(0)}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: spendRatio,
+                    minHeight: 8,
+                    backgroundColor:
+                        theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      spendRatio < 0.7
+                          ? const Color(0xFF1E7F5C)
+                          : spendRatio < 0.9
+                              ? const Color(0xFFE4B83F)
+                              : const Color(0xFFC65D2E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          // ── Rows ──
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _row('الدخل الفعلي', totalIncomeActual),
+                _row('إجمالي المصروف', totalExpenseActual,
+                    danger: totalExpenseActual > totalIncomeActual),
+                _row('المتبقي', remainingIncome, danger: remainingIncome < 0),
+                const Divider(height: 20),
+                _row('الدخل المخطط', plannedIncome),
+                _row('المخصصات', plannedAllocations),
+                _row('الحصالات', plannedJars),
+                _row('الالتزامات في الدورة', plannedDebts),
+                const Divider(height: 20),
+                _row('غير المخصص', budget.unallocatedAmount,
+                    danger: budget.unallocatedAmount < 0),
+                _row('التوفير المتوقع', netSaving),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1500,7 +1661,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         .fold<double>(0, (sum, item) => sum + item.amount);
     final plannedAllocations = budget.allocations.fold<double>(
       0,
-      (sum, item) => sum + item.funding.fold<double>(0, (s, f) => s + f.plannedAmount),
+      (sum, item) =>
+          sum + item.funding.fold<double>(0, (s, f) => s + f.plannedAmount),
     );
     final plannedJars = budget.linkedWallets.fold<double>(
       0,
@@ -1552,7 +1714,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             _cycleInsightCard(
               title: 'المتبقي',
               value: remainingIncome,
-              subtitle: remainingIncome >= 0 ? 'متاح حتى نهاية الدورة' : 'عجز في التنفيذ الحالي',
+              subtitle: remainingIncome >= 0
+                  ? 'متاح حتى نهاية الدورة'
+                  : 'عجز في التنفيذ الحالي',
               icon: Icons.account_balance_wallet_rounded,
               tint: remainingIncome >= 0
                   ? const Color(0xFF0F9D7A)
@@ -1697,6 +1861,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final received = sourceTx.fold<double>(0, (s, t) => s + t.amount);
         final recurring = _linkedRecurringIncome(state, source);
         final pendingMeta = _incomePendingMeta(state, source, sourceTx);
+        final isSnoozed = pendingMeta?['snoozed'] == true;
         final displayedAmount = received <= 0 ? source.amount : received;
         final pool = _incomeDisplayPool(source, received);
         final spent =
@@ -1707,12 +1872,45 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final incomeProgressColor = remProgress == null
             ? const Color(0xFF0F9D7A)
             : _usageProgressColor(1 - remProgress);
+
+        // ── snooze chip ──────────────────────────────────────────────────
+        Widget? snoozeChip;
+        if (isSnoozed) {
+          snoozeChip = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5A623).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.schedule_rounded,
+                    size: 13, color: Color(0xFFF5A623)),
+                const SizedBox(width: 4),
+                Text(
+                  pendingMeta!['status'] as String,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFFF5A623),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return _entityTile(
           title: source.name,
           leading: _iconBadge(
             recurring?.icon ?? 'cash',
             recurring?.iconColor ?? '#0f9d7a',
-            size: 56,
+            // حجم أصغر لو مأجل
+            size: isSnoozed ? 44 : 56,
           ),
           amountText: displayedAmount.truncate().toString(),
           metaText: source.isVariable
@@ -1722,43 +1920,65 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ? recurring!.scheduledTime!
               : null,
           supportingText: source.isVariable ? 'دخل غير ثابت' : null,
-          supportingCustom: source.isVariable
-              ? null
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      'الباقي',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+          supportingCustom: isSnoozed
+              ? snoozeChip
+              : source.isVariable
+                  ? null
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          'الباقي',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          afterSpend.toStringAsFixed(2),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.92),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      afterSpend.toStringAsFixed(2),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurfaceVariant
-                            .withValues(alpha: 0.92),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-          tint: const Color(0xFF0F9D7A),
-          compactMeta: source.isVariable,
-          progress: remProgress,
+          tint: isSnoozed
+              ? const Color(0xFFF5A623).withValues(alpha: 0.6)
+              : const Color(0xFF0F9D7A),
+          compactMeta: source.isVariable || isSnoozed,
+          progress: isSnoozed ? null : remProgress,
           progressColor: incomeProgressColor,
           embeddedInIncomeCard: true,
           onTap: () =>
               _openIncomeDetailsSheet(source, sourceTx, budget, monthTx),
-          actions: pendingMeta == null
-              ? const <Widget>[]
+          actions: (pendingMeta == null || isSnoozed)
+              ? isSnoozed
+                  ? <Widget>[
+                      _compactActionButton(
+                        label: 'إلغاء التأجيل',
+                        filled: false,
+                        onPressed: () async {
+                          final setup = widget.cubit.state.budgetSetup;
+                          final updated = setup.incomeSources.map((i) {
+                            if (i.id != source.id) return i;
+                            return i.copyWith(snoozedUntil: '');
+                          }).toList();
+                          await widget.cubit.updateBudgetSetup(
+                            setup.copyWith(incomeSources: updated),
+                          );
+                        },
+                      ),
+                    ]
+                  : const <Widget>[]
               : <Widget>[
                   if (pendingMeta['canEarly'] == true)
                     _compactActionButton(
@@ -1795,7 +2015,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
     ];
     if (children.isEmpty) {
-      children.add(const _StaticInfoCard(text: 'لا يوجد دخل مسجل أو مخطط في هذه الدورة.'));
+      children.add(const _StaticInfoCard(
+          text: 'لا يوجد دخل مسجل أو مخطط في هذه الدورة.'));
     }
     return children;
   }
@@ -1941,7 +2162,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         cycleStart: _cycleStart,
         cycleEnd: _cycleEnd,
       );
-      final amountPerOccurrence = BudgetRecurringPlanService.amountPerOccurrence(
+      final amountPerOccurrence =
+          BudgetRecurringPlanService.amountPerOccurrence(
         debt: debt,
         recurring: recurring,
       );
@@ -1961,8 +2183,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             : occurrencesInCycle > 1
                 ? 'مستحق $occurrencesInCycle مرات · ${amountPerOccurrence.toStringAsFixed(2)} لكل مرة'
                 : 'مستحق · ${amountPerOccurrence.toStringAsFixed(2)}',
-        supportingText:
-            _recurrenceLabel(recurring?.recurrencePattern ?? debt.recurrencePattern),
+        supportingText: _recurrenceLabel(
+            recurring?.recurrencePattern ?? debt.recurrencePattern),
         progress: cycleDue <= 0
             ? null
             : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
@@ -2858,7 +3080,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   RecurringTransactionEntity? _linkedRecurringDebt(
     AppStateEntity state,
     DebtEntity debt,
-  ) => BudgetRecurringPlanService.linkedRecurring(
+  ) =>
+      BudgetRecurringPlanService.linkedRecurring(
         state.recurringTransactions,
         debt,
       );
@@ -3063,32 +3286,24 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Future<void> _postponeIncome(IncomeSourceEntity source) async {
     final dueDate = _incomeDueDateForMonth(source, _month);
+    final cycleEnd = _cycleEnd;
     final picked = await showDatePicker(
       context: context,
       initialDate: dueDate.add(const Duration(days: 1)),
       firstDate: dueDate.add(const Duration(days: 1)),
-      lastDate: DateTime(_month.year, _month.month + 1, 28),
+      lastDate: DateTime(cycleEnd.year, cycleEnd.month, cycleEnd.day),
     );
     if (picked == null) return;
+    // نحط snoozedUntil مؤقت بدل ما نغير date الدائم
+    final snoozedUntilDate = DateTime(picked.year, picked.month, picked.day, 9);
     final setup = widget.cubit.state.budgetSetup;
-    final incomes = setup.incomeSources
-        .map(
-          (i) => i.id == source.id
-              ? IncomeSourceEntity(
-                  id: i.id,
-                  name: i.name,
-                  amount: i.amount,
-                  date: picked.day,
-                  type: i.type,
-                  targetWalletId: i.targetWalletId,
-                  isVariable: i.isVariable,
-                  isDefault: i.isDefault,
-                )
-              : i,
-        )
-        .toList();
-    await widget.cubit
-        .updateBudgetSetup(setup.copyWith(incomeSources: incomes));
+    final updatedIncomes = setup.incomeSources.map((i) {
+      if (i.id != source.id) return i;
+      return i.copyWith(snoozedUntil: snoozedUntilDate.toIso8601String());
+    }).toList();
+    await widget.cubit.updateBudgetSetup(
+      setup.copyWith(incomeSources: updatedIncomes),
+    );
   }
 
   Future<void> _recordDebtFromTracking(

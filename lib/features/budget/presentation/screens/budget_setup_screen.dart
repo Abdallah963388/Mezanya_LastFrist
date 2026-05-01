@@ -77,11 +77,13 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         _budget.startDay.clamp(1, 28),
       );
 
-  DateTime get _displayCycleStart => _budget.cycleStartFor(_displayCycleReference);
+  DateTime get _displayCycleStart =>
+      _budget.cycleStartFor(_displayCycleReference);
 
   DateTime get _displayCycleEnd => _budget.cycleEndFor(_displayCycleReference);
 
-  List<DebtEntity> get _visibleDebtsForDisplayCycle => _budget.debts.where((debt) {
+  List<DebtEntity> get _visibleDebtsForDisplayCycle =>
+      _budget.debts.where((debt) {
         final recurring = _linkedRecurringDebt(debt);
         return BudgetRecurringPlanService.isDueInCycle(
           debt: debt,
@@ -111,7 +113,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   double get _debtsTotal {
     return _budget.debts.fold<double>(
       0,
-      (sum, debt) => sum + _debtAmountForCycle(_budget, debt, _displayCycleStart, _displayCycleEnd),
+      (sum, debt) =>
+          sum +
+          _debtAmountForCycle(
+              _budget, debt, _displayCycleStart, _displayCycleEnd),
     );
   }
 
@@ -291,7 +296,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     final cycleEnd = setup.cycleEndFor(displayCycleReference);
     final debtsTotal = setup.debts.fold<double>(
       0,
-      (sum, debt) => sum + _debtAmountForCycle(setup, debt, cycleStart, cycleEnd),
+      (sum, debt) =>
+          sum + _debtAmountForCycle(setup, debt, cycleStart, cycleEnd),
     );
     return allocationsTotal + linkedTotal + debtsTotal;
   }
@@ -805,23 +811,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               monthOfYear: current?.monthOfYear,
               incomeSourceId: null,
               isDebtOrSubscription: true,
-              expensePlanKind:
-                  current?.isSubscription == true ? 'subscription' : 'installment',
+              expensePlanKind: current?.isSubscription == true
+                  ? 'subscription'
+                  : 'installment',
               debtPrincipalTotal: current?.principalTotal ??
                   (current?.isInstallment == true ? current!.amount : null),
             ))
         .copyWith(
-          recurrencePattern: current?.recurrencePattern != null &&
-                  current!.recurrencePattern != 'monthly'
-              ? current.recurrencePattern
-              : (linkedRecurring?.recurrencePattern ?? 'monthly'),
-          monthOfYear: current?.monthOfYear ?? linkedRecurring?.monthOfYear,
-          expensePlanKind: linkedRecurring?.expensePlanKind ??
-              (current?.isSubscription == true ? 'subscription' : 'installment'),
-          debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
-              current?.principalTotal ??
-              (current?.isInstallment == true ? current!.amount : null),
-        );
+      recurrencePattern: current?.recurrencePattern != null &&
+              current!.recurrencePattern != 'monthly'
+          ? current.recurrencePattern
+          : (linkedRecurring?.recurrencePattern ?? 'monthly'),
+      monthOfYear: current?.monthOfYear ?? linkedRecurring?.monthOfYear,
+      expensePlanKind: linkedRecurring?.expensePlanKind ??
+          (current?.isSubscription == true ? 'subscription' : 'installment'),
+      debtPrincipalTotal: linkedRecurring?.debtPrincipalTotal ??
+          current?.principalTotal ??
+          (current?.isInstallment == true ? current!.amount : null),
+    );
 
     final result =
         await Navigator.of(context).push<RecurringTransactionComposerResult>(
@@ -857,8 +864,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               : ''),
       recurringTransactionId: recurringId,
       kind: isSubscription ? 'subscription' : 'installment',
-      principalTotal:
-          isSubscription ? null : (principal != null && principal > 0 ? principal : null),
+      principalTotal: isSubscription
+          ? null
+          : (principal != null && principal > 0 ? principal : null),
       recurrencePattern: recurring.recurrencePattern,
       monthOfYear: recurring.monthOfYear,
     );
@@ -1404,7 +1412,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     final iconName = recurring?.icon ?? 'receipt';
                     final iconColor = recurring?.iconColor ?? '#c65d2e';
                     final detailText = debt.isSubscription
-                        ? _recurrenceLabel(recurring?.recurrencePattern ?? debt.recurrencePattern)
+                        ? _recurrenceLabel(recurring?.recurrencePattern ??
+                            debt.recurrencePattern)
                         : 'يوم ${debt.executionDay}';
                     return _planTile(
                       title: debt.name,
