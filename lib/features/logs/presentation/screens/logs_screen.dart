@@ -25,6 +25,12 @@ class _LogsScreenState extends State<LogsScreen> {
   String _range = 'all';
   final Set<String> _entityTypes = <String>{};
 
+  static const _green = Color(0xFF2F6F5E);
+  static const _red = Color(0xFFC65D2E);
+  static const _blue = Color(0xFF2E5CC6);
+  static const _amber = Color(0xFFA07830);
+  static const _purple = Color(0xFF6B42B8);
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppStateEntity>(
@@ -33,52 +39,45 @@ class _LogsScreenState extends State<LogsScreen> {
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
         final logs = _filtered(state.logs);
+        final total = state.logs.length;
+
         return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
             title: const Text('السجلات'),
             actions: [
               IconButton(
-                icon: const Icon(Icons.filter_alt_outlined),
+                icon: Badge(
+                  isLabelVisible:
+                      _range != 'all' || _entityTypes.isNotEmpty,
+                  child: const Icon(Icons.tune_rounded),
+                ),
+                tooltip: 'الفلاتر',
                 onPressed: _openFilters,
               ),
             ],
           ),
           body: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _tabChip('all', 'الكل'),
-                      _tabChip('transaction', 'المعاملات'),
-                      _tabChip('recurring', 'المتكررة'),
-                      _tabChip('edit', 'تعديل'),
-                      _tabChip('delete', 'حذف'),
-                      _tabChip('transfer', 'تحويل'),
-                    ],
-                  ),
-                ),
-              ),
+              _statsBar(total, logs.length),
+              _tabsRow(),
               Expanded(
                 child: logs.isEmpty
-                    ? const Center(
-                        child: Text('لا توجد سجلات مطابقة للفلاتر الحالية.'),
-                      )
+                    ? _emptyState()
                     : ListView.builder(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
                         itemCount: logs.length,
                         itemBuilder: (context, index) {
                           final log = logs[index];
                           final rows = _detailRowsForLog(state, log);
-                          return _LogSummaryCard(
+                          return _LogCard(
                             log: log,
                             title: _pretty(log),
                             actionName: _actionName(log.action),
                             entityName: _entityTypeName(log.entityType),
-                            timestamp: _fmt(log.timestamp),
+                            timestamp: log.timestamp,
                             amount: rows['القيمة'] ?? rows['المبلغ'],
+                            accentColor: _accentForLog(log),
                             onTap: () => _openDetails(state, log),
                           );
                         },
@@ -91,14 +90,205 @@ class _LogsScreenState extends State<LogsScreen> {
     );
   }
 
-  Widget _tabChip(String id, String label) {
+  Color _accentForLog(LogEntryEntity log) {
+    return switch (log.action) {
+      'delete' => _red,
+      'edit' => _amber,
+      'transfer' => _blue,
+      'revert' => _purple,
+      'import' => _blue,
+      _ => _green,
+    };
+  }
+
+  Widget _statsBar(int total, int filtered) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _green.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _green.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.history_rounded,
+              color: _green,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'إجمالي السجلات',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  filtered == total
+                      ? '$total سجل'
+                      : '$filtered من $total سجل',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: _green,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (filtered != total)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'مفلتر',
+                style: TextStyle(
+                  color: _amber,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabsRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _tabChip('all', 'الكل', Icons.list_rounded, _green),
+            _tabChip(
+                'transaction', 'معاملة', Icons.receipt_rounded, _green),
+            _tabChip('recurring', 'متكررة',
+                Icons.repeat_rounded, _blue),
+            _tabChip('add', 'إضافة', Icons.add_circle_outline_rounded, _green),
+            _tabChip('edit', 'تعديل', Icons.edit_outlined, _amber),
+            _tabChip('delete', 'حذف', Icons.delete_outline_rounded, _red),
+            _tabChip('transfer', 'تحويل', Icons.swap_horiz_rounded, _blue),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabChip(
+    String id,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
     final selected = _tab == id;
     return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 6),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => setState(() => _tab = id),
+      padding: const EdgeInsetsDirectional.only(end: 8),
+      child: GestureDetector(
+        onTap: () => setState(() => _tab = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected
+                ? color.withValues(alpha: 0.14)
+                : Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.6)
+                  : Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.5),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected
+                    ? color
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight:
+                      selected ? FontWeight.w900 : FontWeight.w700,
+                  fontSize: 13,
+                  color: selected
+                      ? color
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history_rounded,
+            size: 60,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurfaceVariant
+                .withValues(alpha: 0.35),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'لا توجد سجلات مطابقة',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'جرّب تغيير الفلاتر أو الفئة المحددة',
+            style: TextStyle(
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withValues(alpha: 0.7),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -116,6 +306,8 @@ class _LogsScreenState extends State<LogsScreen> {
     } else if (_tab == 'recurring') {
       filtered =
           filtered.where((log) => log.entityType == 'recurring-transaction');
+    } else if (_tab == 'add') {
+      filtered = filtered.where((log) => log.action == 'add');
     } else if (_tab == 'edit') {
       filtered = filtered.where((log) => log.action == 'edit');
     } else if (_tab == 'delete') {
@@ -124,82 +316,241 @@ class _LogsScreenState extends State<LogsScreen> {
       filtered = filtered.where((log) => log.action == 'transfer');
     }
     if (_entityTypes.isNotEmpty) {
-      filtered = filtered.where((log) => _entityTypes.contains(log.entityType));
+      filtered =
+          filtered.where((log) => _entityTypes.contains(log.entityType));
     }
-    return filtered.toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return filtered.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
   }
 
   void _openFilters() {
     final selected = Set<String>.from(_entityTypes);
     String range = _range;
+
+    final entityOptions = [
+      ('transaction', 'معاملة'),
+      ('recurring-transaction', 'معاملة متكررة'),
+      ('wallet', 'محفظة'),
+      ('budget', 'ميزانية'),
+      ('linked-wallet', 'حصالة'),
+      ('category', 'فئة'),
+      ('settings', 'إعدادات'),
+      ('goal', 'هدف'),
+    ];
+
+    final rangeOptions = [
+      ('all', 'كل الوقت'),
+      ('day', 'آخر 24 ساعة'),
+      ('week', 'آخر أسبوع'),
+      ('month', 'آخر شهر'),
+    ];
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (context) => StatefulBuilder(
         builder: (context, setSheet) => Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            4,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'فلترة السجلات',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: range,
-                decoration: const InputDecoration(labelText: 'المدى الزمني'),
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('الكل')),
-                  DropdownMenuItem(value: 'day', child: Text('آخر يوم')),
-                  DropdownMenuItem(value: 'week', child: Text('آخر أسبوع')),
-                  DropdownMenuItem(value: 'month', child: Text('آخر شهر')),
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: _green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.tune_rounded,
+                        color: _green, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'فلترة السجلات',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value != null) setSheet(() => range = value);
-                },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
+              const Text(
+                'المدى الزمني',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
               Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: const [
-                  'transaction',
-                  'recurring-transaction',
-                  'wallet',
-                  'budget',
-                  'settings',
-                  'goal',
-                ]
-                    .map(
-                      (type) => FilterChip(
-                        label: Text(type),
-                        selected: selected.contains(type),
-                        onSelected: (on) {
-                          setSheet(() {
-                            if (on) {
-                              selected.add(type);
-                            } else {
-                              selected.remove(type);
-                            }
-                          });
-                        },
+                spacing: 8,
+                runSpacing: 8,
+                children: rangeOptions.map((opt) {
+                  final (value, label) = opt;
+                  final sel = range == value;
+                  return GestureDetector(
+                    onTap: () => setSheet(() => range = value),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? _blue.withValues(alpha: 0.13)
+                            : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: sel
+                              ? _blue.withValues(alpha: 0.6)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant
+                                  .withValues(alpha: 0.5),
+                          width: sel ? 1.5 : 1,
+                        ),
                       ),
-                    )
-                    .toList(),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontWeight:
+                              sel ? FontWeight.w900 : FontWeight.w700,
+                          fontSize: 13,
+                          color: sel
+                              ? _blue
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
-              const SizedBox(height: 14),
-              FilledButton(
-                onPressed: () {
-                  setState(() {
-                    _range = range;
-                    _entityTypes
-                      ..clear()
-                      ..addAll(selected);
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text('تطبيق الفلتر'),
+              const SizedBox(height: 18),
+              const Text(
+                'نوع العنصر',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: entityOptions.map((opt) {
+                  final (value, label) = opt;
+                  final sel = selected.contains(value);
+                  return GestureDetector(
+                    onTap: () => setSheet(() {
+                      if (sel) {
+                        selected.remove(value);
+                      } else {
+                        selected.add(value);
+                      }
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 140),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? _amber.withValues(alpha: 0.13)
+                            : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest
+                                .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: sel
+                              ? _amber.withValues(alpha: 0.6)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant
+                                  .withValues(alpha: 0.5),
+                          width: sel ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (sel) ...[
+                            Icon(Icons.check_rounded,
+                                size: 15, color: _amber),
+                            const SizedBox(width: 5),
+                          ],
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontWeight:
+                                  sel ? FontWeight.w900 : FontWeight.w700,
+                              fontSize: 13,
+                              color: sel
+                                  ? _amber
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setSheet(() {
+                          range = 'all';
+                          selected.clear();
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text('مسح الكل'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: () {
+                        setState(() {
+                          _range = range;
+                          _entityTypes
+                            ..clear()
+                            ..addAll(selected);
+                        });
+                        Navigator.pop(context);
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text('تطبيق الفلتر'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -221,34 +572,141 @@ class _LogsScreenState extends State<LogsScreen> {
     final canDeleteRecurring =
         log.entityType == 'recurring-transaction' && recurring != null;
     final canUndoDelete = log.action == 'delete' && !log.isReverted;
+    final accent = _accentForLog(log);
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (sheetContext) => SizedBox(
-        height: MediaQuery.of(sheetContext).size.height * 0.82,
+        height: MediaQuery.of(sheetContext).size.height * 0.86,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
           children: [
-            Text(
-              _pretty(log),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w900),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: Icon(
+                      _iconForAction(log.action),
+                      color: accent,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _pretty(log),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _miniTag(
+                              _actionName(log.action),
+                              accent,
+                            ),
+                            _miniTag(
+                              _entityTypeName(log.entityType),
+                              accent.withValues(alpha: 0.75),
+                            ),
+                            if (log.isReverted)
+                              _miniTag('تم التراجع', _purple),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _fmtFull(log.timestamp),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (log.revertedAt != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.undo_rounded,
+                                size: 14,
+                                color: _purple.withValues(alpha: 0.75),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'تم التراجع: ${_fmtFull(log.revertedAt!)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _purple.withValues(alpha: 0.75),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            _DetailsTable(
-              rows: {
-                'نوع السجل': _actionName(log.action),
-                'العنصر': _entityTypeName(log.entityType),
-                'وقت التسجيل': _fmt(log.timestamp),
-                if (log.revertedAt != null) 'وقت التراجع': _fmt(log.revertedAt!),
-                ...rows,
-              },
-            ),
-            const SizedBox(height: 14),
-            if (canEditTransaction)
+            const SizedBox(height: 16),
+            if (rows.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'تفاصيل السجل',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              _DetailsTable(rows: rows),
+              const SizedBox(height: 16),
+            ],
+            if (canEditTransaction) ...[
               FilledButton.icon(
                 onPressed: () async {
                   Navigator.pop(sheetContext);
@@ -260,8 +718,16 @@ class _LogsScreenState extends State<LogsScreen> {
                 },
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('تعديل المعاملة'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
-            if (canEditRecurring)
+              const SizedBox(height: 8),
+            ],
+            if (canEditRecurring) ...[
               FilledButton.icon(
                 onPressed: () async {
                   Navigator.pop(sheetContext);
@@ -281,28 +747,53 @@ class _LogsScreenState extends State<LogsScreen> {
                 },
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('تعديل المعاملة المتكررة'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
-            if (canDeleteTransaction || canDeleteRecurring) ...[
               const SizedBox(height: 8),
+            ],
+            if (canDeleteTransaction || canDeleteRecurring) ...[
               OutlinedButton.icon(
                 onPressed: () async {
                   if (canDeleteTransaction) {
                     await widget.cubit.deleteTransaction(log.entityId);
                   } else {
-                    await widget.cubit.deleteRecurringTransaction(log.entityId);
+                    await widget.cubit
+                        .deleteRecurringTransaction(log.entityId);
                   }
                   if (sheetContext.mounted) Navigator.pop(sheetContext);
                 },
-                icon: const Icon(Icons.delete_outline),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 label: Text(
                   canDeleteTransaction
                       ? 'حذف المعاملة'
                       : 'حذف المعاملة المتكررة',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .error
+                          .withValues(alpha: 0.4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
+              const SizedBox(height: 8),
             ],
             if (canUndoDelete) ...[
-              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () async {
                   await widget.cubit.toggleLogRevert(log.id);
@@ -310,9 +801,34 @@ class _LogsScreenState extends State<LogsScreen> {
                 },
                 icon: const Icon(Icons.undo_rounded),
                 label: const Text('تراجع عن الحذف'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
         ),
       ),
     );
@@ -332,7 +848,7 @@ class _LogsScreenState extends State<LogsScreen> {
       if (recurring == null) return {'الوصف': _pretty(log)};
       return _recurringRows(currentState, recurring);
     }
-    return {'الوصف': _pretty(log)};
+    return {};
   }
 
   TransactionEntity? _transactionForLog(
@@ -376,25 +892,32 @@ class _LogsScreenState extends State<LogsScreen> {
     return items.isEmpty ? null : items.first;
   }
 
-  RecurringTransactionEntity? _currentRecurring(AppStateEntity state, String id) {
+  RecurringTransactionEntity? _currentRecurring(
+      AppStateEntity state, String id) {
     final items =
         state.recurringTransactions.where((item) => item.id == id).toList();
     return items.isEmpty ? null : items.first;
   }
 
-  Map<String, String> _transactionRows(AppStateEntity state, TransactionEntity tx) {
+  Map<String, String> _transactionRows(
+      AppStateEntity state, TransactionEntity tx) {
     return {
       'نوع العملية': _transactionTypeName(tx.type),
       'القيمة': tx.amount.toStringAsFixed(2),
       'التاريخ': DateFormat('yyyy/MM/dd', 'ar').format(tx.createdAt),
       'الوقت': DateFormat('HH:mm', 'ar').format(tx.createdAt),
       if (tx.walletId != null) 'المحفظة': _walletName(state, tx.walletId),
-      if (tx.fromWalletId != null) 'من محفظة': _walletName(state, tx.fromWalletId),
-      if (tx.toWalletId != null) 'إلى': _walletOrJarName(state, tx.toWalletId),
-      if (tx.incomeSourceId != null) 'مصدر الدخل': _incomeName(state, tx.incomeSourceId),
-      if (tx.allocationId != null) 'المخصص': _allocationName(state, tx.allocationId),
+      if (tx.fromWalletId != null)
+        'من محفظة': _walletName(state, tx.fromWalletId),
+      if (tx.toWalletId != null)
+        'إلى': _walletOrJarName(state, tx.toWalletId),
+      if (tx.incomeSourceId != null)
+        'مصدر الدخل': _incomeName(state, tx.incomeSourceId),
+      if (tx.allocationId != null)
+        'المخصص': _allocationName(state, tx.allocationId),
       if (tx.categoryId != null) 'الفئة': _categoryName(state, tx.categoryId),
-      if (tx.budgetScope != null) 'النطاق': _budgetScopeName(tx.budgetScope!),
+      if (tx.budgetScope != null)
+        'النطاق': _budgetScopeName(tx.budgetScope!),
       if (tx.notes?.isNotEmpty == true) 'الملاحظات': tx.notes!,
     };
   }
@@ -414,7 +937,8 @@ class _LogsScreenState extends State<LogsScreen> {
       'التكرار': _recurrenceName(recurring.recurrencePattern),
       'التنفيذ': _executionName(recurring.executionType),
       'يوم الشهر': recurring.dayOfMonth.toString(),
-      if (recurring.scheduledTime?.isNotEmpty == true) 'الوقت': recurring.scheduledTime!,
+      if (recurring.scheduledTime?.isNotEmpty == true)
+        'الوقت': recurring.scheduledTime!,
       if (recurring.isDebtOrSubscription) 'التصنيف': 'دين أو اشتراك',
       if (recurring.incomeSourceId != null)
         'مصدر الدخل': _incomeName(state, recurring.incomeSourceId),
@@ -505,19 +1029,24 @@ class _LogsScreenState extends State<LogsScreen> {
     if (id == null || id.isEmpty) return '-';
     final wallets = state.wallets.where((item) => item.id == id).toList();
     if (wallets.isNotEmpty) return wallets.first.name;
-    final jars = state.budgetSetup.linkedWallets.where((item) => item.id == id).toList();
+    final jars = state.budgetSetup.linkedWallets
+        .where((item) => item.id == id)
+        .toList();
     return jars.isEmpty ? id : jars.first.name;
   }
 
   String _incomeName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.incomeSources.where((item) => item.id == id).toList();
+    final items = state.budgetSetup.incomeSources
+        .where((item) => item.id == id)
+        .toList();
     return items.isEmpty ? id : items.first.name;
   }
 
   String _allocationName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.allocations.where((item) => item.id == id).toList();
+    final items =
+        state.budgetSetup.allocations.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
 
@@ -527,16 +1056,39 @@ class _LogsScreenState extends State<LogsScreen> {
     return items.isEmpty ? id : items.first.name;
   }
 
-  String _fmt(DateTime date) => DateFormat('yyyy/MM/dd HH:mm', 'ar').format(date);
+  String _fmtFull(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'الآن';
+    if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+    if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+    if (diff.inDays == 1) return 'أمس ${DateFormat('HH:mm').format(date)}';
+    if (diff.inDays < 7) {
+      return 'منذ ${diff.inDays} أيام - ${DateFormat('HH:mm').format(date)}';
+    }
+    return DateFormat('yyyy/MM/dd HH:mm', 'ar').format(date);
+  }
+
+  IconData _iconForAction(String action) {
+    return switch (action) {
+      'delete' => Icons.delete_outline_rounded,
+      'edit' => Icons.edit_outlined,
+      'transfer' => Icons.swap_horiz_rounded,
+      'revert' => Icons.undo_rounded,
+      'import' => Icons.upload_rounded,
+      _ => Icons.add_circle_outline_rounded,
+    };
+  }
 }
 
-class _LogSummaryCard extends StatelessWidget {
-  const _LogSummaryCard({
+class _LogCard extends StatelessWidget {
+  const _LogCard({
     required this.log,
     required this.title,
     required this.actionName,
     required this.entityName,
     required this.timestamp,
+    required this.accentColor,
     required this.onTap,
     this.amount,
   });
@@ -545,70 +1097,20 @@ class _LogSummaryCard extends StatelessWidget {
   final String title;
   final String actionName;
   final String entityName;
-  final String timestamp;
+  final DateTime timestamp;
+  final Color accentColor;
   final String? amount;
   final VoidCallback onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final accent = log.action == 'delete'
-        ? const Color(0xFFC65D2E)
-        : const Color(0xFF2F6F5E);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(_iconForAction(log.action), color: accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$actionName - $entityName - $timestamp',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (amount != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  amount!,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ],
-              const Icon(Icons.chevron_left_rounded),
-            ],
-          ),
-        ),
-      ),
-    );
+  String _relativeTime() {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    if (diff.inMinutes < 1) return 'الآن';
+    if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} د';
+    if (diff.inHours < 24) return 'منذ ${diff.inHours} س';
+    if (diff.inDays == 1) return 'أمس';
+    if (diff.inDays < 7) return 'منذ ${diff.inDays} أيام';
+    return DateFormat('yyyy/MM/dd', 'ar').format(timestamp);
   }
 
   IconData _iconForAction(String action) {
@@ -616,8 +1118,159 @@ class _LogSummaryCard extends StatelessWidget {
       'delete' => Icons.delete_outline_rounded,
       'edit' => Icons.edit_outlined,
       'transfer' => Icons.swap_horiz_rounded,
-      _ => Icons.receipt_long_rounded,
+      'revert' => Icons.undo_rounded,
+      'import' => Icons.upload_rounded,
+      _ => Icons.add_circle_outline_rounded,
     };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = accentColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 5,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(22),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  _iconForAction(log.action),
+                  color: accent,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          _MiniChip(
+                            label: actionName,
+                            color: accent,
+                          ),
+                          const SizedBox(width: 5),
+                          _MiniChip(
+                            label: entityName,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          if (log.isReverted) ...[
+                            const SizedBox(width: 5),
+                            _MiniChip(
+                              label: 'تراجع',
+                              color: const Color(0xFF6B42B8),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (amount != null)
+                    Text(
+                      amount!,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                        color: accent,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _relativeTime(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.chevron_left_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: color,
+        ),
+      ),
+    );
   }
 }
 
@@ -634,44 +1287,55 @@ class _DetailsTable extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colorScheme.outlineVariant),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.65),
+        ),
       ),
       child: Column(
-        children: entries.map((entry) {
-          final isLast = identical(entry, entries.last);
+        children: List.generate(entries.length, (i) {
+          final entry = entries[i];
+          final isLast = i == entries.length - 1;
           return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(
               border: isLast
                   ? null
                   : Border(
-                      bottom: BorderSide(color: colorScheme.outlineVariant),
+                      bottom: BorderSide(
+                        color: colorScheme.outlineVariant
+                            .withValues(alpha: 0.45),
+                      ),
                     ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: 118,
+                  width: 110,
                   child: Text(
                     entry.key,
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
+                      fontSize: 13,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     entry.value,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],
             ),
           );
-        }).toList(),
+        }),
       ),
     );
   }
