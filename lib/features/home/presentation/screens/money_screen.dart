@@ -399,7 +399,7 @@ class _AllTransactionsPageState extends State<_AllTransactionsPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            initialValue: _range,
+            value: _range,
             decoration: const InputDecoration(labelText: 'فلتر التاريخ'),
             items: const [
               DropdownMenuItem(value: 'day', child: Text('آخر يوم')),
@@ -622,7 +622,7 @@ class _ChartsPageState extends State<_ChartsPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            initialValue: _mode,
+            value: _mode,
             decoration: const InputDecoration(labelText: 'فلتر المدة'),
             items: const [
               DropdownMenuItem(value: 'monthly', child: Text('شهري')),

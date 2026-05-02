@@ -55,7 +55,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            initialValue: _selectedRange,
+            value: _selectedRange,
             decoration: const InputDecoration(labelText: 'فلتر التاريخ'),
             items: const [
               DropdownMenuItem(value: 'day', child: Text('آخر يوم')),

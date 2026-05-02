@@ -354,7 +354,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        initialValue: _recurrencePattern,
+                        value: _recurrencePattern,
                         decoration: const InputDecoration(labelText: 'التكرار'),
                         items: const [
                           DropdownMenuItem(
@@ -420,7 +420,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         (_recurrencePattern == 'weekly' ||
                             _recurrencePattern == 'biweekly')) ...[
                       DropdownButtonFormField<int>(
-                        initialValue: _recurrenceWeekday,
+                        value: _recurrenceWeekday,
                         decoration: const InputDecoration(
                             labelText: 'اليوم في الأسبوع'),
                         items: const [

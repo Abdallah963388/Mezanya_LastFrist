@@ -454,7 +454,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
             child: Column(
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: _automationType,
+                  value: _automationType,
                   decoration: const InputDecoration(
                     labelText: 'نوع التنفيذ',
                   ),

@@ -24,7 +24,7 @@ class AppIconItem {
   final String name;
   final String label;
   final String categoryId;
-  // `Icons.*` gives `IconData` but `font_awesome_flutter` gives `FaIconData`.
+  // `Icons.*` gives `IconData` but `font_awesome_flutter` gives IconDataSolid etc.
   // Keep this dynamic so we can render either.
   final dynamic icon;
 }
@@ -553,10 +553,11 @@ class AppIconPickerDialog extends StatefulWidget {
     double size = 24,
   }) {
     final icon = iconForName(name);
-    if (icon is FaIconData) {
-      return FaIcon(icon, color: color, size: size);
+    final iconData = icon as IconData;
+    if (iconData.fontPackage == 'font_awesome_flutter') {
+      return FaIcon(iconData, color: color, size: size);
     }
-    return Icon(icon as IconData, color: color, size: size);
+    return Icon(iconData, color: color, size: size);
   }
 
   static IconData iconDataForName(String name) {

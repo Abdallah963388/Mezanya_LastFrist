@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -571,7 +572,7 @@ class _DonutPainter extends CustomPainter {
             fontWeight: FontWeight.w900,
             color: Color(0xFF2C2416)),
       ),
-      textDirection: TextDirection.rtl,
+      textDirection: ui.TextDirection.rtl,
     )..layout();
     textPainter.paint(
       canvas,

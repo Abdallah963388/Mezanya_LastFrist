@@ -989,7 +989,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: walletId,
+                  value: walletId,
                   decoration: const InputDecoration(labelText: 'المحفظة'),
                   items: availableWallets
                       .map(
@@ -1179,7 +1179,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 if (mode == _InternalTransferMode.jarToJar ||
                     mode == _InternalTransferMode.jarToAllocation) ...[
                   DropdownButtonFormField<String>(
-                    initialValue: sourceJarId,
+                    value: sourceJarId,
                     decoration: const InputDecoration(labelText: 'من حصالة'),
                     items: jars
                         .map(
@@ -1198,7 +1198,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 ],
                 if (mode == _InternalTransferMode.allocationToJar) ...[
                   DropdownButtonFormField<String>(
-                    initialValue:
+                    value:
                         sourceAllocationId.isEmpty ? null : sourceAllocationId,
                     decoration: const InputDecoration(labelText: 'من مخصص'),
                     items: allocations
@@ -1219,7 +1219,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   const SizedBox(height: 10),
                 ],
                 DropdownButtonFormField<String>(
-                  initialValue: walletId.isEmpty ? null : walletId,
+                  value: walletId.isEmpty ? null : walletId,
                   decoration: const InputDecoration(
                     labelText: 'من أي محفظة فعلية؟',
                   ),
@@ -1245,7 +1245,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 const SizedBox(height: 10),
                 if (mode == _InternalTransferMode.jarToAllocation) ...[
                   DropdownButtonFormField<String>(
-                    initialValue:
+                    value:
                         targetAllocationId.isEmpty ? null : targetAllocationId,
                     decoration: const InputDecoration(labelText: 'إلى مخصص'),
                     items: allocations
@@ -1265,7 +1265,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                 ] else ...[
                   DropdownButtonFormField<String>(
-                    initialValue: targetJarId,
+                    value: targetJarId,
                     decoration: const InputDecoration(
                       labelText: 'إلى أي حصالة؟',
                     ),
@@ -1451,7 +1451,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: jarId,
+                value: jarId,
                 decoration: const InputDecoration(labelText: 'الحصالة'),
                 items: jars
                     .map(
@@ -1541,7 +1541,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: fromId,
+                value: fromId,
                 decoration: const InputDecoration(labelText: 'من محفظة'),
                 items: wallets
                     .map(
@@ -1558,7 +1558,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                initialValue: toId,
+                value: toId,
                 decoration: const InputDecoration(labelText: 'إلى محفظة'),
                 items: wallets
                     .map(

@@ -70,7 +70,7 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            initialValue: _mode,
+            value: _mode,
             decoration: const InputDecoration(labelText: 'فلتر المدة'),
             items: const [
               DropdownMenuItem(value: 'monthly', child: Text('شهري')),

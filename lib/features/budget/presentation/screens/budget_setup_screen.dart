@@ -1216,7 +1216,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                     },
                   );
                   final cycleField = DropdownButtonFormField<String>(
-                    initialValue: _budget.cycleMode,
+                    value: _budget.cycleMode,
                     decoration: const InputDecoration(
                       labelText: 'تجديد الخطة',
                       prefixIcon: Icon(Icons.autorenew_rounded),
@@ -1256,7 +1256,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: _budget.bufferEndBehavior,
+                value: _budget.bufferEndBehavior,
                 decoration: const InputDecoration(
                   labelText: 'المبلغ غير المخصص آخر الدورة',
                   prefixIcon: Icon(Icons.savings_rounded),
