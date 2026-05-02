@@ -6,6 +6,12 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 
+// ── Period types ────────────────────────────────────────────────────────────
+
+enum _Period { day, week, month, custom }
+
+// ── Screen ──────────────────────────────────────────────────────────────────
+
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({
     super.key,
@@ -23,11 +29,12 @@ class AllTransactionsScreen extends StatefulWidget {
 }
 
 class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
-  String _tab = 'all';
-  String _range = 'specific-month';
-  late DateTime _month;
-  DateTime? _from;
-  DateTime? _to;
+  _Period _period = _Period.month;
+  String _typeTab = 'all';
+
+  late DateTime _anchor; // start of current period window
+  DateTime? _customFrom;
+  DateTime? _customTo;
 
   static const _beige = Color(0xFFFFFBF1);
   static const _green = Color(0xFF165b47);
@@ -35,7 +42,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   @override
   void initState() {
     super.initState();
-    _month = DateTime(widget.initialMonth.year, widget.initialMonth.month, 1);
+    _anchor = DateTime(widget.initialMonth.year, widget.initialMonth.month, 1);
   }
 
   bool _isJarTx(TransactionEntity t) =>
@@ -43,44 +50,363 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       t.transferType == 'jar-allocation-cancel' ||
       t.transferType == 'jar-allocation-spend';
 
-  List<TransactionEntity> _filtered() {
-    final now = DateTime.now();
-    var out = widget.allTransactions.where((t) => !_isJarTx(t)).toList();
-    if (_tab != 'all') out = out.where((t) => t.type == _tab).toList();
-    if (_range == 'day') {
-      out = out.where((t) => now.difference(t.createdAt).inHours <= 24).toList();
-    } else if (_range == 'week') {
-      out = out.where((t) => now.difference(t.createdAt).inDays <= 7).toList();
-    } else if (_range == 'month') {
-      out = out.where((t) => now.difference(t.createdAt).inDays <= 30).toList();
-    } else if (_range == 'specific-month') {
-      out = out
-          .where((t) =>
-              t.createdAt.year == _month.year &&
-              t.createdAt.month == _month.month)
-          .toList();
-    } else if (_range == 'custom' && _from != null && _to != null) {
-      final start = DateTime(_from!.year, _from!.month, _from!.day);
-      final end = DateTime(_to!.year, _to!.month, _to!.day, 23, 59, 59);
-      out = out
-          .where((t) =>
-              !t.createdAt.isBefore(start) && !t.createdAt.isAfter(end))
-          .toList();
+  // ── Period navigation ──────────────────────────────────────────────────────
+
+  void _prev() => setState(() {
+        switch (_period) {
+          case _Period.month:
+            _anchor = DateTime(_anchor.year, _anchor.month - 1, 1);
+          case _Period.week:
+            _anchor = _anchor.subtract(const Duration(days: 7));
+          case _Period.day:
+            _anchor = _anchor.subtract(const Duration(days: 1));
+          case _Period.custom:
+            break;
+        }
+      });
+
+  void _next() => setState(() {
+        switch (_period) {
+          case _Period.month:
+            _anchor = DateTime(_anchor.year, _anchor.month + 1, 1);
+          case _Period.week:
+            _anchor = _anchor.add(const Duration(days: 7));
+          case _Period.day:
+            _anchor = _anchor.add(const Duration(days: 1));
+          case _Period.custom:
+            break;
+        }
+      });
+
+  // ── Period label ──────────────────────────────────────────────────────────
+
+  String _periodLabel() {
+    switch (_period) {
+      case _Period.month:
+        return DateFormat('MMMM yyyy', 'ar').format(_anchor);
+      case _Period.week:
+        final end = _anchor.add(const Duration(days: 6));
+        final startFmt = DateFormat('d', 'ar').format(_anchor);
+        final endFmt = DateFormat('d MMMM yyyy', 'ar').format(end);
+        return '$startFmt - $endFmt';
+      case _Period.day:
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final yesterday = today.subtract(const Duration(days: 1));
+        final d = DateTime(_anchor.year, _anchor.month, _anchor.day);
+        if (d == today) return 'اليوم';
+        if (d == yesterday) return 'أمس';
+        return DateFormat('EEEE، d MMMM', 'ar').format(_anchor);
+      case _Period.custom:
+        if (_customFrom == null && _customTo == null) return 'مخصص';
+        final f = _customFrom == null
+            ? '...'
+            : DateFormat('d/M/yyyy').format(_customFrom!);
+        final t = _customTo == null
+            ? '...'
+            : DateFormat('d/M/yyyy').format(_customTo!);
+        return '$f → $t';
     }
+  }
+
+  // ── Filtering ─────────────────────────────────────────────────────────────
+
+  List<TransactionEntity> _filtered() {
+    var out = widget.allTransactions.where((t) => !_isJarTx(t)).toList();
+
+    if (_typeTab != 'all') out = out.where((t) => t.type == _typeTab).toList();
+
+    switch (_period) {
+      case _Period.day:
+        final s = DateTime(_anchor.year, _anchor.month, _anchor.day);
+        final e = s.add(const Duration(hours: 24));
+        out = out
+            .where((t) =>
+                !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
+            .toList();
+      case _Period.week:
+        final s = DateTime(_anchor.year, _anchor.month, _anchor.day);
+        final e = s.add(const Duration(days: 7));
+        out = out
+            .where((t) =>
+                !t.createdAt.isBefore(s) && t.createdAt.isBefore(e))
+            .toList();
+      case _Period.month:
+        out = out
+            .where((t) =>
+                t.createdAt.year == _anchor.year &&
+                t.createdAt.month == _anchor.month)
+            .toList();
+      case _Period.custom:
+        if (_customFrom != null && _customTo != null) {
+          final s = DateTime(
+              _customFrom!.year, _customFrom!.month, _customFrom!.day);
+          final e = DateTime(
+              _customTo!.year, _customTo!.month, _customTo!.day, 23, 59, 59);
+          out = out
+              .where((t) =>
+                  !t.createdAt.isBefore(s) && !t.createdAt.isAfter(e))
+              .toList();
+        }
+    }
+
     out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return out;
   }
+
+  // ── Filter bottom sheet ───────────────────────────────────────────────────
+
+  void _openFilterSheet() {
+    var tmpPeriod = _period;
+    var tmpType = _typeTab;
+    DateTime tmpAnchor = _anchor;
+    DateTime? tmpFrom = _customFrom;
+    DateTime? tmpTo = _customTo;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _beige,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          String periodLabel() {
+            switch (tmpPeriod) {
+              case _Period.month:
+                return DateFormat('MMMM yyyy', 'ar').format(tmpAnchor);
+              case _Period.week:
+                final end = tmpAnchor.add(const Duration(days: 6));
+                return '${DateFormat('d', 'ar').format(tmpAnchor)} - ${DateFormat('d MMM', 'ar').format(end)}';
+              case _Period.day:
+                return DateFormat('EEEE، d MMMM', 'ar').format(tmpAnchor);
+              case _Period.custom:
+                return 'مخصص';
+            }
+          }
+
+          void shiftPrev() => setSheet(() {
+                switch (tmpPeriod) {
+                  case _Period.month:
+                    tmpAnchor =
+                        DateTime(tmpAnchor.year, tmpAnchor.month - 1, 1);
+                  case _Period.week:
+                    tmpAnchor =
+                        tmpAnchor.subtract(const Duration(days: 7));
+                  case _Period.day:
+                    tmpAnchor =
+                        tmpAnchor.subtract(const Duration(days: 1));
+                  case _Period.custom:
+                    break;
+                }
+              });
+
+          void shiftNext() => setSheet(() {
+                switch (tmpPeriod) {
+                  case _Period.month:
+                    tmpAnchor =
+                        DateTime(tmpAnchor.year, tmpAnchor.month + 1, 1);
+                  case _Period.week:
+                    tmpAnchor = tmpAnchor.add(const Duration(days: 7));
+                  case _Period.day:
+                    tmpAnchor = tmpAnchor.add(const Duration(days: 1));
+                  case _Period.custom:
+                    break;
+                }
+              });
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('فلتر المعاملات',
+                    style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 20),
+
+                // ── Type filter ──────────────────────────────────────────
+                const Text('نوع المعاملة',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6B6358))),
+                const SizedBox(height: 10),
+                _SheetChipBar(
+                  options: const [
+                    ('all', 'الكل', Color(0xFF165b47)),
+                    ('income', 'دخل', Color(0xFF16A34A)),
+                    ('expense', 'مصروف', Color(0xFFDC2626)),
+                    ('transfer', 'تحويل', Color(0xFF2563EB)),
+                  ],
+                  selected: tmpType,
+                  onSelect: (v) => setSheet(() => tmpType = v),
+                ),
+                const SizedBox(height: 22),
+
+                // ── Period type ──────────────────────────────────────────
+                const Text('الفترة الزمنية',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6B6358))),
+                const SizedBox(height: 10),
+                _SheetChipBar(
+                  options: const [
+                    ('month', 'شهر', Color(0xFF165b47)),
+                    ('week', 'أسبوع', Color(0xFF165b47)),
+                    ('day', 'يوم', Color(0xFF165b47)),
+                    ('custom', 'مخصص', Color(0xFF7C3AED)),
+                  ],
+                  selected: tmpPeriod.name,
+                  onSelect: (v) => setSheet(() {
+                    tmpPeriod = _Period.values
+                        .firstWhere((p) => p.name == v);
+                    if (tmpPeriod == _Period.week) {
+                      final wd = tmpAnchor.weekday % 7;
+                      tmpAnchor = tmpAnchor
+                          .subtract(Duration(days: wd));
+                    }
+                    if (tmpPeriod == _Period.day) {
+                      tmpAnchor = DateTime(tmpAnchor.year,
+                          tmpAnchor.month, tmpAnchor.day);
+                    }
+                    if (tmpPeriod == _Period.month) {
+                      tmpAnchor = DateTime(
+                          tmpAnchor.year, tmpAnchor.month, 1);
+                    }
+                  }),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Period navigator ─────────────────────────────────────
+                if (tmpPeriod != _Period.custom)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: _green.withValues(alpha: 0.18)),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: shiftPrev,
+                          icon: const Icon(Icons.chevron_right,
+                              color: _green),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              periodLabel(),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: _green,
+                                  fontSize: 14),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: shiftNext,
+                          icon: const Icon(Icons.chevron_left,
+                              color: _green),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // ── Custom date pickers ──────────────────────────────────
+                if (tmpPeriod == _Period.custom) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DatePickerBox(
+                          label: 'من',
+                          date: tmpFrom,
+                          onTap: () async {
+                            final p = await showDatePicker(
+                              context: ctx,
+                              initialDate: tmpFrom ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (p != null) setSheet(() => tmpFrom = p);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _DatePickerBox(
+                          label: 'إلى',
+                          date: tmpTo,
+                          onTap: () async {
+                            final p = await showDatePicker(
+                              context: ctx,
+                              initialDate: tmpTo ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (p != null) setSheet(() => tmpTo = p);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _green,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _period = tmpPeriod;
+                        _typeTab = tmpType;
+                        _anchor = tmpAnchor;
+                        _customFrom = tmpFrom;
+                        _customTo = tmpTo;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text('تطبيق',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final categories = widget.cubit.state.categories;
     final filtered = _filtered();
-    final totalIn =
-        filtered.where((t) => t.type == 'income').fold<double>(0, (s, t) => s + t.amount);
-    final totalOut =
-        filtered.where((t) => t.type == 'expense').fold<double>(0, (s, t) => s + t.amount);
+    final totalIn = filtered
+        .where((t) => t.type == 'income')
+        .fold<double>(0, (s, t) => s + t.amount);
+    final totalOut = filtered
+        .where((t) => t.type == 'expense')
+        .fold<double>(0, (s, t) => s + t.amount);
 
-    // Group by date
     final grouped = <String, List<TransactionEntity>>{};
     for (final t in filtered) {
       final key = DateFormat('yyyy-MM-dd').format(t.createdAt);
@@ -89,157 +415,281 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      backgroundColor: _beige,
-      appBar: AppBar(
         backgroundColor: _beige,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('كل المعاملات',
-            style: TextStyle(fontWeight: FontWeight.w900)),
-        elevation: 0,
-      ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-          children: [
-            // ── Summary header ─────────────────────────────────────────
-            _SummaryHeader(totalIn: totalIn, totalOut: totalOut, count: filtered.length),
-            const SizedBox(height: 16),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── Top period bar ─────────────────────────────────────────
+              _PeriodTopBar(
+                label: _periodLabel(),
+                showArrows: _period != _Period.custom,
+                onPrev: _prev,
+                onNext: _next,
+                onFilter: _openFilterSheet,
+                typeTab: _typeTab,
+              ),
 
-            // ── Type filter chips ──────────────────────────────────────
-            _TypeFilterBar(
-              selected: _tab,
-              onSelect: (v) => setState(() => _tab = v),
-            ),
-            const SizedBox(height: 12),
-
-            // ── Range selector ─────────────────────────────────────────
-            _RangeSelector(
-              selected: _range,
-              month: _month,
-              from: _from,
-              to: _to,
-              onRangeChange: (v) => setState(() => _range = v),
-              onMonthPrev: () => setState(
-                  () => _month = DateTime(_month.year, _month.month - 1, 1)),
-              onMonthNext: () => setState(
-                  () => _month = DateTime(_month.year, _month.month + 1, 1)),
-              onPickFrom: () => _pickDate(isFrom: true),
-              onPickTo: () => _pickDate(isFrom: false),
-            ),
-            const SizedBox(height: 16),
-
-            // ── Transaction list grouped by date ───────────────────────
-            if (filtered.isEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 40),
-                child: const Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.receipt_long_outlined,
-                          size: 56, color: Color(0xFFB5A99A)),
-                      SizedBox(height: 12),
-                      Text('لا توجد معاملات مطابقة',
-                          style: TextStyle(
-                              color: Color(0xFF8A7F72),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15)),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ...sortedKeys.map((dateKey) {
-                final dayTx = grouped[dateKey]!;
-                final dayDate = DateTime.parse(dateKey);
-                final dayIncome = dayTx
-                    .where((t) => t.type == 'income')
-                    .fold<double>(0, (s, t) => s + t.amount);
-                final dayExpense = dayTx
-                    .where((t) => t.type == 'expense')
-                    .fold<double>(0, (s, t) => s + t.amount);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // ── Content ────────────────────────────────────────────────
+              Expanded(
+                child: ListView(
+                  padding:
+                      const EdgeInsets.fromLTRB(16, 12, 16, 32),
                   children: [
-                    // Date header
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: _green.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _formatDate(dayDate),
-                              style: TextStyle(
-                                color: _green,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (dayIncome > 0)
-                            Text('+${dayIncome.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                    color: Color(0xFF16A34A),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700)),
-                          if (dayIncome > 0 && dayExpense > 0)
-                            const Text('  ',
-                                style: TextStyle(fontSize: 11)),
-                          if (dayExpense > 0)
-                            Text('-${dayExpense.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                    color: Color(0xFFDC2626),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700)),
-                        ],
-                      ),
-                    ),
-                    ...dayTx.map((t) => _TxCard(
-                          tx: t,
+                    // Summary card
+                    _SummaryCard(
+                        totalIn: totalIn,
+                        totalOut: totalOut,
+                        count: filtered.length),
+                    const SizedBox(height: 14),
+
+                    // Empty state
+                    if (filtered.isEmpty)
+                      const _EmptyState()
+                    else
+                      ...sortedKeys.map((dateKey) {
+                        final dayTx = grouped[dateKey]!;
+                        final dayDate = DateTime.parse(dateKey);
+                        final dayIncome = dayTx
+                            .where((t) => t.type == 'income')
+                            .fold<double>(0, (s, t) => s + t.amount);
+                        final dayExpense = dayTx
+                            .where((t) => t.type == 'expense')
+                            .fold<double>(0, (s, t) => s + t.amount);
+
+                        return _DayGroup(
+                          date: dayDate,
+                          dayIncome: dayIncome,
+                          dayExpense: dayExpense,
+                          transactions: dayTx,
                           categories: categories,
-                          onTap: () => openTransactionDetailsSheet(context,
-                              cubit: widget.cubit, transaction: t),
-                        )),
-                    const SizedBox(height: 10),
+                          cubit: widget.cubit,
+                        );
+                      }),
                   ],
-                );
-              }),
-          ],
+                ),
+              ),
+            ],
+          ),
         ),
       );
   }
+}
 
-  String _formatDate(DateTime d) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-    final day = DateTime(d.year, d.month, d.day);
-    if (day == today) return 'اليوم';
-    if (day == yesterday) return 'أمس';
-    return DateFormat('EEEE، d MMMM', 'ar').format(d);
+// ── Period Top Bar ──────────────────────────────────────────────────────────
+
+class _PeriodTopBar extends StatelessWidget {
+  const _PeriodTopBar({
+    required this.label,
+    required this.showArrows,
+    required this.onPrev,
+    required this.onNext,
+    required this.onFilter,
+    required this.typeTab,
+  });
+
+  final String label;
+  final bool showArrows;
+  final VoidCallback onPrev, onNext, onFilter;
+  final String typeTab;
+
+  Color _typeColor() {
+    switch (typeTab) {
+      case 'income':
+        return const Color(0xFF16A34A);
+      case 'expense':
+        return const Color(0xFFDC2626);
+      case 'transfer':
+        return const Color(0xFF2563EB);
+      default:
+        return const Color(0xFF165b47);
+    }
   }
 
-  Future<void> _pickDate({required bool isFrom}) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: isFrom ? (_from ?? DateTime.now()) : (_to ?? DateTime.now()),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+  @override
+  Widget build(BuildContext context) {
+    final accent = _typeColor();
+    return Container(
+      color: const Color(0xFFFFFBF1),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      child: Row(
+        children: [
+          // Back button
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            color: const Color(0xFF165b47),
+          ),
+
+          // Prev arrow
+          if (showArrows)
+            IconButton(
+              onPressed: onPrev,
+              icon: const Icon(Icons.chevron_right_rounded, size: 26),
+              color: const Color(0xFF165b47),
+            ),
+
+          // Period label
+          Expanded(
+            child: GestureDetector(
+              onTap: onFilter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Next arrow
+          if (showArrows)
+            IconButton(
+              onPressed: onNext,
+              icon: const Icon(Icons.chevron_left_rounded, size: 26),
+              color: const Color(0xFF165b47),
+            ),
+
+          // Filter button
+          Stack(
+            alignment: Alignment.topLeft,
+            children: [
+              IconButton(
+                onPressed: onFilter,
+                icon: const Icon(Icons.tune_rounded, size: 22),
+                color: const Color(0xFF165b47),
+              ),
+              if (typeTab != 'all')
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
-    if (picked != null) setState(() => isFrom ? _from = picked : _to = picked);
   }
 }
 
-// ── Summary Header ─────────────────────────────────────────────────────────
+// ── Sheet Chip Bar ──────────────────────────────────────────────────────────
 
-class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({
+class _SheetChipBar extends StatelessWidget {
+  const _SheetChipBar({
+    required this.options,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final List<(String, String, Color)> options;
+  final String selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((opt) {
+        final isSelected = selected == opt.$1;
+        return GestureDetector(
+          onTap: () => onSelect(opt.$1),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? opt.$3
+                  : opt.$3.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Text(
+              opt.$2,
+              style: TextStyle(
+                color: isSelected ? Colors.white : opt.$3,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ── Date Picker Box ─────────────────────────────────────────────────────────
+
+class _DatePickerBox extends StatelessWidget {
+  const _DatePickerBox({
+    required this.label,
+    required this.date,
+    required this.onTap,
+  });
+
+  final String label;
+  final DateTime? date;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: const Color(0xFF165b47).withValues(alpha: 0.22)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF8A7F72),
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(
+              date == null
+                  ? 'اختر تاريخ'
+                  : DateFormat('d/M/yyyy').format(date!),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF165b47)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Summary Card ────────────────────────────────────────────────────────────
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
     required this.totalIn,
     required this.totalOut,
     required this.count,
@@ -253,17 +703,19 @@ class _SummaryHeader extends StatelessWidget {
     final net = totalIn - totalOut;
     final isPos = net >= 0;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF1C6D25), Color(0xFF096119)],
+          colors: [Color(0xFF1B6B25), Color(0xFF0A5E19)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x251C6D25), blurRadius: 20, offset: Offset(0, 8))
+              color: Color(0x301B6B25),
+              blurRadius: 18,
+              offset: Offset(0, 7))
         ],
       ),
       child: Column(
@@ -272,7 +724,7 @@ class _SummaryHeader extends StatelessWidget {
             children: [
               Expanded(
                 child: _GlassTile(
-                  label: 'إجمالي الدخل',
+                  label: 'الدخل',
                   value: '+${totalIn.toStringAsFixed(2)}',
                   valueColor: const Color(0xFF4ADE80),
                 ),
@@ -280,7 +732,7 @@ class _SummaryHeader extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _GlassTile(
-                  label: 'إجمالي المصروف',
+                  label: 'المصروف',
                   value: '-${totalOut.toStringAsFixed(2)}',
                   valueColor: const Color(0xFFF87171),
                 ),
@@ -290,15 +742,17 @@ class _SummaryHeader extends StatelessWidget {
                 child: _GlassTile(
                   label: 'الصافي',
                   value: '${isPos ? '+' : ''}${net.toStringAsFixed(2)}',
-                  valueColor:
-                      isPos ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
+                  valueColor: isPos
+                      ? const Color(0xFF4ADE80)
+                      : const Color(0xFFF87171),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
@@ -330,7 +784,8 @@ class _GlassTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
@@ -357,243 +812,121 @@ class _GlassTile extends StatelessWidget {
   }
 }
 
-// ── Type Filter Bar ────────────────────────────────────────────────────────
+// ── Empty State ─────────────────────────────────────────────────────────────
 
-class _TypeFilterBar extends StatelessWidget {
-  const _TypeFilterBar({required this.selected, required this.onSelect});
-  final String selected;
-  final ValueChanged<String> onSelect;
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    const options = [
-      ('all', 'الكل', Color(0xFF165b47)),
-      ('income', 'دخل', Color(0xFF16A34A)),
-      ('expense', 'مصروف', Color(0xFFDC2626)),
-      ('transfer', 'تحويل', Color(0xFF2563EB)),
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: options.map((opt) {
-          final isSelected = selected == opt.$1;
-          return Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: GestureDetector(
-              onTap: () => onSelect(opt.$1),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? opt.$3
-                      : opt.$3.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  opt.$2,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : opt.$3,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
+    return const Padding(
+      padding: EdgeInsets.only(top: 48),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.receipt_long_outlined,
+                size: 58, color: Color(0xFFB5A99A)),
+            SizedBox(height: 12),
+            Text('لا توجد معاملات مطابقة',
+                style: TextStyle(
+                    color: Color(0xFF8A7F72),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15)),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Range Selector ─────────────────────────────────────────────────────────
+// ── Day Group ───────────────────────────────────────────────────────────────
 
-class _RangeSelector extends StatelessWidget {
-  const _RangeSelector({
-    required this.selected,
-    required this.month,
-    required this.from,
-    required this.to,
-    required this.onRangeChange,
-    required this.onMonthPrev,
-    required this.onMonthNext,
-    required this.onPickFrom,
-    required this.onPickTo,
+class _DayGroup extends StatelessWidget {
+  const _DayGroup({
+    required this.date,
+    required this.dayIncome,
+    required this.dayExpense,
+    required this.transactions,
+    required this.categories,
+    required this.cubit,
   });
 
-  final String selected;
-  final DateTime month;
-  final DateTime? from, to;
-  final ValueChanged<String> onRangeChange;
-  final VoidCallback onMonthPrev, onMonthNext, onPickFrom, onPickTo;
+  final DateTime date;
+  final double dayIncome, dayExpense;
+  final List<TransactionEntity> transactions;
+  final List<CategoryEntity> categories;
+  final AppCubit cubit;
+
+  String _dateLabel() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final d = DateTime(date.year, date.month, date.day);
+    if (d == today) return 'اليوم';
+    if (d == yesterday) return 'أمس';
+    return DateFormat('EEEE، d MMMM', 'ar').format(date);
+  }
 
   @override
   Widget build(BuildContext context) {
-    const options = [
-      ('day', 'اليوم'),
-      ('week', 'الأسبوع'),
-      ('month', 'آخر شهر'),
-      ('specific-month', 'شهر محدد'),
-      ('custom', 'مخصص'),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
           child: Row(
-            children: options.map((opt) {
-              final isSelected = selected == opt.$1;
-              return Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: GestureDetector(
-                  onTap: () => onRangeChange(opt.$1),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF165b47)
-                          : const Color(0xFF165b47).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      opt.$2,
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : const Color(0xFF165b47),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        if (selected == 'specific-month') ...[
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFBF1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: const Color(0xFF165b47).withValues(alpha: 0.20)),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: onMonthPrev,
-                  icon: const Icon(Icons.chevron_right,
-                      color: Color(0xFF165b47)),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      DateFormat('MMMM yyyy', 'ar').format(month),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF165b47)),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: onMonthNext,
-                  icon: const Icon(Icons.chevron_left,
-                      color: Color(0xFF165b47)),
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (selected == 'custom') ...[
-          const SizedBox(height: 10),
-          Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: onPickFrom,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBF1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: const Color(0xFF165b47)
-                              .withValues(alpha: 0.22)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('من',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF8A7F72),
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 3),
-                        Text(
-                          from == null
-                              ? 'اختر تاريخ'
-                              : DateFormat('d/M/yyyy').format(from!),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF165b47)),
-                        ),
-                      ],
-                    ),
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color:
+                      const Color(0xFF165b47).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _dateLabel(),
+                  style: const TextStyle(
+                      color: Color(0xFF165b47),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: GestureDetector(
-                  onTap: onPickTo,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBF1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: const Color(0xFF165b47)
-                              .withValues(alpha: 0.22)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('إلى',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF8A7F72),
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 3),
-                        Text(
-                          to == null
-                              ? 'اختر تاريخ'
-                              : DateFormat('d/M/yyyy').format(to!),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF165b47)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              if (dayIncome > 0)
+                Text('+${dayIncome.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        color: Color(0xFF16A34A),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
+              if (dayIncome > 0 && dayExpense > 0)
+                const Text('  ',
+                    style: TextStyle(fontSize: 11)),
+              if (dayExpense > 0)
+                Text('-${dayExpense.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        color: Color(0xFFDC2626),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700)),
             ],
           ),
-        ],
+        ),
+        ...transactions.map((t) => _TxCard(
+              tx: t,
+              categories: categories,
+              onTap: () => openTransactionDetailsSheet(
+                context,
+                cubit: cubit,
+                transaction: t,
+              ),
+            )),
+        const SizedBox(height: 10),
       ],
     );
   }
 }
 
-// ── Transaction Card ───────────────────────────────────────────────────────
+// ── Transaction Card ────────────────────────────────────────────────────────
 
 class _TxCard extends StatelessWidget {
   const _TxCard({
@@ -636,11 +969,12 @@ class _TxCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
           boxShadow: [
             BoxShadow(
                 color: color.withValues(alpha: 0.06),
@@ -650,22 +984,27 @@ class _TxCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Icon bubble
             Container(
-              width: 44,
-              height: 44,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(_icon(), color: color, size: 21),
+              child: Icon(_icon(), color: color, size: 22),
             ),
             const SizedBox(width: 12),
+
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tx.notes?.isNotEmpty == true ? tx.notes! : _typeLabel(),
+                    tx.notes?.isNotEmpty == true
+                        ? tx.notes!
+                        : _typeLabel(),
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -673,18 +1012,19 @@ class _TxCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Text(time,
                           style: const TextStyle(
                               fontSize: 11,
-                              color: Color(0xFF8A7F72),
+                              color: Color(0xFF9A9181),
                               fontWeight: FontWeight.w500)),
                       if (cat != null) ...[
                         const Text(' • ',
                             style: TextStyle(
-                                fontSize: 11, color: Color(0xFF8A7F72))),
+                                fontSize: 11,
+                                color: Color(0xFF9A9181))),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 2),
@@ -704,6 +1044,8 @@ class _TxCard extends StatelessWidget {
                 ],
               ),
             ),
+
+            // Amount + chevron
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -714,6 +1056,9 @@ class _TxCard extends StatelessWidget {
                       fontSize: 15,
                       fontWeight: FontWeight.w900),
                 ),
+                const SizedBox(height: 2),
+                Icon(Icons.chevron_left_rounded,
+                    size: 16, color: color.withValues(alpha: 0.45)),
               ],
             ),
           ],
