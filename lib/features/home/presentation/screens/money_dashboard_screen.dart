@@ -68,12 +68,9 @@ class _MoneyScreenState extends State<MoneyScreen> {
                     )
                   : SingleChildScrollView(
                       child: Column(
-                        children: monthTransactions
-                            .take(4)
-                            .map((transaction) {
-                              return _buildTransactionTile(context, transaction);
-                            })
-                            .toList(),
+                        children: monthTransactions.take(4).map((transaction) {
+                          return _buildTransactionTile(context, transaction);
+                        }).toList(),
                       ),
                     ),
             ),
@@ -147,6 +144,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TransactionChartsScreen(
+          cubit: widget.cubit,
           allTransactions: transactions,
           initialMonth: _month,
         ),
