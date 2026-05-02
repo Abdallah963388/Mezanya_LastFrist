@@ -63,11 +63,19 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     }
 
     return [
+      _SectionData(
+        key: 'general-expense',
+        title: 'الفئات العامة',
+        subtitle: 'للمعاملات خارج الميزانية أو غير المرتبطة بمخصص.',
+        target: const _CategoryTarget('general-expense', 'general-expense'),
+        categories: generalExpense,
+        accent: const Color(0xFF8A6B3D),
+      ),
       ...budget.allocations.map(
         (allocation) => _SectionData(
           key: 'allocation-${allocation.id}',
           title: allocation.name,
-          subtitle: 'فئات هذا المخصص داخل الميزانية.',
+          subtitle: 'فئات مخصص "${allocation.name}" داخل الميزانية.',
           target: _CategoryTarget('allocation', allocation.id),
           categories: allocation.categories,
           accent: _parseColor(allocation.iconColor),
@@ -77,19 +85,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         (wallet) => _SectionData(
           key: 'linked-${wallet.id}',
           title: wallet.name,
-          subtitle: 'فئات هذه الحصالة أو الحساب المرتبط.',
+          subtitle: 'فئات الحصالة أو الحساب المرتبط "${wallet.name}".',
           target: _CategoryTarget('linked-wallet', wallet.id),
           categories: wallet.categories,
           accent: _parseColor(wallet.iconColor),
         ),
-      ),
-      _SectionData(
-        key: 'general-expense',
-        title: 'فئات عامة',
-        subtitle: 'للمعاملات خارج الميزانية أو غير المرتبطة بمخصص.',
-        target: const _CategoryTarget('general-expense', 'general-expense'),
-        categories: generalExpense,
-        accent: const Color(0xFF8A6B3D),
       ),
     ];
   }
@@ -218,128 +218,250 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Widget _sectionCard(_SectionData section) {
     final theme = Theme.of(context);
+    final accent = section.accent;
+    final count = section.categories.length;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      margin: const EdgeInsets.only(bottom: 18),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: section.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(Icons.folder_rounded, color: section.accent),
+          Container(
+            height: 5,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      section.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Icon(
+                        Icons.folder_rounded,
+                        color: accent,
+                        size: 26,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      section.subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  section.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '$count فئة',
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            section.subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openCategoryEditor(section.target),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('إضافة'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: theme.colorScheme.outlineVariant),
-          const SizedBox(height: 10),
-          if (section.categories.isEmpty)
-            _emptySection('لا توجد فئات داخل هذا القسم حتى الآن.')
-          else
-            ...section.categories.map(
-              (category) => _categoryTile(section.target, category),
+                const SizedBox(height: 14),
+                Divider(
+                  color: theme.colorScheme.outlineVariant
+                      .withValues(alpha: 0.5),
+                  height: 1,
+                ),
+                const SizedBox(height: 14),
+                if (section.categories.isEmpty)
+                  _emptySection('لا توجد فئات في هذا القسم حتى الآن.')
+                else
+                  _categoriesGrid(section.target, section.categories),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openCategoryEditor(section.target),
+                    icon: Icon(
+                      Icons.add_rounded,
+                      color: accent,
+                      size: 20,
+                    ),
+                    label: Text(
+                      'إضافة فئة جديدة',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(
+                        color: accent.withValues(alpha: 0.45),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _categoryTile(_CategoryTarget target, CategoryEntity category) {
-    final color = _parseColor(category.color);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
-        ),
-        child: Row(
+  Widget _categoriesGrid(
+    _CategoryTarget target,
+    List<CategoryEntity> categories,
+  ) {
+    final rows = <Widget>[];
+    for (var i = 0; i < categories.length; i += 2) {
+      final left = categories[i];
+      final right = i + 1 < categories.length ? categories[i + 1] : null;
+      rows.add(
+        Row(
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  category.icon,
-                  color: color,
-                  size: 26,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
+            Expanded(child: _categoryCard(target, left)),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                category.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'تعديل',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _openCategoryEditor(target, editing: category),
-            ),
-            IconButton(
-              tooltip: 'حذف',
-              icon: Icon(
-                Icons.delete_outline_rounded,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => _deleteCategory(target, category),
+              child: right != null
+                  ? _categoryCard(target, right)
+                  : const SizedBox(),
             ),
           ],
         ),
+      );
+      if (i + 2 < categories.length) rows.add(const SizedBox(height: 10));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _categoryCard(_CategoryTarget target, CategoryEntity category) {
+    final color = _parseColor(category.color);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: AppIconPickerDialog.iconWidgetForName(
+                    category.icon,
+                    color: color,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _openCategoryEditor(target, editing: category),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.edit_rounded,
+                    size: 16,
+                    color: color.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              GestureDetector(
+                onTap: () => _deleteCategory(target, category),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .error
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            category.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
