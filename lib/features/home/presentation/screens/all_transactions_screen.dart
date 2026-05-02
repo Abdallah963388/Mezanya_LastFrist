@@ -88,17 +88,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     }
     final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: _beige,
+      appBar: AppBar(
         backgroundColor: _beige,
-        appBar: AppBar(
-          backgroundColor: _beige,
-          surfaceTintColor: Colors.transparent,
-          title: const Text('كل المعاملات',
-              style: TextStyle(fontWeight: FontWeight.w900)),
-          elevation: 0,
-        ),
+        surfaceTintColor: Colors.transparent,
+        title: const Text('كل المعاملات',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+        elevation: 0,
+      ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           children: [
@@ -214,8 +212,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               }),
           ],
         ),
-      ),
-    );
+      );
   }
 
   String _formatDate(DateTime d) {
