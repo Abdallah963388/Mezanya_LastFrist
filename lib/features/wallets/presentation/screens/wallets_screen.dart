@@ -603,6 +603,105 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
+  Future<void> _openWalletDetailsSheet(WalletEntity wallet) async {
+    final state = widget.cubit.state;
+    final accent = _parseColor(wallet.iconColor ?? '#165b47');
+    final reserved = _walletReservedAmount(state, wallet.id);
+    final available = wallet.balance - reserved;
+    final jars = _orderedJars(state.budgetSetup.linkedWallets);
+
+    final walletTx = state.transactions
+        .where((t) => t.walletId == wallet.id || t.toWalletId == wallet.id || t.fromWalletId == wallet.id)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.88,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (ctx, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          children: [
+            // Hero card
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [accent.withValues(alpha: 0.95), accent.withValues(alpha: 0.72)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.30), blurRadius: 20, offset: const Offset(0, 10))],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 64, height: 64,
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(20)),
+                          child: Center(child: AppIconPickerDialog.iconWidgetForName(wallet.icon ?? 'account_balance_wallet', color: Colors.white, size: 32)),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(wallet.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                            const SizedBox(height: 2),
+                            Text('${wallet.balance.toStringAsFixed(2)} جنيه', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.85))),
+                          ]),
+                        ),
+                        _iconAction(Icons.settings_outlined, onTap: () { Navigator.of(ctx).pop(); _openWalletEditor(current: wallet); }, tooltip: 'تعديل'),
+                        const SizedBox(width: 6),
+                        _iconAction(Icons.add_circle_outline_rounded, onTap: () => _openWalletAllocateToJarDialog(wallet), tooltip: 'تخصيص'),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(child: _glassMetric(label: 'الرصيد الكلي', value: wallet.balance.toStringAsFixed(2), accent: accent)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _glassMetric(label: 'الصافي المتاح', value: available.toStringAsFixed(2), accent: accent)),
+                        if (reserved > 0) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _glassMetric(label: 'محجوز', value: reserved.toStringAsFixed(2), accent: accent)),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _sectionHeader('المعاملات'),
+            const SizedBox(height: 10),
+            if (walletTx.isEmpty)
+              const _InlineNote(text: 'لا توجد حركات مسجلة على هذه المحفظة حتى الآن.')
+            else
+              ...walletTx.take(30).map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _TransactionTile(
+                  transaction: t,
+                  onTap: () => openTransactionDetailsSheet(ctx, cubit: widget.cubit, transaction: t),
+                ),
+              )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
     final state = widget.cubit.state;
     final distribution = _jarDistribution(state, jar.id);
@@ -2374,142 +2473,123 @@ class _WalletsListPageState extends State<_WalletsListPage> {
   Widget _buildCard(AppStateEntity state, WalletEntity wallet) {
     final accent = _parseColor(wallet.iconColor ?? '#165b47');
     final isColored = _coloredWallets.contains(wallet.id);
-    final reserved = state.wallets.fold<double>(0.0, (sum, w) {
-      if (w.id != wallet.id) return sum;
-      return sum + (state.budgetSetup.linkedWallets.fold<double>(0, (s, jar) {
-        final dist = <String, double>{};
-        for (final tx in state.transactions) {
-          if (tx.transferType == 'jar-allocation' && tx.fromWalletId == w.id) {
-            dist[tx.toWalletId ?? ''] = (dist[tx.toWalletId ?? ''] ?? 0) + tx.amount;
-          } else if ((tx.transferType == 'jar-allocation-cancel' || tx.transferType == 'jar-allocation-spend') && tx.fromWalletId == w.id) {
-            dist[tx.toWalletId ?? ''] = ((dist[tx.toWalletId ?? ''] ?? 0) - tx.amount).clamp(0, double.infinity);
-          }
-        }
-        return s + (dist[jar.id] ?? 0);
-      }));
-    });
     final available = wallet.balance - wallet.reservedForSavings;
 
-    return Padding(
+    return Container(
       key: ValueKey(wallet.id),
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Ink(
-          decoration: BoxDecoration(
-            color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: isColored
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : accent.withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Center(
-                    child: AppIconPickerDialog.iconWidgetForName(
-                      wallet.icon ?? 'account_balance_wallet',
-                      color: isColored ? Colors.white : accent,
-                      size: 24,
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            Container(
+              width: 52, height: 52,
+              decoration: BoxDecoration(
+                color: isColored
+                    ? Colors.white.withValues(alpha: 0.22)
+                    : accent.withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: AppIconPickerDialog.iconWidgetForName(
+                  wallet.icon ?? 'account_balance_wallet',
+                  color: isColored ? Colors.white : accent,
+                  size: 24,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    wallet.name,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: isColored ? Colors.white : const Color(0xFF1A1A1A),
                     ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        wallet.name,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                          color: isColored ? Colors.white : const Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${wallet.balance.toStringAsFixed(2)} • متاح ${available.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isColored
-                              ? Colors.white.withValues(alpha: 0.85)
-                              : const Color(0xFF7A725F),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '${wallet.balance.toStringAsFixed(2)} • متاح ${available.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isColored
+                          ? Colors.white.withValues(alpha: 0.85)
+                          : const Color(0xFF7A725F),
+                    ),
                   ),
-                ),
-                if (_reorderMode)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => setState(() {
-                          if (_coloredWallets.contains(wallet.id)) {
-                            _coloredWallets.remove(wallet.id);
-                          } else {
-                            _coloredWallets.add(wallet.id);
-                          }
-                        }),
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isColored
-                                ? Colors.white.withValues(alpha: 0.22)
-                                : accent.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            isColored ? Icons.invert_colors_off_rounded : Icons.color_lens_rounded,
-                            size: 16,
-                            color: isColored ? Colors.white : accent,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ReorderableDragStartListener(
-                        index: state.wallets.indexOf(wallet),
-                        child: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isColored
-                                ? Colors.white.withValues(alpha: 0.15)
-                                : accent.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.drag_handle_rounded,
-                            size: 18,
-                            color: isColored ? Colors.white : accent,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
+            if (_reorderMode)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      if (_coloredWallets.contains(wallet.id)) {
+                        _coloredWallets.remove(wallet.id);
+                      } else {
+                        _coloredWallets.add(wallet.id);
+                      }
+                    }),
+                    child: Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: isColored
+                            ? Colors.white.withValues(alpha: 0.22)
+                            : accent.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isColored ? Icons.invert_colors_off_rounded : Icons.color_lens_rounded,
+                        size: 16,
+                        color: isColored ? Colors.white : accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ReorderableDragStartListener(
+                    index: state.wallets.indexOf(wallet),
+                    child: Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: isColored
+                            ? Colors.white.withValues(alpha: 0.15)
+                            : accent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.drag_handle_rounded,
+                        size: 18,
+                        color: isColored ? Colors.white : accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
         ),
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
