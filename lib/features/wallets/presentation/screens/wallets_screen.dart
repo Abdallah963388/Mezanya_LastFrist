@@ -2352,6 +2352,494 @@ enum _JarAdjustmentMode { allocate, cancel }
 
 enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar }
 
+// ── Wallets full-page list with reorder + style toggle ─────────────────────
+
+class _WalletsListPage extends StatefulWidget {
+  const _WalletsListPage({required this.cubit});
+  final AppCubit cubit;
+  @override
+  State<_WalletsListPage> createState() => _WalletsListPageState();
+}
+
+class _WalletsListPageState extends State<_WalletsListPage> {
+  bool _reorderMode = false;
+  final Set<String> _coloredWallets = {};
+
+  Color _parseColor(String hex) {
+    final cleaned = hex.replaceAll('#', '');
+    final normalized = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
+    return Color(int.tryParse(normalized, radix: 16) ?? 0xFF165B47);
+  }
+
+  Widget _buildCard(AppStateEntity state, WalletEntity wallet) {
+    final accent = _parseColor(wallet.iconColor ?? '#165b47');
+    final isColored = _coloredWallets.contains(wallet.id);
+    final reserved = state.wallets.fold<double>(0.0, (sum, w) {
+      if (w.id != wallet.id) return sum;
+      return sum + (state.budgetSetup.linkedWallets.fold<double>(0, (s, jar) {
+        final dist = <String, double>{};
+        for (final tx in state.transactions) {
+          if (tx.transferType == 'jar-allocation' && tx.fromWalletId == w.id) {
+            dist[tx.toWalletId ?? ''] = (dist[tx.toWalletId ?? ''] ?? 0) + tx.amount;
+          } else if ((tx.transferType == 'jar-allocation-cancel' || tx.transferType == 'jar-allocation-spend') && tx.fromWalletId == w.id) {
+            dist[tx.toWalletId ?? ''] = ((dist[tx.toWalletId ?? ''] ?? 0) - tx.amount).clamp(0, double.infinity);
+          }
+        }
+        return s + (dist[jar.id] ?? 0);
+      }));
+    });
+    final available = wallet.balance - wallet.reservedForSavings;
+
+    return Padding(
+      key: ValueKey(wallet.id),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Ink(
+          decoration: BoxDecoration(
+            color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: isColored
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : accent.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: AppIconPickerDialog.iconWidgetForName(
+                      wallet.icon ?? 'account_balance_wallet',
+                      color: isColored ? Colors.white : accent,
+                      size: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        wallet.name,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: isColored ? Colors.white : const Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${wallet.balance.toStringAsFixed(2)} • متاح ${available.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isColored
+                              ? Colors.white.withValues(alpha: 0.85)
+                              : const Color(0xFF7A725F),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_reorderMode)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          if (_coloredWallets.contains(wallet.id)) {
+                            _coloredWallets.remove(wallet.id);
+                          } else {
+                            _coloredWallets.add(wallet.id);
+                          }
+                        }),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isColored
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : accent.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            isColored ? Icons.invert_colors_off_rounded : Icons.color_lens_rounded,
+                            size: 16,
+                            color: isColored ? Colors.white : accent,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ReorderableDragStartListener(
+                        index: state.wallets.indexOf(wallet),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isColored
+                                ? Colors.white.withValues(alpha: 0.15)
+                                : accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.drag_handle_rounded,
+                            size: 18,
+                            color: isColored ? Colors.white : accent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFFFBF1),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFFFBF1),
+          surfaceTintColor: Colors.transparent,
+          title: const Text('كل المحافظ', style: TextStyle(fontWeight: FontWeight.w900)),
+          actions: [
+            IconButton(
+              icon: Icon(
+                _reorderMode ? Icons.check_rounded : Icons.tune_rounded,
+                color: _reorderMode ? const Color(0xFF165B47) : null,
+              ),
+              tooltip: _reorderMode ? 'تم' : 'إعدادات',
+              onPressed: () => setState(() => _reorderMode = !_reorderMode),
+            ),
+            if (!_reorderMode)
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                tooltip: 'إضافة محفظة',
+                onPressed: () {},
+              ),
+          ],
+        ),
+        body: StreamBuilder<AppStateEntity>(
+          stream: widget.cubit.stream,
+          initialData: widget.cubit.state,
+          builder: (ctx, snap) {
+            final state = snap.data ?? widget.cubit.state;
+            final wallets = state.wallets;
+
+            if (_reorderMode) {
+              return Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF165B47).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.drag_handle_rounded, size: 16, color: Color(0xFF165B47)),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'اسحب الكروت لتغيير الترتيب. اضغط أيقونة اللون لتبديل مظهر الكارت.',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF165B47)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: wallets.length,
+                      onReorder: (oldIndex, newIndex) {
+                        if (newIndex > oldIndex) newIndex--;
+                        final reordered = List<WalletEntity>.from(wallets);
+                        final item = reordered.removeAt(oldIndex);
+                        reordered.insert(newIndex, item);
+                        widget.cubit.reorderWallets(reordered);
+                      },
+                      itemBuilder: (ctx, i) => _buildCard(state, wallets[i]),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              itemCount: wallets.length,
+              itemBuilder: (ctx, i) => _buildCard(state, wallets[i]),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ── Jars full-page list with reorder + style toggle ────────────────────────
+
+class _JarsListPage extends StatefulWidget {
+  const _JarsListPage({required this.cubit});
+  final AppCubit cubit;
+  @override
+  State<_JarsListPage> createState() => _JarsListPageState();
+}
+
+class _JarsListPageState extends State<_JarsListPage> {
+  bool _reorderMode = false;
+  final Set<String> _coloredJars = {};
+
+  Color _parseColor(String hex) {
+    final cleaned = hex.replaceAll('#', '');
+    final normalized = cleaned.length == 6 ? 'FF$cleaned' : cleaned;
+    return Color(int.tryParse(normalized, radix: 16) ?? 0xFF0F766E);
+  }
+
+  List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
+    if (_reorderMode) return jars;
+    final sorted = List<LinkedWalletEntity>.from(jars);
+    sorted.sort((a, b) {
+      if (a.id == 'linked-savings-default') return -1;
+      if (b.id == 'linked-savings-default') return 1;
+      return 0;
+    });
+    return sorted;
+  }
+
+  Widget _buildCard(List<LinkedWalletEntity> allJars, LinkedWalletEntity jar) {
+    final accent = _parseColor(jar.iconColor);
+    final isColored = _coloredJars.contains(jar.id);
+    final idx = allJars.indexOf(jar);
+
+    return Padding(
+      key: ValueKey(jar.id),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: isColored
+                      ? Colors.white.withValues(alpha: 0.22)
+                      : accent.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: AppIconPickerDialog.iconWidgetForName(
+                    jar.icon,
+                    color: isColored ? Colors.white : accent,
+                    size: 24,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      jar.name,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: isColored ? Colors.white : const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${jar.balance.toStringAsFixed(2)} • شهري ${jar.monthlyAmount.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isColored
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : const Color(0xFF7A725F),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_reorderMode)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        if (_coloredJars.contains(jar.id)) {
+                          _coloredJars.remove(jar.id);
+                        } else {
+                          _coloredJars.add(jar.id);
+                        }
+                      }),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: isColored
+                              ? Colors.white.withValues(alpha: 0.22)
+                              : accent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          isColored ? Icons.invert_colors_off_rounded : Icons.color_lens_rounded,
+                          size: 16,
+                          color: isColored ? Colors.white : accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ReorderableDragStartListener(
+                      index: idx,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: isColored
+                              ? Colors.white.withValues(alpha: 0.15)
+                              : accent.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.drag_handle_rounded,
+                          size: 18,
+                          color: isColored ? Colors.white : accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFFFBF1),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFFFBF1),
+          surfaceTintColor: Colors.transparent,
+          title: const Text('كل الحصالات', style: TextStyle(fontWeight: FontWeight.w900)),
+          actions: [
+            IconButton(
+              icon: Icon(
+                _reorderMode ? Icons.check_rounded : Icons.tune_rounded,
+                color: _reorderMode ? const Color(0xFF165B47) : null,
+              ),
+              tooltip: _reorderMode ? 'تم' : 'إعدادات',
+              onPressed: () => setState(() => _reorderMode = !_reorderMode),
+            ),
+            if (!_reorderMode)
+              IconButton(
+                icon: const Icon(Icons.add_rounded),
+                tooltip: 'إضافة حصالة',
+                onPressed: () {},
+              ),
+          ],
+        ),
+        body: StreamBuilder<AppStateEntity>(
+          stream: widget.cubit.stream,
+          initialData: widget.cubit.state,
+          builder: (ctx, snap) {
+            final state = snap.data ?? widget.cubit.state;
+            final jars = _orderedJars(state.budgetSetup.linkedWallets);
+
+            if (_reorderMode) {
+              return Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.drag_handle_rounded, size: 16, color: Color(0xFF0F766E)),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'اسحب الكروت لتغيير الترتيب. اضغط أيقونة اللون لتبديل مظهر الكارت.',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F766E)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: jars.length,
+                      onReorder: (oldIndex, newIndex) {
+                        if (newIndex > oldIndex) newIndex--;
+                        final reordered = List<LinkedWalletEntity>.from(jars);
+                        final item = reordered.removeAt(oldIndex);
+                        reordered.insert(newIndex, item);
+                        widget.cubit.reorderJars(reordered);
+                      },
+                      itemBuilder: (ctx, i) => _buildCard(jars, jars[i]),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              itemCount: jars.length,
+              itemBuilder: (ctx, i) => _buildCard(jars, jars[i]),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 // class _SectionShell extends StatelessWidget {
 //   const _SectionShell({
 //     required this.title,
