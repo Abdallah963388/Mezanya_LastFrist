@@ -282,6 +282,67 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
+  Widget _softMetric({
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: accent.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _softIconAction(
+    IconData icon, {
+    required VoidCallback onTap,
+    required String tooltip,
+    required Color accent,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Tooltip(
+        message: tooltip,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: accent.withValues(alpha: 0.18)),
+          ),
+          child: Icon(icon, color: accent, size: 18),
+        ),
+      ),
+    );
+  }
+
   Widget _walletCard(AppStateEntity state, WalletEntity wallet) {
     final reserved = _walletReservedAmount(state, wallet.id);
     final available = wallet.balance - reserved;
@@ -293,18 +354,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accent.withValues(alpha: 0.92),
-              accent.withValues(alpha: 0.70),
-            ],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-          ),
+          color: const Color(0xFFFFFBF1),
           borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: 0.30),
+              color: accent.withValues(alpha: 0.10),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -319,17 +374,17 @@ class _WalletsScreenState extends State<WalletsScreen> {
               Row(
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
+                      color: accent.withValues(alpha: 0.13),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Center(
                       child: AppIconPickerDialog.iconWidgetForName(
                         wallet.icon ?? 'account_balance_wallet',
-                        color: Colors.white,
-                        size: 30,
+                        color: accent,
+                        size: 28,
                       ),
                     ),
                   ),
@@ -338,9 +393,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     child: Text(
                       wallet.name,
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: Color(0xFF1A1A1A),
                       ),
                     ),
                   ),
@@ -348,33 +403,36 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (hasMultipleWallets)
-                        _iconAction(
+                        _softIconAction(
                           Icons.swap_horiz_rounded,
                           onTap: _openWalletTransferDialog,
                           tooltip: 'تحويل بين المحافظ',
+                          accent: accent,
                         ),
                       const SizedBox(width: 6),
-                      _iconAction(
+                      _softIconAction(
                         Icons.add_circle_outline_rounded,
                         onTap: () => _openWalletAllocateToJarDialog(wallet),
                         tooltip: 'تخصيص مبلغ',
+                        accent: accent,
                       ),
                       const SizedBox(width: 6),
-                      _iconAction(
+                      _softIconAction(
                         Icons.settings_outlined,
                         onTap: () => _openWalletEditor(current: wallet),
                         tooltip: 'تعديل',
+                        accent: accent,
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               // ── Balance row ──
               Row(
                 children: [
                   Expanded(
-                    child: _glassMetric(
+                    child: _softMetric(
                       label: 'إجمالي الرصيد',
                       value: wallet.balance.toStringAsFixed(2),
                       accent: accent,
@@ -382,7 +440,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _glassMetric(
+                    child: _softMetric(
                       label: 'الصافي المتاح',
                       value: available.toStringAsFixed(2),
                       accent: accent,
@@ -391,7 +449,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   if (reserved > 0) ...[
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _glassMetric(
+                      child: _softMetric(
                         label: 'محجوز',
                         value: reserved.toStringAsFixed(2),
                         accent: accent,
@@ -416,18 +474,12 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              accent.withValues(alpha: 0.92),
-              accent.withValues(alpha: 0.70),
-            ],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-          ),
+          color: const Color(0xFFFFFBF1),
           borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: 0.30),
+              color: accent.withValues(alpha: 0.10),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -442,17 +494,17 @@ class _WalletsScreenState extends State<WalletsScreen> {
               Row(
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22),
+                      color: accent.withValues(alpha: 0.13),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Center(
                       child: AppIconPickerDialog.iconWidgetForName(
                         jar.icon,
-                        color: Colors.white,
-                        size: 30,
+                        color: accent,
+                        size: 28,
                       ),
                     ),
                   ),
@@ -461,9 +513,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     child: Text(
                       jar.name,
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: Color(0xFF1A1A1A),
                       ),
                     ),
                   ),
@@ -471,37 +523,40 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (distribution.isNotEmpty)
-                        _iconAction(
+                        _softIconAction(
                           Icons.swap_horiz_rounded,
                           onTap: () =>
                               _openInternalTransferDialog(sourceJar: jar),
                           tooltip: 'تحويل داخلي',
+                          accent: accent,
                         ),
                       const SizedBox(width: 6),
-                      _iconAction(
+                      _softIconAction(
                         Icons.add_circle_outline_rounded,
                         onTap: () => _openJarAdjustmentDialog(
                           jar: jar,
                           mode: _JarAdjustmentMode.allocate,
                         ),
                         tooltip: 'تخصيص للحصالة',
+                        accent: accent,
                       ),
                       const SizedBox(width: 6),
-                      _iconAction(
+                      _softIconAction(
                         Icons.settings_outlined,
                         onTap: () => _openJarEditor(current: jar),
                         tooltip: 'تعديل',
+                        accent: accent,
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               // ── Metrics row ──
               Row(
                 children: [
                   Expanded(
-                    child: _glassMetric(
+                    child: _softMetric(
                       label: 'رصيد الحصالة',
                       value: jar.balance.toStringAsFixed(2),
                       accent: accent,
@@ -509,7 +564,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _glassMetric(
+                    child: _softMetric(
                       label: 'شهري مخطط',
                       value: jar.monthlyAmount.toStringAsFixed(2),
                       accent: accent,
@@ -517,7 +572,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _glassMetric(
+                    child: _softMetric(
                       label: 'المحافظ المرتبطة',
                       value: distribution.length.toString(),
                       accent: accent,
