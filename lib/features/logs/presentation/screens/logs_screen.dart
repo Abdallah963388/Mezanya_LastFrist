@@ -23,6 +23,8 @@ class LogsScreen extends StatefulWidget {
 class _LogsScreenState extends State<LogsScreen> {
   String _tab = 'all';
   String _range = 'all';
+  DateTime? _customStart;
+  DateTime? _customEnd;
   final Set<String> _entityTypes = <String>{};
 
   static const _green = Color(0xFF2F6F5E);
@@ -299,6 +301,12 @@ class _LogsScreenState extends State<LogsScreen> {
       if (_range == 'day') return now.difference(log.timestamp).inHours <= 24;
       if (_range == 'week') return now.difference(log.timestamp).inDays <= 7;
       if (_range == 'month') return now.difference(log.timestamp).inDays <= 30;
+      if (_range == 'custom' && _customStart != null && _customEnd != null) {
+        final end = DateTime(
+            _customEnd!.year, _customEnd!.month, _customEnd!.day, 23, 59, 59);
+        return !log.timestamp.isBefore(_customStart!) &&
+            !log.timestamp.isAfter(end);
+      }
       return true;
     });
     if (_tab == 'transaction') {
@@ -326,6 +334,8 @@ class _LogsScreenState extends State<LogsScreen> {
   void _openFilters() {
     final selected = Set<String>.from(_entityTypes);
     String range = _range;
+    DateTime? customStart = _customStart;
+    DateTime? customEnd = _customEnd;
 
     final entityOptions = [
       ('transaction', 'معاملة'),
@@ -343,7 +353,13 @@ class _LogsScreenState extends State<LogsScreen> {
       ('day', 'آخر 24 ساعة'),
       ('week', 'آخر أسبوع'),
       ('month', 'آخر شهر'),
+      ('custom', 'نطاق مخصص'),
     ];
+
+    String _fmtDate(DateTime? d) {
+      if (d == null) return 'اختر تاريخ';
+      return DateFormat('yyyy/MM/dd', 'ar').format(d);
+    }
 
     showModalBottomSheet<void>(
       context: context,
@@ -352,13 +368,13 @@ class _LogsScreenState extends State<LogsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheet) => Padding(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             16,
             4,
             16,
-            MediaQuery.of(context).viewInsets.bottom + 24,
+            MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -407,7 +423,7 @@ class _LogsScreenState extends State<LogsScreen> {
                       decoration: BoxDecoration(
                         color: sel
                             ? _blue.withValues(alpha: 0.13)
-                            : Theme.of(context)
+                            : Theme.of(ctx)
                                 .colorScheme
                                 .surfaceContainerHighest
                                 .withValues(alpha: 0.4),
@@ -415,7 +431,7 @@ class _LogsScreenState extends State<LogsScreen> {
                         border: Border.all(
                           color: sel
                               ? _blue.withValues(alpha: 0.6)
-                              : Theme.of(context)
+                              : Theme.of(ctx)
                                   .colorScheme
                                   .outlineVariant
                                   .withValues(alpha: 0.5),
@@ -430,7 +446,7 @@ class _LogsScreenState extends State<LogsScreen> {
                           fontSize: 13,
                           color: sel
                               ? _blue
-                              : Theme.of(context)
+                              : Theme.of(ctx)
                                   .colorScheme
                                   .onSurfaceVariant,
                         ),
@@ -439,6 +455,153 @@ class _LogsScreenState extends State<LogsScreen> {
                   );
                 }).toList(),
               ),
+              if (range == 'custom') ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _blue.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                        color: _blue.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'حدد النطاق الزمني',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: _blue,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: customStart ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: customEnd ?? DateTime.now(),
+                                  locale: const Locale('ar'),
+                                  helpText: 'من تاريخ',
+                                );
+                                if (picked != null) {
+                                  setSheet(() => customStart = picked);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(ctx).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: customStart != null
+                                        ? _blue.withValues(alpha: 0.5)
+                                        : Theme.of(ctx)
+                                            .colorScheme
+                                            .outlineVariant,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_today_rounded,
+                                        size: 15,
+                                        color: customStart != null
+                                            ? _blue
+                                            : Theme.of(ctx)
+                                                .colorScheme
+                                                .onSurfaceVariant),
+                                    const SizedBox(width: 7),
+                                    Expanded(
+                                      child: Text(
+                                        'من: ${_fmtDate(customStart)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: customStart != null
+                                              ? _blue
+                                              : Theme.of(ctx)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: customEnd ?? DateTime.now(),
+                                  firstDate: customStart ?? DateTime(2020),
+                                  lastDate: DateTime.now(),
+                                  locale: const Locale('ar'),
+                                  helpText: 'إلى تاريخ',
+                                );
+                                if (picked != null) {
+                                  setSheet(() => customEnd = picked);
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(ctx).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: customEnd != null
+                                        ? _blue.withValues(alpha: 0.5)
+                                        : Theme.of(ctx)
+                                            .colorScheme
+                                            .outlineVariant,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.event_rounded,
+                                        size: 15,
+                                        color: customEnd != null
+                                            ? _blue
+                                            : Theme.of(ctx)
+                                                .colorScheme
+                                                .onSurfaceVariant),
+                                    const SizedBox(width: 7),
+                                    Expanded(
+                                      child: Text(
+                                        'إلى: ${_fmtDate(customEnd)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: customEnd != null
+                                              ? _blue
+                                              : Theme.of(ctx)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               const Text(
                 'نوع العنصر',
@@ -466,7 +629,7 @@ class _LogsScreenState extends State<LogsScreen> {
                       decoration: BoxDecoration(
                         color: sel
                             ? _amber.withValues(alpha: 0.13)
-                            : Theme.of(context)
+                            : Theme.of(ctx)
                                 .colorScheme
                                 .surfaceContainerHighest
                                 .withValues(alpha: 0.4),
@@ -474,7 +637,7 @@ class _LogsScreenState extends State<LogsScreen> {
                         border: Border.all(
                           color: sel
                               ? _amber.withValues(alpha: 0.6)
-                              : Theme.of(context)
+                              : Theme.of(ctx)
                                   .colorScheme
                                   .outlineVariant
                                   .withValues(alpha: 0.5),
@@ -497,7 +660,7 @@ class _LogsScreenState extends State<LogsScreen> {
                               fontSize: 13,
                               color: sel
                                   ? _amber
-                                  : Theme.of(context)
+                                  : Theme.of(ctx)
                                       .colorScheme
                                       .onSurfaceVariant,
                             ),
@@ -516,6 +679,8 @@ class _LogsScreenState extends State<LogsScreen> {
                       onPressed: () {
                         setSheet(() {
                           range = 'all';
+                          customStart = null;
+                          customEnd = null;
                           selected.clear();
                         });
                       },
@@ -535,11 +700,13 @@ class _LogsScreenState extends State<LogsScreen> {
                       onPressed: () {
                         setState(() {
                           _range = range;
+                          _customStart = customStart;
+                          _customEnd = customEnd;
                           _entityTypes
                             ..clear()
                             ..addAll(selected);
                         });
-                        Navigator.pop(context);
+                        Navigator.pop(ctx);
                       },
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -561,6 +728,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   Future<void> _openDetails(AppStateEntity state, LogEntryEntity log) async {
     final rows = _detailRowsForLog(state, log);
+    final changeRows = _changeRowsForEdit(state, log);
     final transaction = _currentTransaction(state, log.entityId);
     final recurring = _currentRecurring(state, log.entityId);
     final canEditTransaction =
@@ -573,6 +741,7 @@ class _LogsScreenState extends State<LogsScreen> {
         log.entityType == 'recurring-transaction' && recurring != null;
     final canUndoDelete = log.action == 'delete' && !log.isReverted;
     final accent = _accentForLog(log);
+    final actionSentence = _actionSentence(state, log);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -583,34 +752,30 @@ class _LogsScreenState extends State<LogsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (sheetContext) => SizedBox(
-        height: MediaQuery.of(sheetContext).size.height * 0.86,
+        height: MediaQuery.of(sheetContext).size.height * 0.88,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           children: [
+            // ─── Header card ─────────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: accent.withValues(alpha: 0.2),
-                ),
+                border: Border.all(color: accent.withValues(alpha: 0.2)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 52,
-                    height: 52,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(17),
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    child: Icon(
-                      _iconForAction(log.action),
-                      color: accent,
-                      size: 26,
-                    ),
+                    child: Icon(_iconForAction(log.action),
+                        color: accent, size: 28),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -629,74 +794,104 @@ class _LogsScreenState extends State<LogsScreen> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            _miniTag(
-                              _actionName(log.action),
-                              accent,
-                            ),
-                            _miniTag(
-                              _entityTypeName(log.entityType),
-                              accent.withValues(alpha: 0.75),
-                            ),
+                            _miniTag(_actionName(log.action), accent),
+                            _miniTag(_entityTypeName(log.entityType),
+                                accent.withValues(alpha: 0.75)),
                             if (log.isReverted)
                               _miniTag('تم التراجع', _purple),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 14,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _fmtFull(log.timestamp),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (log.revertedAt != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.undo_rounded,
-                                size: 14,
-                                color: _purple.withValues(alpha: 0.75),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'تم التراجع: ${_fmtFull(log.revertedAt!)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: _purple.withValues(alpha: 0.75),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // ─── Action description + timestamps ─────────────
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.6),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 16,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          actionSentence,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _infoRow(
+                    Icons.schedule_rounded,
+                    'وقت الحدث',
+                    DateFormat('yyyy/MM/dd — HH:mm:ss', 'ar')
+                        .format(log.timestamp),
+                    accent,
+                  ),
+                  if (log.revertedAt != null) ...[
+                    const SizedBox(height: 6),
+                    _infoRow(
+                      Icons.undo_rounded,
+                      'وقت التراجع',
+                      DateFormat('yyyy/MM/dd — HH:mm:ss', 'ar')
+                          .format(log.revertedAt!),
+                      _purple,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  _infoRow(
+                    Icons.fingerprint_rounded,
+                    'معرف السجل',
+                    log.id,
+                    Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: 6),
+                  _infoRow(
+                    Icons.link_rounded,
+                    'معرف العنصر',
+                    log.entityId,
+                    Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ─── Entity data ──────────────────────────────────
             if (rows.isNotEmpty) ...[
               const Padding(
-                padding: EdgeInsets.only(bottom: 10),
+                padding: EdgeInsets.only(bottom: 8),
                 child: Text(
-                  'تفاصيل السجل',
+                  'بيانات العنصر',
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,
@@ -704,8 +899,26 @@ class _LogsScreenState extends State<LogsScreen> {
                 ),
               ),
               _DetailsTable(rows: rows),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
             ],
+
+            // ─── Before / After diff for edits ───────────────
+            if (changeRows.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'التغييرات التي تمت',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              _BeforeAfterTable(rows: changeRows),
+              const SizedBox(height: 14),
+            ],
+
+            // ─── Action buttons ───────────────────────────────
             if (canEditTransaction) ...[
               FilledButton.icon(
                 onPressed: () async {
@@ -767,17 +980,14 @@ class _LogsScreenState extends State<LogsScreen> {
                   }
                   if (sheetContext.mounted) Navigator.pop(sheetContext);
                 },
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                icon: Icon(Icons.delete_outline_rounded,
+                    color: Theme.of(context).colorScheme.error),
                 label: Text(
                   canDeleteTransaction
                       ? 'حذف المعاملة'
                       : 'حذف المعاملة المتكررة',
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                      color: Theme.of(context).colorScheme.error),
                 ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -813,6 +1023,108 @@ class _LogsScreenState extends State<LogsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: color.withValues(alpha: 0.7)),
+        const SizedBox(width: 6),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: color.withValues(alpha: 0.7),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _actionSentence(AppStateEntity state, LogEntryEntity log) {
+    final actionAr = _actionName(log.action);
+    final entityAr = _entityTypeName(log.entityType);
+    if (log.details.trim().isNotEmpty) return log.details.trim();
+    if (log.entityType == 'transaction') {
+      final tx = _transactionForLog(state, log);
+      if (tx != null) {
+        final typeAr = _transactionTypeName(tx.type);
+        final amount = tx.amount.toStringAsFixed(2);
+        if (log.action == 'add') return 'تمت إضافة $typeAr بقيمة $amount';
+        if (log.action == 'edit') return 'تم تعديل $typeAr بقيمة $amount';
+        if (log.action == 'delete') return 'تم حذف $typeAr بقيمة $amount';
+        if (log.action == 'transfer') {
+          return 'تم تحويل مبلغ $amount';
+        }
+      }
+    }
+    if (log.entityType == 'recurring-transaction') {
+      final r = _recurringForLog(state, log);
+      if (r != null) {
+        if (log.action == 'add') return 'تمت إضافة معاملة متكررة «${r.name}»';
+        if (log.action == 'edit') return 'تم تعديل معاملة متكررة «${r.name}»';
+        if (log.action == 'delete') return 'تم حذف معاملة متكررة «${r.name}»';
+      }
+    }
+    return 'تمت عملية $actionAr على $entityAr';
+  }
+
+  /// Returns a list of (field, before, after) for edit actions.
+  List<(String, String, String)> _changeRowsForEdit(
+      AppStateEntity state, LogEntryEntity log) {
+    if (log.action != 'edit') return [];
+    final before = _snapshotForLog(log, preferBefore: true);
+    final after = _snapshotForLog(log, preferBefore: false);
+    if (before == null || after == null) return [];
+
+    Map<String, String> beforeMap = {};
+    Map<String, String> afterMap = {};
+
+    if (log.entityType == 'transaction') {
+      final txBefore = before.transactions
+          .where((t) => t.id == log.entityId)
+          .cast<TransactionEntity?>()
+          .firstWhere((t) => t != null, orElse: () => null);
+      final txAfter = after.transactions
+          .where((t) => t.id == log.entityId)
+          .cast<TransactionEntity?>()
+          .firstWhere((t) => t != null, orElse: () => null);
+      if (txBefore != null) beforeMap = _transactionRows(state, txBefore);
+      if (txAfter != null) afterMap = _transactionRows(state, txAfter);
+    } else if (log.entityType == 'recurring-transaction') {
+      final rBefore = before.recurringTransactions
+          .where((r) => r.id == log.entityId)
+          .cast<RecurringTransactionEntity?>()
+          .firstWhere((r) => r != null, orElse: () => null);
+      final rAfter = after.recurringTransactions
+          .where((r) => r.id == log.entityId)
+          .cast<RecurringTransactionEntity?>()
+          .firstWhere((r) => r != null, orElse: () => null);
+      if (rBefore != null) beforeMap = _recurringRows(state, rBefore);
+      if (rAfter != null) afterMap = _recurringRows(state, rAfter);
+    }
+
+    if (beforeMap.isEmpty && afterMap.isEmpty) return [];
+    final allKeys = {...beforeMap.keys, ...afterMap.keys};
+    final changes = <(String, String, String)>[];
+    for (final key in allKeys) {
+      final b = beforeMap[key] ?? '—';
+      final a = afterMap[key] ?? '—';
+      if (b != a) changes.add((key, b, a));
+    }
+    return changes;
   }
 
   Widget _miniTag(String label, Color color) {
@@ -1336,6 +1648,135 @@ class _DetailsTable extends StatelessWidget {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+class _BeforeAfterTable extends StatelessWidget {
+  const _BeforeAfterTable({required this.rows});
+
+  final List<(String, String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const amber = Color(0xFFA07830);
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: amber.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: amber.withValues(alpha: 0.08),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(22)),
+              border: Border(
+                bottom: BorderSide(
+                    color: amber.withValues(alpha: 0.25)),
+              ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 90),
+                Expanded(
+                  child: Text(
+                    'قبل',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: amber.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.arrow_back_ios_rounded,
+                    size: 11, color: Color(0xFFA07830)),
+                Expanded(
+                  child: Text(
+                    'بعد',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2F6F5E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...List.generate(rows.length, (i) {
+            final (field, before, after) = rows[i];
+            final isLast = i == rows.length - 1;
+            return Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        bottom: BorderSide(
+                          color: colorScheme.outlineVariant
+                              .withValues(alpha: 0.4),
+                        ),
+                      ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 90,
+                    child: Text(
+                      field,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      before,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: amber,
+                        decoration: TextDecoration.lineThrough,
+                        decorationColor: amber.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.arrow_back_ios_rounded,
+                      size: 11, color: Color(0xFF2F6F5E)),
+                  Expanded(
+                    child: Text(
+                      after,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF2F6F5E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
