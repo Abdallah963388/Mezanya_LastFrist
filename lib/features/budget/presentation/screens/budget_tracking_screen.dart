@@ -387,21 +387,53 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required double remainingIncome,
   }) {
     final theme = Theme.of(context);
-    final positive = remainingIncome >= 0;
+
+    // نسبة الصحة المالية: 1.0 = كل الدخل متبقٍ، 0.0 = خلصت الفلوس، سالب = عجز
+    final healthRatio = totalIncomeActual <= 0
+        ? 1.0
+        : (remainingIncome / totalIncomeActual).clamp(-0.5, 1.0);
+
+    const cGreen1 = Color(0xFF165B47);
+    const cGreen2 = Color(0xFF2F7D5E);
+    const cGreen3 = Color(0xFF8DCB9B);
+    const cYellow1 = Color(0xFF8B6C14);
+    const cYellow2 = Color(0xFFAA8C20);
+    const cYellow3 = Color(0xFFD4B040);
+    const cRed1 = Color(0xFF8E4A37);
+    const cRed2 = Color(0xFFC96B47);
+    const cRed3 = Color(0xFFE07055);
+
+    Color g1, g2, g3, shadow;
+    if (healthRatio <= 0.0) {
+      g1 = cRed1; g2 = cRed2; g3 = cRed3; shadow = cRed1;
+    } else if (healthRatio < 0.35) {
+      final t = healthRatio / 0.35;
+      g1 = Color.lerp(cRed1, cYellow1, t)!;
+      g2 = Color.lerp(cRed2, cYellow2, t)!;
+      g3 = Color.lerp(cRed3, cYellow3, t)!;
+      shadow = g1;
+    } else if (healthRatio < 0.65) {
+      final t = (healthRatio - 0.35) / 0.30;
+      g1 = Color.lerp(cYellow1, cGreen1, t)!;
+      g2 = Color.lerp(cYellow2, cGreen2, t)!;
+      g3 = Color.lerp(cYellow3, cGreen3, t)!;
+      shadow = g1;
+    } else {
+      g1 = cGreen1; g2 = cGreen2; g3 = cGreen3; shadow = cGreen1;
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: positive
-              ? const [Color(0xFF165B47), Color(0xFF2F7D5E), Color(0xFF8DCB9B)]
-              : const [Color(0xFF8E4A37), Color(0xFFC96B47)],
+          colors: [g1, g2, g3],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF165B47).withValues(alpha: 0.20),
+            color: shadow.withValues(alpha: 0.22),
             blurRadius: 26,
             offset: const Offset(0, 14),
           ),
@@ -1406,22 +1438,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     color: accent.withValues(alpha: 0.14),
                   ),
                 ),
-                if (incomeTotalLayout) const SizedBox(height: 12),
+                if (incomeTotalLayout) const SizedBox(height: 8),
                 incomeTotalLayout
-                    ? AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.58),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: accent.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: expandedChildren,
-                        ),
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: expandedChildren,
                       )
                     : _sectionCurtainBody(children: expandedChildren),
               ],
