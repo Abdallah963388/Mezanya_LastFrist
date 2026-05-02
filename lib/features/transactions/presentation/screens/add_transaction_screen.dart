@@ -220,7 +220,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   bool get _canSubmit {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    if (_isSaving || amount <= 0 || _walletId.isEmpty) {
+    if (_isSaving || amount <= 0 || (_walletId.isEmpty)) {
       return false;
     }
     if (_type == 'expense' &&
@@ -250,8 +250,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final budget = state.budgetSetup;
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     final selectedWallet = wallets.where((w) => w.id == _walletId).toList();
-    final selectedWalletName =
-        selectedWallet.isEmpty ? 'اختر المحفظة' : selectedWallet.first.name;
+    final selectedWalletName = _walletId == 'no-wallet'
+        ? 'بدون محفظة (افتراضي)'
+        : selectedWallet.isEmpty
+            ? 'اختر المحفظة'
+            : selectedWallet.first.name;
 
     // ── allocation label ──
     final selectedAllocation = budget.allocations
@@ -657,7 +660,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   return;
                                 }
                                 if (_walletId.isEmpty) {
-                                  _showValidationError('اختر محفظة أولًا.');
+                                  _showValidationError(
+                                      'اختر محفظة أو اختر "بدون محفظة" أولًا.');
                                   return;
                                 }
                                 if (_type == 'expense' &&
@@ -691,7 +695,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 }
 
                                 if (!widget.recurringMode &&
-                                    _type == 'expense') {
+                                    _type == 'expense' &&
+                                    _walletId != 'no-wallet') {
                                   final currentWallet = wallets
                                       .where((wallet) => wallet.id == _walletId)
                                       .toList();
@@ -721,7 +726,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     amount: amount,
                                     dayOfMonth: _date.day.clamp(1, 28),
                                     executionType: 'confirm',
-                                    walletId: _walletId,
+                                    walletId: _walletId == 'no-wallet'
+                                        ? ''
+                                        : _walletId,
                                     budgetScope: _type == 'expense'
                                         ? _budgetScope
                                         : _incomeBudgetScope,
@@ -790,7 +797,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     );
                                   }
                                   await widget.cubit.addTransaction(
-                                    walletId: _walletId,
+                                    walletId: _walletId == 'no-wallet'
+                                        ? null
+                                        : _walletId,
                                     toWalletId: _type == 'income' &&
                                             _incomeBudgetScope == 'within-budget' &&
                                             _incomeJarId.isNotEmpty
@@ -983,6 +992,93 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               textAlign: TextAlign.right,
             ),
             const SizedBox(height: 14),
+
+            // ── No wallet option ──
+            GestureDetector(
+              onTap: () {
+                setState(() => _walletId = 'no-wallet');
+                Navigator.pop(sheetCtx);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: _walletId == 'no-wallet'
+                      ? const Color(0xFF165b47).withValues(alpha: 0.10)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _walletId == 'no-wallet'
+                        ? const Color(0xFF165b47).withValues(alpha: 0.55)
+                        : const Color(0xFF165b47).withValues(alpha: 0.18),
+                    width: _walletId == 'no-wallet' ? 1.8 : 1,
+                  ),
+                  boxShadow: _walletId == 'no-wallet'
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF165b47).withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF165b47).withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.money_off_csred_rounded,
+                          color: Color(0xFF165b47),
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'بدون محفظة (افتراضي)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF165b47),
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'تُسجَّل المعاملة دون التأثير على أي رصيد فعلي',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF165b47),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_walletId == 'no-wallet')
+                      const Icon(Icons.check_circle_rounded,
+                          color: Color(0xFF165b47), size: 24),
+                  ],
+                ),
+              ),
+            ),
+
+            if (wallets.isNotEmpty) ...[
+              const _SheetSectionLabel(label: 'المحافظ'),
+              const SizedBox(height: 10),
+            ],
+
             ...wallets.map((wallet) {
               final accent = _parseColor(wallet.iconColor ?? '#165b47');
               final isSelected = _walletId == wallet.id;
