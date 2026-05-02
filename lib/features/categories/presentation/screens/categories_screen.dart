@@ -25,14 +25,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
         final sections = _sectionsFor(state);
-        final totalCategories =
-            sections.fold<int>(0, (sum, section) => sum + section.categories.length);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
-            _heroCard(totalCategories),
-            const SizedBox(height: 14),
             _typeSwitcher(),
             const SizedBox(height: 16),
             if (sections.isEmpty) _emptySetupCard() else ...sections.map(_sectionCard),
@@ -58,6 +54,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           target: const _CategoryTarget('income', 'income'),
           categories: generalIncome,
           accent: const Color(0xFF4B7F52),
+          iconName: 'cash',
         ),
       ];
     }
@@ -70,6 +67,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         target: const _CategoryTarget('general-expense', 'general-expense'),
         categories: generalExpense,
         accent: const Color(0xFF8A6B3D),
+        iconName: 'category',
       ),
       ...budget.allocations.map(
         (allocation) => _SectionData(
@@ -79,6 +77,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           target: _CategoryTarget('allocation', allocation.id),
           categories: allocation.categories,
           accent: _parseColor(allocation.iconColor),
+          iconName: allocation.icon,
         ),
       ),
       ...budget.linkedWallets.map(
@@ -89,6 +88,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           target: _CategoryTarget('linked-wallet', wallet.id),
           categories: wallet.categories,
           accent: _parseColor(wallet.iconColor),
+          iconName: wallet.icon,
         ),
       ),
     ];
@@ -219,10 +219,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Widget _sectionCard(_SectionData section) {
     final theme = Theme.of(context);
     final accent = section.accent;
-    final count = section.categories.length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(28),
@@ -242,12 +242,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         children: [
           Container(
             height: 5,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
-            ),
+            color: accent,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -264,10 +259,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         color: accent.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(17),
                       ),
-                      child: Icon(
-                        Icons.folder_rounded,
-                        color: accent,
-                        size: 26,
+                      child: Center(
+                        child: AppIconPickerDialog.iconWidgetForName(
+                          section.iconName,
+                          color: accent,
+                          size: 26,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -275,36 +272,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  section.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  '$count فئة',
-                                  style: TextStyle(
-                                    color: accent,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            section.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -1098,6 +1071,7 @@ class _SectionData {
     required this.target,
     required this.categories,
     required this.accent,
+    required this.iconName,
   });
 
   final String key;
@@ -1106,4 +1080,5 @@ class _SectionData {
   final _CategoryTarget target;
   final List<CategoryEntity> categories;
   final Color accent;
+  final String iconName;
 }
