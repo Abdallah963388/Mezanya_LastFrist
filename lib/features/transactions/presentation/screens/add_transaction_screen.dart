@@ -48,6 +48,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _recurringIconColor = '#165b47';
   bool _isSaving = false;
   String? _selectedCategoryId;
+  String? _selectedIncomeCategoryId;
 
   @override
   void initState() {
@@ -479,6 +480,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         icon: Icons.download_for_offline_rounded,
                         onTap: () => _openIncomeTargetPicker(budget, selectedWalletName),
                       ),
+                      const SizedBox(height: 10),
+                      _categoriesBlock(
+                        title: 'الفئات',
+                        categories: state.categories
+                            .where((c) => c.scope == 'income')
+                            .toList(),
+                        onAdd: () => _openAddCategoryDialog(
+                          budgetScope: 'outside-budget',
+                          allocationId: '',
+                          linkedWalletId: '',
+                          existing: state.categories
+                              .where((c) => c.scope == 'income')
+                              .toList(),
+                          scope: 'income',
+                        ),
+                        selectedId: _selectedIncomeCategoryId,
+                        onSelectChange: (id) =>
+                            setState(() => _selectedIncomeCategoryId = id),
+                      ),
                     ],
 
                     const SizedBox(height: 10),
@@ -813,7 +833,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   borderRadius: BorderRadius.circular(14),
                   onTap: widget.recurringMode
                       ? null
-                      : () => setState(() => _type = 'expense'),
+                      : () => setState(() {
+                            _type = 'expense';
+                            _selectedIncomeCategoryId = null;
+                          }),
                   child: Center(
                     child: Text(
                       'مصروف',
@@ -834,6 +857,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       : () => setState(() {
                             _type = 'income';
                             _budgetTargetId = '';
+                            _selectedCategoryId = null;
                           }),
                   child: Center(
                     child: Text(
@@ -861,30 +885,114 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.72,
-        child: ListView(
-          padding: const EdgeInsets.all(14),
-          children: wallets
-              .map(
-                (wallet) => Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(wallet.name),
-                    subtitle:
-                        Text('الرصيد: ${wallet.balance.toStringAsFixed(2)}'),
-                    trailing: _walletId == wallet.id
-                        ? Icon(Icons.check_circle,
-                            color: Theme.of(context).colorScheme.primary)
-                        : null,
-                    onTap: () {
-                      setState(() => _walletId = wallet.id);
-                      Navigator.pop(context);
-                    },
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.88,
+        expand: false,
+        builder: (ctx, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          children: [
+            const Text(
+              'اختر المحفظة',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              textAlign: TextAlign.right,
+            ),
+            const SizedBox(height: 14),
+            ...wallets.map((wallet) {
+              final accent = _parseColor(wallet.iconColor ?? '#165b47');
+              final isSelected = _walletId == wallet.id;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _walletId = wallet.id);
+                    Navigator.pop(sheetCtx);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? accent.withValues(alpha: 0.10)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? accent.withValues(alpha: 0.55)
+                            : accent.withValues(alpha: 0.18),
+                        width: isSelected ? 1.8 : 1,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.13),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Center(
+                            child: AppIconPickerDialog.iconWidgetForName(
+                              wallet.icon ?? 'account_balance_wallet',
+                              color: accent,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                wallet.name,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: isSelected
+                                      ? accent
+                                      : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${wallet.balance.toStringAsFixed(2)} رصيد',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: accent.withValues(alpha: 0.78),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(Icons.check_circle_rounded,
+                              color: accent, size: 24),
+                      ],
+                    ),
                   ),
                 ),
-              )
-              .toList(),
+              );
+            }),
+          ],
         ),
       ),
     );
@@ -1028,17 +1136,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     );
                   }),
 
-                  // Jars section
+                  // Jars section — no progress bar, show balance like wallet
                   if (jars.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _SheetSectionLabel(label: 'الحصالات'),
                     ...jars.map((jar) {
                       final id = 'jar:${jar.id}';
-                      final ratio = (jar.balance / totalIncome).clamp(0.0, 1.0);
+                      final isJarSelected = _budgetTargetId == id;
+                      final jarAccent = jar.iconColor.isNotEmpty
+                          ? _parseColor(jar.iconColor)
+                          : const Color(0xFF8B5A2B);
                       return Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: _AllocationOption(
-                          isSelected: _budgetTargetId == id,
+                          isSelected: isJarSelected,
                           onTap: () {
                             setState(() {
                               _budgetTargetId = id;
@@ -1046,14 +1157,52 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             });
                             Navigator.pop(sheetCtx);
                           },
-                          child: _AllocationRow(
-                            icon: Icons.savings_outlined,
-                            iconColor: const Color(0xFF8B5A2B),
-                            name: jar.name,
-                            progressLabel:
-                                '${jar.balance.toStringAsFixed(2)} رصيد',
-                            ratio: ratio,
-                            isSelected: _budgetTargetId == id,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: jarAccent.withValues(alpha: 0.13),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Center(
+                                  child: AppIconPickerDialog.iconWidgetForName(
+                                    jar.icon.isNotEmpty
+                                        ? jar.icon
+                                        : 'savings',
+                                    color: jarAccent,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      jar.name,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '${jar.balance.toStringAsFixed(2)} رصيد',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: jarAccent.withValues(alpha: 0.78),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isJarSelected)
+                                Icon(Icons.check_circle_rounded,
+                                    color: jarAccent, size: 20),
+                            ],
                           ),
                         ),
                       );
@@ -1306,6 +1455,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required String title,
     required List<CategoryEntity> categories,
     required VoidCallback? onAdd,
+    String? selectedId,
+    void Function(String? id)? onSelectChange,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1340,10 +1491,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             runSpacing: 8,
             children: categories.map((c) {
               final color = _parseColor(c.color);
-              final selected = _selectedCategoryId == c.id;
+              final effectiveSelected =
+                  selectedId != null ? selectedId : _selectedCategoryId;
+              final selected = effectiveSelected == c.id;
               return GestureDetector(
-                onTap: () => setState(
-                    () => _selectedCategoryId = selected ? null : c.id),
+                onTap: () {
+                  if (onSelectChange != null) {
+                    onSelectChange(selected ? null : c.id);
+                  } else {
+                    setState(() => _selectedCategoryId = selected ? null : c.id);
+                  }
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   padding:
@@ -1408,6 +1566,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required String allocationId,
     required String linkedWalletId,
     required List<CategoryEntity> existing,
+    String scope = 'expense',
   }) async {
     _newCategoryController.clear();
     var selectedIcon = 'restaurant';
@@ -1512,7 +1671,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       name: name,
       icon: selectedIcon,
       color: selectedColor,
-      scope: 'expense',
+      scope: scope,
       allocationId:
           budgetScope == 'within-budget' && allocationId != 'unallocated'
               ? allocationId
