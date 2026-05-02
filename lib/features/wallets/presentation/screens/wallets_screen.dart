@@ -39,34 +39,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
           children: [
-            // ── Summary bar ────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _SummaryBadge(
-                      label: 'إجمالي المحافظ',
-                      amount: totalWalletsBalance,
-                      icon: Icons.account_balance_wallet_rounded,
-                      color: _green,
-                      currencyCode: state.currencyCode,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SummaryBadge(
-                      label: 'إجمالي الحصالات',
-                      amount: totalJarsBalance,
-                      icon: Icons.savings_rounded,
-                      color: _teal,
-                      currencyCode: state.currencyCode,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
+            const SizedBox(height: 16),
             // ── Wallets section ─────────────────────────────────────────
             _overviewSection(
               title: 'المحافظ',
@@ -312,9 +285,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.14)),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
               color: accent.withValues(alpha: 0.06),
@@ -470,7 +443,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
@@ -493,7 +466,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     width: 58,
                     height: 58,
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.13),
+                      color: accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Center(
@@ -590,7 +563,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
@@ -2997,12 +2970,12 @@ class _WalletsListPageState extends State<_WalletsListPage> {
       key: ValueKey(wallet.id),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+        color: isColored ? accent.withValues(alpha: 0.88) : accent.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(26),
         border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+            color: accent.withValues(alpha: isColored ? 0.28 : 0.08),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -3017,7 +2990,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
               decoration: BoxDecoration(
                 color: isColored
                     ? Colors.white.withValues(alpha: 0.22)
-                    : accent.withValues(alpha: 0.13),
+                    : accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Center(
@@ -3049,7 +3022,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                       fontWeight: FontWeight.w600,
                       color: isColored
                           ? Colors.white.withValues(alpha: 0.85)
-                          : const Color(0xFF7A725F),
+                          : accent.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
@@ -3237,12 +3210,12 @@ class _JarsListPageState extends State<_JarsListPage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Ink(
         decoration: BoxDecoration(
-          color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+          color: isColored ? accent.withValues(alpha: 0.88) : accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+              color: accent.withValues(alpha: isColored ? 0.28 : 0.08),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -3258,7 +3231,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                 decoration: BoxDecoration(
                   color: isColored
                       ? Colors.white.withValues(alpha: 0.22)
-                      : accent.withValues(alpha: 0.13),
+                      : accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
@@ -3290,7 +3263,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                         fontWeight: FontWeight.w600,
                         color: isColored
                             ? Colors.white.withValues(alpha: 0.85)
-                            : const Color(0xFF7A725F),
+                            : accent.withValues(alpha: 0.65),
                       ),
                     ),
                   ],
