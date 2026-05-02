@@ -640,69 +640,89 @@ class _RecurringTransactionComposerScreenState
   }
 
   Widget _expenseKindSection() {
-    return _surfaceSection(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'نوع العملية',
-            style: TextStyle(fontWeight: FontWeight.w800),
+    final theme = Theme.of(context);
+    final isNormal = _expensePlanKind == 'normal';
+    final accent = theme.colorScheme.primary;
+
+    Widget kindBtn({
+      required String label,
+      required IconData icon,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? accent : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _planChoiceTile(
-                  label: 'مصروف عادي',
-                  icon: Icons.repeat_rounded,
-                  selected: _expensePlanKind == 'normal',
-                  onTap: () {
-                    setState(() {
-                      _expensePlanKind = 'normal';
-                      _isDebtOrSubscription = false;
-                      _debtPrincipalController.clear();
-                      _selectedSubscriptionPresetId = null;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _planChoiceTile(
-                  label: 'تقسيط',
-                  icon: Icons.account_balance_outlined,
-                  selected: _isExpenseInstallment,
-                  onTap: () {
-                    setState(() {
-                      _withinBudget = true;
-                      _expensePlanKind = 'installment';
-                      _isDebtOrSubscription = true;
-                      _allocationId = null;
-                      _targetJarId = null;
-                      _selectedSubscriptionPresetId = null;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _planChoiceTile(
-                  label: 'اشتراك',
-                  icon: Icons.subscriptions_rounded,
-                  selected: _isExpenseSubscription,
-                  onTap: () {
-                    setState(() {
-                      _withinBudget = true;
-                      _expensePlanKind = 'subscription';
-                      _isDebtOrSubscription = true;
-                      _debtPrincipalController.clear();
-                      _allocationId = null;
-                      _targetJarId = null;
-                    });
-                  },
-                ),
-              ),
-            ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        children: [
+          kindBtn(
+            label: 'معاملة تكرار',
+            icon: Icons.repeat_rounded,
+            selected: isNormal,
+            onTap: () {
+              setState(() {
+                _expensePlanKind = 'normal';
+                _isDebtOrSubscription = false;
+                _debtPrincipalController.clear();
+                _selectedSubscriptionPresetId = null;
+              });
+            },
+          ),
+          const SizedBox(width: 4),
+          kindBtn(
+            label: 'تقسيط',
+            icon: Icons.account_balance_outlined,
+            selected: _isExpenseInstallment,
+            onTap: () {
+              setState(() {
+                _withinBudget = true;
+                _expensePlanKind = 'installment';
+                _isDebtOrSubscription = true;
+                _allocationId = null;
+                _targetJarId = null;
+                _selectedSubscriptionPresetId = null;
+              });
+            },
           ),
         ],
       ),
