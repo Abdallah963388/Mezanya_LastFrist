@@ -6,7 +6,7 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/services/budget_recurring_plan_service.dart';
 import '../../../budget/presentation/screens/budget_tracking_screen.dart';
-import '../../../home/presentation/screens/money_dashboard_screen.dart';
+import '../../../home/presentation/screens/money_screen.dart';
 import '../../../notifications/presentation/screens/notifications_center_screen.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/add_transaction_screen.dart';

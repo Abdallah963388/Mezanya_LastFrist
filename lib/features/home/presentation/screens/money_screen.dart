@@ -60,9 +60,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
         final savingRate =
             netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
 
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: ListView(
+        return ListView(
             padding: EdgeInsets.zero,
             children: [
               // ── Hero card ──────────────────────────────────────────────
@@ -144,7 +142,6 @@ class _MoneyScreenState extends State<MoneyScreen> {
               ),
               const SizedBox(height: 24),
             ],
-          ),
         );
       },
     );

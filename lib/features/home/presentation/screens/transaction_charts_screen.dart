@@ -64,17 +64,15 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
     final savingRate =
         netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
 
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: _beige,
+      appBar: AppBar(
         backgroundColor: _beige,
-        appBar: AppBar(
-          backgroundColor: _beige,
-          surfaceTintColor: Colors.transparent,
-          title: const Text('تحليلات مالية',
-              style: TextStyle(fontWeight: FontWeight.w900)),
-          elevation: 0,
-        ),
+        surfaceTintColor: Colors.transparent,
+        title: const Text('تحليلات مالية',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+        elevation: 0,
+      ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           children: [
@@ -160,8 +158,7 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 
