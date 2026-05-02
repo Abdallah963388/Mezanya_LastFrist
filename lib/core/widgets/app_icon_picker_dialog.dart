@@ -24,7 +24,7 @@ class AppIconItem {
   final String name;
   final String label;
   final String categoryId;
-  // `Icons.*` gives `IconData` but `font_awesome_flutter` gives IconDataSolid etc.
+  // `Icons.*` gives `IconData` but `font_awesome_flutter` gives `FaIconData`.
   // Keep this dynamic so we can render either.
   final dynamic icon;
 }
