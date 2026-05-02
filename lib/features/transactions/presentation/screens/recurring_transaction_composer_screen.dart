@@ -36,6 +36,7 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
     this.initialExpensePlanKind,
     this.returnOnSave = false,
     this.allowDelete = false,
+    this.subscriptionOnlyMode = false,
   });
 
   final AppCubit cubit;
@@ -45,6 +46,7 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
   final String? initialExpensePlanKind;
   final bool returnOnSave;
   final bool allowDelete;
+  final bool subscriptionOnlyMode;
 
   @override
   State<RecurringTransactionComposerScreen> createState() =>
@@ -208,20 +210,33 @@ class _RecurringTransactionComposerScreenState
     final wallets = state.wallets;
     final visibleCategories = _visibleCategories(state.categories, budget);
 
+    final isSubscriptionOnly =
+        widget.subscriptionOnlyMode && widget.initialRecurring == null;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.initialRecurring == null
-            ? 'إضافة معاملة متكررة'
-            : 'تعديل معاملة متكررة'),
+        title: Text(
+          isSubscriptionOnly
+              ? 'إضافة اشتراك'
+              : widget.initialRecurring == null
+                  ? 'إضافة معاملة متكررة'
+                  : 'تعديل معاملة متكررة',
+        ),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            _typeSwitcher(theme),
-            const SizedBox(height: 14),
-            if (_type == 'expense') ...[
+            if (isSubscriptionOnly) ...[
+              _subscriptionSuggestionSection(),
+              const SizedBox(height: 14),
+            ],
+            if (!isSubscriptionOnly) ...[
+              _typeSwitcher(theme),
+              const SizedBox(height: 14),
+            ],
+            if (_type == 'expense' && !isSubscriptionOnly) ...[
               _expenseKindSection(),
               const SizedBox(height: 12),
             ],
@@ -325,7 +340,7 @@ class _RecurringTransactionComposerScreenState
                       _allocationId = null;
                       _targetJarId = null;
                       _isDebtOrSubscription = false;
-                      _expensePlanKind = 'normal';
+                      _expensePlanKind = isSubscriptionOnly ? 'subscription' : 'normal';
                       _isVariableIncome = false;
                     } else if (_type == 'expense') {
                       _expensePlanKind = widget.initialExpensePlanKind ??
@@ -337,7 +352,7 @@ class _RecurringTransactionComposerScreenState
               ),
             ),
             const SizedBox(height: 12),
-            if (_type == 'expense' && _isExpenseSubscription) ...[
+            if (_type == 'expense' && _isExpenseSubscription && !isSubscriptionOnly) ...[
               _subscriptionSuggestionSection(),
               const SizedBox(height: 12),
             ],
