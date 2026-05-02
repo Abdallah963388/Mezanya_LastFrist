@@ -535,7 +535,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     ValueChanged<BackupFrequency?> changed,
   ) {
     return DropdownButtonFormField<BackupFrequency>(
-      initialValue: value,
+      value: value,
       decoration: const InputDecoration(
         labelText: 'تكرار النسخ',
       ),

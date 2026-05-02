@@ -128,7 +128,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final pastMonth = _isPastMonth();
         final hasBudgetPlan = _hasBudgetPlan(budget);
         final showSetupPromptOnly = futureMonth || !hasBudgetPlan;
-        final budgetJars = budget.linkedWallets.toList();
+        final budgetJars = budget.linkedWallets.where((jar) {
+          if (jar.id == 'linked-savings-default') return true;
+          return jar.funding.any((f) =>
+              f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
+        }).toList();
         final monthTx = _monthTransactions(state.transactions);
         final incomeTx = monthTx.where((t) => t.type == 'income').toList();
         final expenseTx = monthTx.where((t) => t.type == 'expense').toList();

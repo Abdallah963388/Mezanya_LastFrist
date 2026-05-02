@@ -147,7 +147,7 @@ class _LogsScreenState extends State<LogsScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: range,
+                value: range,
                 decoration: const InputDecoration(labelText: 'المدى الزمني'),
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('الكل')),

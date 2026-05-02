@@ -50,16 +50,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
     _selectedColor = widget.current?.iconColor ?? '#0f766e';
     _automationType = widget.current?.automationType ?? 'confirm';
     _funding = List<LinkedWalletEntityFunding>.from(
-      widget.current?.funding ??
-          [
-            LinkedWalletEntityFunding(
-              id: widget.idFactory('fund'),
-              incomeSourceId: widget.incomeSources.isNotEmpty
-                  ? widget.incomeSources.first.id
-                  : '',
-              plannedAmount: 0,
-            ),
-          ],
+      widget.current?.funding ?? [],
     );
   }
 
@@ -123,9 +114,6 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
   }
 
   Future<void> _removeFunding(String id) async {
-    if (_funding.length == 1) {
-      return;
-    }
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -172,17 +160,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         )
         .toList();
 
-    // الإصلاح
-    if (cleanedFunding.isEmpty) {
-      _showMessage(
-        'أضف مصدر تمويل واحد على الأقل بمبلغ أكبر من صفر.',
-      );
-      return;
-    }
-
     final day = (int.tryParse(_dayController.text.trim()) ?? 1).clamp(1, 28);
-
-    final primary = cleanedFunding.first.incomeSourceId;
 
     final entity = LinkedWalletEntity(
       id: widget.current?.id ?? widget.idFactory('linked'),
@@ -193,7 +171,8 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
         (sum, item) => sum + item.plannedAmount,
       ),
       executionDay: day,
-      fundingSource: primary,
+      fundingSource:
+          cleanedFunding.isNotEmpty ? cleanedFunding.first.incomeSourceId : '',
       funding: cleanedFunding,
       icon: _selectedIcon,
       iconColor: _selectedColor,
@@ -454,7 +433,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
             child: Column(
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: _automationType,
+                  value: _automationType,
                   decoration: const InputDecoration(
                     labelText: 'نوع التنفيذ',
                   ),
@@ -502,29 +481,37 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                         'لا توجد مصادر دخل متاحة الآن لربط تمويل الحصالة بها.',
                   )
                 : Column(
-                    children: _funding
-                        .map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _JarFundingCard(
-                              item: item,
-                              incomeSources: widget.incomeSources,
-                              canDelete: _funding.length > 1,
-                              onChanged: ({
-                                String? incomeSourceId,
-                                double? amount,
-                              }) {
-                                _updateFunding(
-                                  item.id,
-                                  incomeSourceId: incomeSourceId,
-                                  amount: amount,
-                                );
-                              },
-                              onDelete: () => _removeFunding(item.id),
-                            ),
-                          ),
+                    children: [
+                      if (_funding.isEmpty)
+                        const _JarEmptyState(
+                          message:
+                              'لا يوجد مصدر تمويل مضاف. يمكنك إضافة واحد للربط بالميزانية الشهرية، أو حفظ الحصالة بدون تمويل.',
                         )
-                        .toList(),
+                      else
+                        ..._funding
+                            .map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _JarFundingCard(
+                                  item: item,
+                                  incomeSources: widget.incomeSources,
+                                  canDelete: true,
+                                  onChanged: ({
+                                    String? incomeSourceId,
+                                    double? amount,
+                                  }) {
+                                    _updateFunding(
+                                      item.id,
+                                      incomeSourceId: incomeSourceId,
+                                      amount: amount,
+                                    );
+                                  },
+                                  onDelete: () => _removeFunding(item.id),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                    ],
                   ),
           ),
           if (widget.current != null) ...[

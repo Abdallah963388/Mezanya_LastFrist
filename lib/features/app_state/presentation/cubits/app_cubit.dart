@@ -376,6 +376,23 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> reorderWallets(List<WalletEntity> ordered) async {
+    final next = state.copyWith(wallets: ordered);
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'wallet',
+      entityId: 'wallets-order',
+      details: 'تم إعادة ترتيب المحافظ',
+      apply: () async => next,
+    );
+  }
+
+  Future<void> reorderJars(List<LinkedWalletEntity> ordered) async {
+    await updateBudgetSetup(
+      state.budgetSetup.copyWith(linkedWallets: ordered),
+    );
+  }
+
   Future<void> deleteWallet(String id) async {
     final next = state.copyWith(
         wallets: state.wallets.where((wallet) => wallet.id != id).toList());

@@ -69,7 +69,7 @@ class CurrencySettingsCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: currency,
+              value: currency,
               items: const [
                 DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
                 DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
@@ -170,7 +170,7 @@ class BackupManagementCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: autoBackupMode,
+              value: autoBackupMode,
               decoration: const InputDecoration(
                 labelText: 'النسخ الاحتياطي التلقائي',
               ),
