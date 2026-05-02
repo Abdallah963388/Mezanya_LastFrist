@@ -557,6 +557,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     String? googleEmail,
     String? backupDirectoryPath,
     String? autoBackupMode,
+    String? profileImageUrl,
   }) async {
     final next = state.copyWith(
       userName: userName,
@@ -565,6 +566,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       googleEmail: googleEmail,
       backupDirectoryPath: backupDirectoryPath,
       autoBackupMode: autoBackupMode,
+      profileImageUrl: profileImageUrl,
     );
     await _applyAndLog(
       action: 'edit',
