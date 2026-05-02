@@ -590,7 +590,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
   void _openWalletsPage(AppStateEntity state) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _WalletsListPage(cubit: widget.cubit),
+        builder: (_) => _WalletsListPage(
+          cubit: widget.cubit,
+          onWalletTap: (w) => _openWalletDetailsSheet(w),
+        ),
       ),
     );
   }
@@ -598,7 +601,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
   void _openJarsPage(AppStateEntity state) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _JarsListPage(cubit: widget.cubit),
+        builder: (_) => _JarsListPage(
+          cubit: widget.cubit,
+          onJarTap: (j) => _openJarDetailsSheet(j),
+        ),
       ),
     );
   }
@@ -2738,8 +2744,9 @@ enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar }
 // ── Wallets full-page list with reorder + style toggle ─────────────────────
 
 class _WalletsListPage extends StatefulWidget {
-  const _WalletsListPage({required this.cubit});
+  const _WalletsListPage({required this.cubit, this.onWalletTap});
   final AppCubit cubit;
+  final void Function(WalletEntity)? onWalletTap;
   @override
   State<_WalletsListPage> createState() => _WalletsListPageState();
 }
@@ -2759,7 +2766,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
     final isColored = _coloredWallets.contains(wallet.id);
     final available = wallet.balance - wallet.reservedForSavings;
 
-    return Container(
+    final card = Container(
       key: ValueKey(wallet.id),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -2872,6 +2879,13 @@ class _WalletsListPageState extends State<_WalletsListPage> {
         ),
       ),
     );
+
+    return _reorderMode
+        ? card
+        : GestureDetector(
+            onTap: () => widget.onWalletTap?.call(wallet),
+            child: card,
+          );
   }
 
 
@@ -2965,8 +2979,9 @@ class _WalletsListPageState extends State<_WalletsListPage> {
 // ── Jars full-page list with reorder + style toggle ────────────────────────
 
 class _JarsListPage extends StatefulWidget {
-  const _JarsListPage({required this.cubit});
+  const _JarsListPage({required this.cubit, this.onJarTap});
   final AppCubit cubit;
+  final void Function(LinkedWalletEntity)? onJarTap;
   @override
   State<_JarsListPage> createState() => _JarsListPageState();
 }
@@ -2982,14 +2997,7 @@ class _JarsListPageState extends State<_JarsListPage> {
   }
 
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
-    if (_reorderMode) return jars;
-    final sorted = List<LinkedWalletEntity>.from(jars);
-    sorted.sort((a, b) {
-      if (a.id == 'linked-savings-default') return -1;
-      if (b.id == 'linked-savings-default') return 1;
-      return 0;
-    });
-    return sorted;
+    return jars;
   }
 
   Widget _buildCard(List<LinkedWalletEntity> allJars, LinkedWalletEntity jar) {
@@ -2997,7 +3005,7 @@ class _JarsListPageState extends State<_JarsListPage> {
     final isColored = _coloredJars.contains(jar.id);
     final idx = allJars.indexOf(jar);
 
-    return Padding(
+    final card = Padding(
       key: ValueKey(jar.id),
       padding: const EdgeInsets.only(bottom: 12),
       child: Ink(
@@ -3115,6 +3123,13 @@ class _JarsListPageState extends State<_JarsListPage> {
         ),
       ),
     );
+
+    return _reorderMode
+        ? card
+        : GestureDetector(
+            onTap: () => widget.onJarTap?.call(jar),
+            child: card,
+          );
   }
 
   @override
