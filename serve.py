@@ -10,11 +10,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
 
-    def end_headers(self):
-        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
-        super().end_headers()
-
     def do_GET(self):
         path = self.path.split("?")[0]
         full_path = os.path.join(WEB_DIR, path.lstrip("/"))
