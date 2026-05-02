@@ -57,8 +57,10 @@ class _MoneyScreenState extends State<MoneyScreen> {
             .where((t) => t.type == 'expense')
             .fold<double>(0, (s, t) => s + t.amount);
         final netSaving = netIncome - netExpense;
-        final savingRate =
-            netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
+        // Empty month → full green; spending with no income → red
+        final savingRate = netIncome > 0
+            ? (netSaving / netIncome).clamp(-1.0, 1.0)
+            : (netExpense > 0 ? -1.0 : 1.0);
 
         return ListView(
             padding: EdgeInsets.zero,
@@ -229,25 +231,63 @@ class _HeroCard extends StatelessWidget {
   final double totalBalance, netIncome, netExpense, netSaving, savingRate;
   final String currencyCode;
 
+  /// Returns gradient colors based on saving health
+  static List<Color> _gradientColors(double rate) {
+    if (rate >= 0.35) {
+      // Healthy — deep green
+      return [const Color(0xFF1e7a30), const Color(0xFF0b5c1a)];
+    } else if (rate >= 0.15) {
+      // Decent — medium green
+      return [const Color(0xFF2E8B57), const Color(0xFF1B6640)];
+    } else if (rate >= 0.03) {
+      // Getting tight — amber/yellow
+      return [const Color(0xFFB8820C), const Color(0xFF8B6508)];
+    } else if (rate >= -0.05) {
+      // Almost empty — orange
+      return [const Color(0xFFBF5E14), const Color(0xFF9C4410)];
+    } else {
+      // Over budget — red
+      return [const Color(0xFFC0392B), const Color(0xFF96261E)];
+    }
+  }
+
+  static Color _shadowColor(double rate) {
+    if (rate >= 0.35) return const Color(0x381e7a30);
+    if (rate >= 0.15) return const Color(0x352E8B57);
+    if (rate >= 0.03) return const Color(0x38B8820C);
+    if (rate >= -0.05) return const Color(0x38BF5E14);
+    return const Color(0x38C0392B);
+  }
+
+  static Color _barColor(double rate) {
+    if (rate >= 0.15) return const Color(0xFF4ADE80);
+    if (rate >= 0.03) return const Color(0xFFFFD060);
+    if (rate >= -0.05) return const Color(0xFFFFAA40);
+    return const Color(0xFFF87171);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPositive = netSaving >= 0;
     final savingPct = (savingRate * 100).toStringAsFixed(0);
+    final gradColors = _gradientColors(savingRate);
+    final shadowC = _shadowColor(savingRate);
+    final barC = _barColor(savingRate);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1e7a30), Color(0xFF0b5c1a)],
+        gradient: LinearGradient(
+          colors: gradColors,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x381e7a30),
+            color: shadowC,
             blurRadius: 32,
-            offset: Offset(0, 16),
+            offset: const Offset(0, 16),
           ),
         ],
       ),
@@ -352,18 +392,13 @@ class _HeroCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color: (isPositive
-                            ? const Color(0xFF4ADE80)
-                            : const Color(0xFFF87171))
-                        .withValues(alpha: 0.20),
+                    color: barC.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '$savingPct%',
                     style: TextStyle(
-                      color: isPositive
-                          ? const Color(0xFF4ADE80)
-                          : const Color(0xFFF87171),
+                      color: barC,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
                     ),
@@ -375,14 +410,10 @@ class _HeroCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
-                value: savingRate,
+                value: savingRate.clamp(0.0, 1.0),
                 minHeight: 8,
                 backgroundColor: Colors.white.withValues(alpha: 0.16),
-                valueColor: AlwaysStoppedAnimation(
-                  isPositive
-                      ? const Color(0xFF4ADE80)
-                      : const Color(0xFFF87171),
-                ),
+                valueColor: AlwaysStoppedAnimation(barC),
               ),
             ),
           ],
