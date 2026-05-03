@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
+import '../../../transactions/presentation/screens/debts_and_subscriptions_screen.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
+import '../../../transactions/presentation/screens/subscription_preset_selection_screen.dart';
 import '../../../wallets/presentation/screens/jar_editor_screen.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
@@ -917,99 +919,26 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _showAddRecurringOrDebtComposer({bool subscriptionOnly = false}) async {
-    final result =
-        await Navigator.of(context).push<RecurringTransactionComposerResult>(
-      MaterialPageRoute(
-        builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
-          initialType: 'expense',
-          initialWithinBudget: true,
-          returnOnSave: true,
-          subscriptionOnlyMode: subscriptionOnly,
+    if (subscriptionOnly) {
+      // اشتراك → صفحة اختيار الخدمات
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => SubscriptionPresetSelectionScreen(
+            cubit: widget.cubit,
+          ),
         ),
+      );
+      return;
+    }
+
+    // دين → صفحة الديون والاشتراكات
+    await Navigator.of(context).push(
+      MaterialPageRoute(
         fullscreenDialog: true,
+        builder: (_) => DebtsAndSubscriptionsScreen(cubit: widget.cubit),
       ),
     );
-    final recurring = result?.recurring;
-    if (recurring == null) return;
-
-    final isDebtOrSub = recurring.expensePlanKind == 'installment' ||
-        recurring.expensePlanKind == 'subscription';
-
-    if (isDebtOrSub) {
-      // إنشاء دين/قسط/اشتراك داخل الميزانية
-      if (_budget.incomeSources.isEmpty) return;
-      final recurringId = _id('rec');
-      final isSubscription = recurring.expensePlanKind == 'subscription';
-      final principal = recurring.debtPrincipalTotal;
-      final debt = DebtEntity(
-        id: _id('debt'),
-        name: recurring.name,
-        amount: recurring.amount,
-        executionDay: recurring.dayOfMonth.clamp(1, 31),
-        type: recurring.executionType,
-        fundingSource: _budget.incomeSources.isNotEmpty
-            ? _budget.incomeSources.first.id
-            : '',
-        recurringTransactionId: recurringId,
-        kind: isSubscription ? 'subscription' : 'installment',
-        principalTotal: isSubscription
-            ? null
-            : (principal != null && principal > 0 ? principal : null),
-        recurrencePattern: recurring.recurrencePattern,
-        monthOfYear: recurring.monthOfYear,
-      );
-      await _saveBudget(_budget.copyWith(debts: [..._budget.debts, debt]));
-      await widget.cubit.addRecurringTransaction(
-        id: recurringId,
-        name: recurring.name,
-        type: 'expense',
-        amount: recurring.amount,
-        dayOfMonth: recurring.dayOfMonth,
-        executionType: recurring.executionType,
-        walletId: recurring.walletId,
-        budgetScope: 'within-budget',
-        recurrencePattern: recurring.recurrencePattern,
-        icon: recurring.icon,
-        iconColor: recurring.iconColor,
-        weekday: recurring.weekday,
-        weekdays: recurring.weekdays,
-        monthOfYear: recurring.monthOfYear,
-        anchorDate: recurring.anchorDate,
-        scheduledTime: recurring.scheduledTime,
-        reminderLeadDays: recurring.reminderLeadDays,
-        isDebtOrSubscription: true,
-        expensePlanKind: recurring.expensePlanKind,
-        debtPrincipalTotal: recurring.debtPrincipalTotal,
-        notes: recurring.notes,
-      );
-    } else {
-      // معاملة مكررة عادية داخل الميزانية
-      await widget.cubit.addRecurringTransaction(
-        name: recurring.name,
-        type: 'expense',
-        amount: recurring.amount,
-        dayOfMonth: recurring.dayOfMonth,
-        executionType: recurring.executionType,
-        walletId: recurring.walletId,
-        budgetScope: 'within-budget',
-        recurrencePattern: recurring.recurrencePattern,
-        icon: recurring.icon,
-        iconColor: recurring.iconColor,
-        weekday: recurring.weekday,
-        weekdays: recurring.weekdays,
-        monthOfYear: recurring.monthOfYear,
-        anchorDate: recurring.anchorDate,
-        scheduledTime: recurring.scheduledTime,
-        reminderLeadDays: recurring.reminderLeadDays,
-        isDebtOrSubscription: false,
-        expensePlanKind: recurring.expensePlanKind,
-        allocationId: recurring.allocationId,
-        targetJarId: recurring.targetJarId,
-        categoryIds: recurring.categoryIds,
-        notes: recurring.notes,
-      );
-    }
   }
 
   Future<void> _openDebtInfoSheet(DebtEntity debt) async {
