@@ -29,97 +29,63 @@ enum BackupFrequency {
 
 class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     with WidgetsBindingObserver {
-  static const Color primary = Color(0xFF2F6F5E);
+  static const Color _green = Color(0xFF2F6F5E);
+  static const Color _bg = Color(0xFFFFFBF1);
 
-  static const Color bg = Color(0xFFF6F7F5);
-
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
 
   GoogleSignInAccount? _account;
-
   bool loading = false;
-
   String? localPath;
-
   BackupFrequency localFreq = BackupFrequency.onExit;
-
   BackupFrequency cloudFreq = BackupFrequency.weekly;
 
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addObserver(this);
-
     _bootstrap();
   }
 
   Future<void> _bootstrap() async {
-    setState(() {
-      loading = true;
-    });
-
+    setState(() => loading = true);
     await _loadSettings();
     await _loadGoogle();
-
-    if (mounted) {
-      setState(() {
-        loading = false;
-      });
-    }
+    if (mounted) setState(() => loading = false);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
     super.dispose();
   }
 
   @override
-  void didChangeAppLifecycleState(
-    AppLifecycleState state,
-  ) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
     if ((state == AppLifecycleState.paused ||
             state == AppLifecycleState.detached) &&
         localFreq == BackupFrequency.onExit &&
         localPath != null) {
-      _saveLocal(
-        silent: true,
-      );
+      _saveLocal(silent: true);
     }
   }
 
   Future<void> _loadGoogle() async {
     _account = _googleSignIn.currentUser;
-
     _account ??= await _googleSignIn.signInSilently();
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-
-    localPath = prefs.getString(
-      'backup_local_path',
-    );
-
-    final local = prefs.getString(
-      'backup_local_freq',
-    );
-
-    final cloud = prefs.getString(
-      'backup_cloud_freq',
-    );
-
+    localPath = prefs.getString('backup_local_path');
+    final local = prefs.getString('backup_local_freq');
+    final cloud = prefs.getString('backup_cloud_freq');
     if (local != null) {
       localFreq = BackupFrequency.values.firstWhere(
         (e) => e.name == local,
         orElse: () => BackupFrequency.onExit,
       );
     }
-
     if (cloud != null) {
       cloudFreq = BackupFrequency.values.firstWhere(
         (e) => e.name == cloud,
@@ -130,164 +96,82 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
-
-    await prefs.setString(
-      'backup_local_path',
-      localPath ?? '',
-    );
-
-    await prefs.setString(
-      'backup_local_freq',
-      localFreq.name,
-    );
-
-    await prefs.setString(
-      'backup_cloud_freq',
-      cloudFreq.name,
-    );
+    await prefs.setString('backup_local_path', localPath ?? '');
+    await prefs.setString('backup_local_freq', localFreq.name);
+    await prefs.setString('backup_cloud_freq', cloudFreq.name);
   }
 
   bool _guardAuth() {
     if (_account == null) {
-      _msg(
-        'سجل دخول بجوجل أولًا',
-      );
+      _msg('سجل دخول بجوجل أولًا');
       return false;
     }
-
     return true;
   }
 
   void _msg(String text) {
     if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text)));
   }
 
-  String label(
-    BackupFrequency f,
-  ) {
+  String _freqLabel(BackupFrequency f) {
     switch (f) {
       case BackupFrequency.onExit:
         return 'مع غلق التطبيق';
-
       case BackupFrequency.daily:
         return 'يوميًا 12 صباحًا';
-
       case BackupFrequency.weekly:
         return 'كل جمعة 12 صباحًا';
-
       case BackupFrequency.monthly:
         return '1 من كل شهر';
     }
   }
 
   Future<bool> _requestStoragePermission() async {
-    if (await Permission.manageExternalStorage.isGranted) {
-      return true;
-    }
-
+    if (await Permission.manageExternalStorage.isGranted) return true;
     final status = await Permission.manageExternalStorage.request();
-
-    if (status.isGranted) {
-      return true;
-    }
-
+    if (status.isGranted) return true;
     await openAppSettings();
-
     return false;
   }
 
-  // ===================
-  // LOCAL
-  // ===================
-
   Future<void> _pickFolder() async {
     final ok = await _requestStoragePermission();
-
     if (!ok) return;
-
     final path = await FilePicker.getDirectoryPath();
-
     if (path == null) return;
-
-    setState(() {
-      localPath = path;
-    });
-
+    setState(() => localPath = path);
     await _savePrefs();
-
-    _msg(
-      'تم حفظ مجلد النسخ',
-    );
+    _msg('تم حفظ مجلد النسخ');
   }
 
-  Future<void> _saveLocal({
-    bool silent = false,
-  }) async {
+  Future<void> _saveLocal({bool silent = false}) async {
     if (localPath == null) {
-      _msg(
-        'حدد مكان الحفظ أولًا',
-      );
+      _msg('حدد مكان الحفظ أولًا');
       return;
     }
-
     final path = '$localPath${Platform.pathSeparator}mezanya_backup.json';
-
     final file = File(path);
-
     if (!await file.exists()) {
-      await file.create(
-        recursive: true,
-      );
+      await file.create(recursive: true);
     }
-
-    await file.writeAsString(
-      widget.cubit.exportStateJson(),
-      flush: true,
-    );
-
-    if (!silent) {
-      _msg(
-        'تم حفظ النسخة محليًا',
-      );
-    }
+    await file.writeAsString(widget.cubit.exportStateJson(), flush: true);
+    if (!silent) _msg('تم حفظ النسخة محليًا');
   }
 
   Future<void> _restoreLocal() async {
     final result = await FilePicker.pickFiles();
-
-    if (result == null || result.files.single.path == null) {
-      return;
-    }
-
-    final json = await File(
-      result.files.single.path!,
-    ).readAsString();
-
+    if (result == null || result.files.single.path == null) return;
+    final json = await File(result.files.single.path!).readAsString();
     await widget.cubit.importStateJson(json);
-
-    _msg(
-      'تم الاسترجاع المحلي',
-    );
+    _msg('تم الاسترجاع المحلي');
   }
-
-  // ===================
-  // FIREBASE
-  // ===================
 
   Future<void> _backupFirestore() async {
     if (!_guardAuth()) return;
-
     try {
-      setState(() {
-        loading = true;
-      });
-
+      setState(() => loading = true);
       await FirebaseFirestore.instance
           .collection('backups')
           .doc(_account!.email)
@@ -297,323 +181,544 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
         'backup': widget.cubit.exportStateJson(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      _msg(
-        'تم رفع النسخة',
-      );
+      _msg('تم رفع النسخة');
     } catch (_) {
-      _msg(
-        'فشل رفع النسخة',
-      );
+      _msg('فشل رفع النسخة');
     } finally {
-      if (mounted) {
-        setState(() {
-          loading = false;
-        });
-      }
+      if (mounted) setState(() => loading = false);
     }
   }
 
   Future<void> _restoreFirestore() async {
     if (!_guardAuth()) return;
-
     try {
-      setState(() {
-        loading = true;
-      });
-
+      setState(() => loading = true);
       final doc = await FirebaseFirestore.instance
           .collection('backups')
-          .doc(
-            _account!.email,
-          )
+          .doc(_account!.email)
           .get();
-
       if (!doc.exists || doc.data() == null) {
-        _msg(
-          'لا توجد نسخة',
-        );
+        _msg('لا توجد نسخة');
         return;
       }
-
       final json = doc.data()!['backup'];
-
-      await widget.cubit.importStateJson(
-        json.toString(),
-      );
-
-      _msg(
-        'تم الاسترجاع',
-      );
+      await widget.cubit.importStateJson(json.toString());
+      _msg('تم الاسترجاع');
     } catch (_) {
-      _msg(
-        'فشل الاسترجاع',
-      );
+      _msg('فشل الاسترجاع');
     } finally {
-      if (mounted) {
-        setState(() {
-          loading = false;
-        });
-      }
+      if (mounted) setState(() => loading = false);
     }
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: _bg,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: bg,
-        foregroundColor: Colors.black,
+        backgroundColor: _bg,
+        foregroundColor: const Color(0xFF1C3A32),
         title: const Text(
           'النسخة الاحتياطية',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Stack(
         children: [
           ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
             children: [
-              _section(
-                title: 'النسخ المحلي',
-                subtitle: 'حفظ واسترجاع على الجهاز',
+              // ── النسخ المحلي ────────────────────────────────
+              _sectionHeader('النسخ المحلي', Icons.phone_android_rounded),
+              _BackupCard(
                 children: [
-                  _infoTile(
-                    icon: Icons.folder,
-                    title: 'مكان الحفظ',
+                  // مكان الحفظ
+                  _pathTile(
+                    icon: Icons.folder_rounded,
+                    label: 'مكان الحفظ',
                     value: localPath ?? 'لم يتم الاختيار',
                     onTap: _pickFolder,
                   ),
-                  const SizedBox(
-                    height: 14,
-                  ),
-                  _frequencyDropdown(
-                    localFreq,
-                    (v) {
+                  const SizedBox(height: 14),
+                  // تكرار النسخ
+                  _FrequencySelector(
+                    label: 'تكرار النسخ المحلي',
+                    value: localFreq,
+                    options: BackupFrequency.values,
+                    labelOf: _freqLabel,
+                    onChanged: (v) {
                       if (v == null) return;
-
-                      setState(() {
-                        localFreq = v;
-                      });
-
+                      setState(() => localFreq = v);
                       _savePrefs();
                     },
                   ),
-                  const SizedBox(
-                    height: 18,
+                  const SizedBox(height: 16),
+                  _PrimaryButton(
+                    label: 'حفظ الآن',
+                    icon: Icons.save_rounded,
+                    onTap: () => _saveLocal(),
                   ),
-                  _mainButton(
-                    'حفظ الآن',
-                    Icons.save,
-                    () => _saveLocal(),
-                  ),
-                  _outlineButton(
-                    'استرجاع نسخة',
-                    Icons.restore,
-                    _restoreLocal,
+                  const SizedBox(height: 8),
+                  _SecondaryButton(
+                    label: 'استرجاع نسخة محلية',
+                    icon: Icons.restore_rounded,
+                    onTap: _restoreLocal,
                   ),
                 ],
               ),
-              const SizedBox(
-                height: 18,
-              ),
-              _section(
-                title: 'Firebase Backup',
-                subtitle: 'نسخ سحابي واسترجاع',
+
+              const SizedBox(height: 18),
+
+              // ── النسخ السحابي ────────────────────────────────
+              _sectionHeader(
+                  'النسخ السحابي', Icons.cloud_rounded),
+              if (_account != null)
+                _googleAccountBadge()
+              else
+                _googleNotConnectedBadge(),
+              const SizedBox(height: 10),
+              _BackupCard(
                 children: [
-                  _frequencyDropdown(
-                    cloudFreq,
-                    (v) {
+                  _FrequencySelector(
+                    label: 'تكرار النسخ السحابي',
+                    value: cloudFreq,
+                    options: BackupFrequency.values,
+                    labelOf: _freqLabel,
+                    onChanged: (v) {
                       if (v == null) return;
-
-                      setState(() {
-                        cloudFreq = v;
-                      });
-
+                      setState(() => cloudFreq = v);
                       _savePrefs();
                     },
                   ),
-                  const SizedBox(
-                    height: 18,
+                  const SizedBox(height: 16),
+                  _PrimaryButton(
+                    label: 'رفع نسخة الآن',
+                    icon: Icons.cloud_upload_rounded,
+                    onTap: _backupFirestore,
                   ),
-                  _mainButton(
-                    'رفع الآن',
-                    Icons.cloud_upload,
-                    _backupFirestore,
-                  ),
-                  _outlineButton(
-                    'استرجاع من Firebase',
-                    Icons.cloud_download,
-                    _restoreFirestore,
+                  const SizedBox(height: 8),
+                  _SecondaryButton(
+                    label: 'استرجاع من السحابة',
+                    icon: Icons.cloud_download_rounded,
+                    onTap: _restoreFirestore,
                   ),
                 ],
-              ),
-              const SizedBox(
-                height: 30,
               ),
             ],
           ),
           if (loading)
-            const Center(
-              child: CircularProgressIndicator(),
+            Container(
+              color: Colors.black.withValues(alpha: 0.12),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 20,
+                        color: Colors.black.withValues(alpha: 0.1),
+                      ),
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: _green),
+                      SizedBox(height: 14),
+                      Text(
+                        'جارٍ التحميل...',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: _green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
         ],
       ),
     );
   }
 
-  Widget _section({
-    required String title,
-    required String subtitle,
-    required List<Widget> children,
+  Widget _sectionHeader(String label, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 17, color: _green),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1C3A32),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pathTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onTap,
   }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: _green.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _green.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _green.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: _green, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: Color(0xFF1C3A32),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _green.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_left_rounded,
+                color: _green.withValues(alpha: 0.5)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _googleAccountBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: _green.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _green.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 4,
+                  color: Colors.black.withValues(alpha: 0.07),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text('G',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Arial',
+                    color: Color(0xFF4285F4),
+                  )),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'متصل بجوجل',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: _green,
+                  ),
+                ),
+                Text(
+                  _account?.email ?? '',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _green.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.circle, size: 7, color: Color(0xFF22C55E)),
+                SizedBox(width: 4),
+                Text(
+                  'متصل',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF22C55E),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _googleNotConnectedBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFB74D).withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              size: 20, color: Color(0xFFF57C00)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'سجّل دخولك بجوجل من إعدادات الحساب أولاً لتفعيل النسخ السحابي',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFF57C00).withValues(alpha: 0.85),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BackupCard extends StatelessWidget {
+  const _BackupCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(26),
-        boxShadow: const [
+        border: Border.all(
+          color: const Color(0xFF2F6F5E).withValues(alpha: 0.1),
+        ),
+        boxShadow: [
           BoxShadow(
-            blurRadius: 15,
-            offset: Offset(0, 6),
-            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
+            color: const Color(0xFF2F6F5E).withValues(alpha: 0.06),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(
-            height: 8,
-          ),
-          Text(subtitle),
-          const SizedBox(
-            height: 18,
-          ),
-          ...children,
-        ],
+        children: children,
       ),
     );
   }
+}
 
-  Widget _infoTile({
-    required IconData icon,
-    required String title,
-    required String value,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      onTap: onTap,
-      tileColor: const Color(0xFFF4F6F4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Text(value),
-      trailing: const Icon(
-        Icons.chevron_left,
-      ),
-    );
-  }
+class _FrequencySelector<T> extends StatelessWidget {
+  const _FrequencySelector({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.labelOf,
+    required this.onChanged,
+  });
 
-  Widget _frequencyDropdown(
-    BackupFrequency value,
-    ValueChanged<BackupFrequency?> changed,
-  ) {
-    return DropdownButtonFormField<BackupFrequency>(
-      value: value,
-      decoration: const InputDecoration(
-        labelText: 'تكرار النسخ',
-      ),
-      items: BackupFrequency.values
-          .map(
-            (e) => DropdownMenuItem(
-              value: e,
-              child: Text(
-                label(e),
+  final String label;
+  final T value;
+  final List<T> options;
+  final String Function(T) labelOf;
+  final ValueChanged<T?> onChanged;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: _green.withValues(alpha: 0.8),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            color: _green.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _green.withValues(alpha: 0.18)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              icon: Icon(Icons.expand_more_rounded,
+                  color: _green.withValues(alpha: 0.7)),
+              style: const TextStyle(
+                fontFamily: 'Cairo',
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1C3A32),
               ),
+              items: options
+                  .map((e) => DropdownMenuItem<T>(
+                        value: e,
+                        child: Text(labelOf(e)),
+                      ))
+                  .toList(),
+              onChanged: onChanged,
             ),
-          )
-          .toList(),
-      onChanged: changed,
+          ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _mainButton(
-    String text,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: ElevatedButton.icon(
+      child: FilledButton.icon(
         onPressed: onTap,
-        icon: Icon(icon),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primary,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(
-            54,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              18,
-            ),
-          ),
-        ),
+        icon: Icon(icon, size: 19),
         label: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF2F6F5E),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _outlineButton(
-    String text,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        top: 10,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: onTap,
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(
-              54,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(
-                18,
-              ),
-            ),
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 19),
+        label: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF2F6F5E),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          side: const BorderSide(
+            color: Color(0xFF2F6F5E),
+            width: 1.4,
           ),
-          icon: Icon(icon),
-          label: Text(
-            text,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),

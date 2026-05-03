@@ -25,6 +25,7 @@ class AppStateEntity {
     required this.autoBackupMode,
     required this.lastAutoBackupAt,
     required this.monthlyBudgetSnapshots,
+    this.profileImageUrl = '',
   });
 
   final List<WalletEntity> wallets;
@@ -43,6 +44,7 @@ class AppStateEntity {
   final String autoBackupMode;
   final String lastAutoBackupAt;
   final Map<String, Map<String, dynamic>> monthlyBudgetSnapshots;
+  final String profileImageUrl;
 
   factory AppStateEntity.initial() {
     return AppStateEntity(
@@ -65,6 +67,7 @@ class AppStateEntity {
       autoBackupMode: 'off',
       lastAutoBackupAt: '',
       monthlyBudgetSnapshots: const <String, Map<String, dynamic>>{},
+      profileImageUrl: '',
     );
   }
 
@@ -85,6 +88,7 @@ class AppStateEntity {
     String? autoBackupMode,
     String? lastAutoBackupAt,
     Map<String, Map<String, dynamic>>? monthlyBudgetSnapshots,
+    String? profileImageUrl,
   }) {
     return AppStateEntity(
       wallets: wallets ?? this.wallets,
@@ -103,6 +107,7 @@ class AppStateEntity {
       autoBackupMode: autoBackupMode ?? this.autoBackupMode,
       lastAutoBackupAt: lastAutoBackupAt ?? this.lastAutoBackupAt,
       monthlyBudgetSnapshots: monthlyBudgetSnapshots ?? this.monthlyBudgetSnapshots,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
     );
   }
 
@@ -124,6 +129,7 @@ class AppStateEntity {
       'autoBackupMode': autoBackupMode,
       'lastAutoBackupAt': lastAutoBackupAt,
       'monthlyBudgetSnapshots': monthlyBudgetSnapshots,
+      'profileImageUrl': profileImageUrl,
     };
   }
 
@@ -177,6 +183,7 @@ class AppStateEntity {
           value is Map<String, dynamic> ? value : <String, dynamic>{},
         ),
       ),
+      profileImageUrl: map['profileImageUrl'] as String? ?? '',
     );
   }
 }

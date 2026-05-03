@@ -50,115 +50,196 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
   List<TransactionEntity> get _allClean =>
       widget.allTransactions.where((t) => !_isJarTx(t)).toList();
 
+  String get _monthLabel =>
+      DateFormat('MMMM yyyy', 'ar').format(_month);
+
   @override
   Widget build(BuildContext context) {
     final categories = widget.cubit.state.categories;
     final monthTx = _monthTx;
     final allTx = _allClean;
 
-    final netIncome =
-        monthTx.where((t) => t.type == 'income').fold<double>(0, (s, t) => s + t.amount);
-    final netExpense =
-        monthTx.where((t) => t.type == 'expense').fold<double>(0, (s, t) => s + t.amount);
+    final netIncome = monthTx
+        .where((t) => t.type == 'income')
+        .fold<double>(0, (s, t) => s + t.amount);
+    final netExpense = monthTx
+        .where((t) => t.type == 'expense')
+        .fold<double>(0, (s, t) => s + t.amount);
     final netSaving = netIncome - netExpense;
     final savingRate =
         netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
 
     return Scaffold(
       backgroundColor: _beige,
-      appBar: AppBar(
-        backgroundColor: _beige,
-        surfaceTintColor: Colors.transparent,
-        title: const Text('تحليلات مالية',
-            style: TextStyle(fontWeight: FontWeight.w900)),
-        elevation: 0,
-      ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      body: SafeArea(
+        child: Column(
           children: [
-            // ── Month selector ─────────────────────────────────────────
-            _MonthBar(
-              month: _month,
+            // ── Top period bar ──────────────────────────────────────────
+            _ChartsPeriodBar(
+              label: _monthLabel,
               onPrev: () => setState(
                   () => _month = DateTime(_month.year, _month.month - 1, 1)),
               onNext: () => setState(
                   () => _month = DateTime(_month.year, _month.month + 1, 1)),
             ),
-            const SizedBox(height: 16),
 
-            // ── Summary KPIs ───────────────────────────────────────────
-            _KpiRow(
-              netIncome: netIncome,
-              netExpense: netExpense,
-              netSaving: netSaving,
-              txCount: monthTx.length,
-            ),
-            const SizedBox(height: 16),
+            // ── Scrollable charts ───────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: [
+                  // ── Summary KPIs ──────────────────────────────────────
+                  _KpiRow(
+                    netIncome: netIncome,
+                    netExpense: netExpense,
+                    netSaving: netSaving,
+                    txCount: monthTx.length,
+                  ),
+                  const SizedBox(height: 14),
 
-            // ── Saving rate gauge ──────────────────────────────────────
-            _ChartCard(
-              title: 'نسبة التوفير',
-              subtitle: 'من الدخل الكلي هذا الشهر',
-              child: _SavingRateGauge(
-                  savingRate: savingRate as double, saving: netSaving),
-            ),
-            const SizedBox(height: 14),
+                  // ── Saving rate gauge ─────────────────────────────────
+                  _ChartCard(
+                    title: 'نسبة التوفير',
+                    subtitle: 'من الدخل الكلي هذا الشهر',
+                    child: _SavingRateGauge(
+                        savingRate: savingRate as double, saving: netSaving),
+                  ),
+                  const SizedBox(height: 14),
 
-            // ── Daily income vs expense bars ───────────────────────────
-            _ChartCard(
-              title: 'التدفق اليومي',
-              subtitle: 'دخل ومصروف يوم بيوم',
-              child: _DailyBarsChart(monthTx: monthTx, month: _month),
-            ),
-            const SizedBox(height: 14),
+                  // ── Daily income vs expense bars ──────────────────────
+                  _ChartCard(
+                    title: 'التدفق اليومي',
+                    subtitle: 'دخل ومصروف يوم بيوم',
+                    child: _DailyBarsChart(monthTx: monthTx, month: _month),
+                  ),
+                  const SizedBox(height: 14),
 
-            // ── Category breakdown ─────────────────────────────────────
-            _ChartCard(
-              title: 'توزيع المصروف',
-              subtitle: 'حسب الفئة',
-              child: _CategoryBreakdown(
-                monthTx: monthTx,
-                categories: categories,
+                  // ── Category breakdown ────────────────────────────────
+                  _ChartCard(
+                    title: 'توزيع المصروف',
+                    subtitle: 'حسب الفئة',
+                    child: _CategoryBreakdown(
+                        monthTx: monthTx, categories: categories),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Monthly trend (last 6 months) ─────────────────────
+                  _ChartCard(
+                    title: 'الاتجاه الشهري',
+                    subtitle: 'آخر 6 شهور — دخل ومصروف',
+                    child: _MonthlyTrendChart(
+                        allTx: allTx, currentMonth: _month),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Day of week pattern ───────────────────────────────
+                  _ChartCard(
+                    title: 'أيام الإنفاق',
+                    subtitle: 'المصروف حسب أيام الأسبوع',
+                    child: _DayOfWeekChart(monthTx: monthTx),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Income sources breakdown ──────────────────────────
+                  _ChartCard(
+                    title: 'مصادر الدخل',
+                    subtitle: 'تفاصيل الإيرادات',
+                    child: _IncomeBreakdown(
+                        monthTx: monthTx, categories: categories),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Top spending days ─────────────────────────────────
+                  _ChartCard(
+                    title: 'أعلى أيام إنفاقاً',
+                    subtitle: 'أكثر 5 أيام مصروفاً',
+                    child: _TopSpendingDays(monthTx: monthTx),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Monthly trend (last 6 months) ──────────────────────────
-            _ChartCard(
-              title: 'الاتجاه الشهري',
-              subtitle: 'آخر 6 شهور — دخل ومصروف',
-              child: _MonthlyTrendChart(allTx: allTx, currentMonth: _month),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Day of week pattern ────────────────────────────────────
-            _ChartCard(
-              title: 'أيام الإنفاق',
-              subtitle: 'المصروف حسب أيام الأسبوع',
-              child: _DayOfWeekChart(monthTx: monthTx),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Income sources breakdown ───────────────────────────────
-            _ChartCard(
-              title: 'مصادر الدخل',
-              subtitle: 'تفاصيل الإيرادات',
-              child: _IncomeBreakdown(
-                monthTx: monthTx,
-                categories: categories,
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Top spending days ──────────────────────────────────────
-            _ChartCard(
-              title: 'أعلى أيام إنفاقاً',
-              subtitle: 'أكثر 5 أيام مصروفاً',
-              child: _TopSpendingDays(monthTx: monthTx),
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
+}
+
+// ── Charts Period Bar ────────────────────────────────────────────────────────
+
+class _ChartsPeriodBar extends StatelessWidget {
+  const _ChartsPeriodBar({
+    required this.label,
+    required this.onPrev,
+    required this.onNext,
+  });
+
+  final String label;
+  final VoidCallback onPrev, onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFFFFBF1),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+      child: Row(
+        children: [
+          // Back button
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            color: const Color(0xFF165b47),
+          ),
+
+          // Prev arrow
+          IconButton(
+            onPressed: onPrev,
+            icon: const Icon(Icons.chevron_right_rounded, size: 26),
+            color: const Color(0xFF165b47),
+          ),
+
+          // Month label
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF165b47),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Text(
+                    'تحليلات مالية',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF8A7F6E),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Next arrow
+          IconButton(
+            onPressed: onNext,
+            icon: const Icon(Icons.chevron_left_rounded, size: 26),
+            color: const Color(0xFF165b47),
+          ),
+
+          // Placeholder to balance back button
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
   }
 }
 

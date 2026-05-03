@@ -155,6 +155,7 @@ class _RecurringTransactionsScreenState
       _openRecurringComposer(
         mode: 'expense',
         initialExpensePlanKind: 'subscription',
+        subscriptionOnlyMode: true,
       );
       return;
     }
@@ -937,6 +938,7 @@ class _RecurringTransactionsScreenState
     required String mode,
     RecurringTransactionEntity? editing,
     String? initialExpensePlanKind,
+    bool subscriptionOnlyMode = false,
   }) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -949,6 +951,7 @@ class _RecurringTransactionsScreenState
           initialExpensePlanKind:
               editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
+          subscriptionOnlyMode: subscriptionOnlyMode,
         ),
       ),
     );

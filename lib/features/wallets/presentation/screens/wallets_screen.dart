@@ -19,6 +19,9 @@ class WalletsScreen extends StatefulWidget {
 }
 
 class _WalletsScreenState extends State<WalletsScreen> {
+  static const _green = Color(0xFF165B47);
+  static const _teal = Color(0xFF0F766E);
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppStateEntity>(
@@ -28,14 +31,21 @@ class _WalletsScreenState extends State<WalletsScreen> {
         final state = snapshot.data ?? widget.cubit.state;
         final wallets = state.wallets;
         final jars = _orderedJars(state.budgetSetup.linkedWallets);
+        final totalWalletsBalance =
+            wallets.fold<double>(0, (s, w) => s + w.balance);
+        final totalJarsBalance =
+            jars.fold<double>(0, (s, j) => s + j.balance);
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
           children: [
+            const SizedBox(height: 16),
+            // ── Wallets section ─────────────────────────────────────────
             _overviewSection(
               title: 'المحافظ',
-              subtitle: 'الأماكن الحقيقية للفلوس: كاش، بنك، أو أي محفظة فعلية.',
-              height: 376,
+              subtitle: 'الأماكن الحقيقية للفلوس: كاش، بنك، أو أي محفظة.',
+              accent: _green,
+              sectionIcon: Icons.account_balance_wallet_rounded,
               addTooltip: 'إضافة محفظة',
               transferTooltip: 'تحويل بين المحافظ',
               onAdd: () => _openWalletEditor(),
@@ -55,11 +65,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       }).toList(),
                     ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
+
+            // ── Jars section ────────────────────────────────────────────
             _overviewSection(
               title: 'الحصالات',
-              subtitle: 'أوعية تنظيم ذهني للفلوس الموجودة أصلًا داخل المحافظ.',
-              height: 360,
+              subtitle: 'أوعية تنظيم ذهني للفلوس داخل المحافظ.',
+              accent: _teal,
+              sectionIcon: Icons.savings_rounded,
               addTooltip: 'إضافة حصالة',
               transferTooltip: 'تحويل بين الحصالات',
               onAdd: () => _openJarEditor(),
@@ -83,6 +96,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       }).toList(),
                     ),
             ),
+            const SizedBox(height: 16),
           ],
         );
       },
@@ -92,7 +106,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
   Widget _overviewSection({
     required String title,
     required String subtitle,
-    required double height,
+    required Color accent,
+    required IconData sectionIcon,
     required String addTooltip,
     required String transferTooltip,
     required VoidCallback onAdd,
@@ -100,84 +115,129 @@ class _WalletsScreenState extends State<WalletsScreen> {
     required VoidCallback onMore,
     required Widget child,
   }) {
-    return SizedBox(
-      height: height,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFE0D7C8)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF165B47).withValues(alpha: 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBF1),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: accent.withValues(alpha: 0.14)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.07),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Header ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
               children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(sectionIcon, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  flex: 4,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        textAlign: TextAlign.right,
                         style: const TextStyle(
-                          fontSize: 26,
+                          fontSize: 20,
                           fontWeight: FontWeight.w900,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: accent.withValues(alpha: 0.65),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Spacer(),
-                Row(
-                  children: [
-                    IconButton.filledTonal(
-                      onPressed: onAdd,
-                      icon: const Icon(Icons.add_rounded),
-                      tooltip: addTooltip,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      onPressed: onTransfer,
-                      icon: const Icon(Icons.swap_horiz_rounded),
-                      tooltip: transferTooltip,
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                _ActionBtn(
+                  icon: Icons.swap_horiz_rounded,
+                  accent: accent,
+                  enabled: onTransfer != null,
+                  onTap: onTransfer ?? () {},
+                  tooltip: transferTooltip,
+                ),
+                const SizedBox(width: 8),
+                _ActionBtn(
+                  icon: Icons.add_rounded,
+                  accent: accent,
+                  enabled: true,
+                  onTap: onAdd,
+                  tooltip: addTooltip,
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.right,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF6E6558),
-                height: 1.35,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+          ),
+          const SizedBox(height: 14),
+
+          // ── Divider ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(height: 1, color: accent.withValues(alpha: 0.10)),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Content ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: child,
+          ),
+          const SizedBox(height: 12),
+
+          // ── More button ─────────────────────────────────────────────
+          GestureDetector(
+            onTap: onMore,
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: accent.withValues(alpha: 0.10)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'عرض الكل',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_back_ios_new_rounded,
+                      color: accent, size: 11),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Expanded(child: child),
-            OutlinedButton(
-              onPressed: onMore,
-              child: const Text('المزيد'),
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -220,61 +280,90 @@ class _WalletsScreenState extends State<WalletsScreen> {
     required Color accent,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Ink(
-        padding: const EdgeInsets.all(12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.16)),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            _iconBubble(
-              iconName: icon,
-              colorHex: _hexFromColor(accent),
-              size: 44,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              amount.toStringAsFixed(2),
-              style: TextStyle(
-                color: accent,
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
+            // Icon bubble
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.11),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: AppIconPickerDialog.iconWidgetForName(
+                  icon,
+                  color: accent,
+                  size: 24,
+                ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
+            // Name + subtitle
             Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1A1A1A),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: accent.withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF756C5C),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 10),
+            // Amount + chevron
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  amount.toStringAsFixed(2),
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Icon(
+                  Icons.chevron_left_rounded,
+                  color: accent.withValues(alpha: 0.45),
+                  size: 18,
+                ),
+              ],
             ),
           ],
         ),
@@ -354,7 +443,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
@@ -377,7 +466,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     width: 58,
                     height: 58,
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.13),
+                      color: accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Center(
@@ -474,7 +563,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
       borderRadius: BorderRadius.circular(26),
       child: Ink(
         decoration: BoxDecoration(
-          color: const Color(0xFFFFFBF1),
+          color: accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: 0.22)),
           boxShadow: [
@@ -590,7 +679,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
   void _openWalletsPage(AppStateEntity state) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _WalletsListPage(cubit: widget.cubit),
+        builder: (_) => _WalletsListPage(
+          cubit: widget.cubit,
+          onWalletTap: (w) => _openWalletDetailsSheet(w),
+        ),
       ),
     );
   }
@@ -598,7 +690,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
   void _openJarsPage(AppStateEntity state) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _JarsListPage(cubit: widget.cubit),
+        builder: (_) => _JarsListPage(
+          cubit: widget.cubit,
+          onJarTap: (j) => _openJarDetailsSheet(j),
+        ),
       ),
     );
   }
@@ -2735,11 +2830,123 @@ enum _JarAdjustmentMode { allocate, cancel }
 
 enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar }
 
+// ── Summary Badge ───────────────────────────────────────────────────────────
+
+class _SummaryBadge extends StatelessWidget {
+  const _SummaryBadge({
+    required this.label,
+    required this.amount,
+    required this.icon,
+    required this.color,
+    required this.currencyCode,
+  });
+
+  final String label, currencyCode;
+  final double amount;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  amount.toStringAsFixed(2),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color.withValues(alpha: 0.65),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Action Button ───────────────────────────────────────────────────────────
+
+class _ActionBtn extends StatelessWidget {
+  const _ActionBtn({
+    required this.icon,
+    required this.accent,
+    required this.enabled,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final bool enabled;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = enabled ? accent : const Color(0xFFBDB5A8);
+    final bg = enabled
+        ? accent.withValues(alpha: 0.10)
+        : const Color(0xFFE8E0D6).withValues(alpha: 0.60);
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: effectiveColor.withValues(alpha: 0.16)),
+          ),
+          child: Icon(icon, color: effectiveColor, size: 20),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Wallets full-page list with reorder + style toggle ─────────────────────
 
 class _WalletsListPage extends StatefulWidget {
-  const _WalletsListPage({required this.cubit});
+  const _WalletsListPage({required this.cubit, this.onWalletTap});
   final AppCubit cubit;
+  final void Function(WalletEntity)? onWalletTap;
   @override
   State<_WalletsListPage> createState() => _WalletsListPageState();
 }
@@ -2759,16 +2966,16 @@ class _WalletsListPageState extends State<_WalletsListPage> {
     final isColored = _coloredWallets.contains(wallet.id);
     final available = wallet.balance - wallet.reservedForSavings;
 
-    return Container(
+    final card = Container(
       key: ValueKey(wallet.id),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+        color: isColored ? accent.withValues(alpha: 0.88) : accent.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(26),
         border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
         boxShadow: [
           BoxShadow(
-            color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+            color: accent.withValues(alpha: isColored ? 0.28 : 0.08),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -2783,7 +2990,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
               decoration: BoxDecoration(
                 color: isColored
                     ? Colors.white.withValues(alpha: 0.22)
-                    : accent.withValues(alpha: 0.13),
+                    : accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Center(
@@ -2815,7 +3022,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                       fontWeight: FontWeight.w600,
                       color: isColored
                           ? Colors.white.withValues(alpha: 0.85)
-                          : const Color(0xFF7A725F),
+                          : accent.withValues(alpha: 0.65),
                     ),
                   ),
                 ],
@@ -2872,6 +3079,13 @@ class _WalletsListPageState extends State<_WalletsListPage> {
         ),
       ),
     );
+
+    return _reorderMode
+        ? card
+        : GestureDetector(
+            onTap: () => widget.onWalletTap?.call(wallet),
+            child: card,
+          );
   }
 
 
@@ -2965,8 +3179,9 @@ class _WalletsListPageState extends State<_WalletsListPage> {
 // ── Jars full-page list with reorder + style toggle ────────────────────────
 
 class _JarsListPage extends StatefulWidget {
-  const _JarsListPage({required this.cubit});
+  const _JarsListPage({required this.cubit, this.onJarTap});
   final AppCubit cubit;
+  final void Function(LinkedWalletEntity)? onJarTap;
   @override
   State<_JarsListPage> createState() => _JarsListPageState();
 }
@@ -2982,14 +3197,7 @@ class _JarsListPageState extends State<_JarsListPage> {
   }
 
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
-    if (_reorderMode) return jars;
-    final sorted = List<LinkedWalletEntity>.from(jars);
-    sorted.sort((a, b) {
-      if (a.id == 'linked-savings-default') return -1;
-      if (b.id == 'linked-savings-default') return 1;
-      return 0;
-    });
-    return sorted;
+    return jars;
   }
 
   Widget _buildCard(List<LinkedWalletEntity> allJars, LinkedWalletEntity jar) {
@@ -2997,17 +3205,17 @@ class _JarsListPageState extends State<_JarsListPage> {
     final isColored = _coloredJars.contains(jar.id);
     final idx = allJars.indexOf(jar);
 
-    return Padding(
+    final card = Padding(
       key: ValueKey(jar.id),
       padding: const EdgeInsets.only(bottom: 12),
       child: Ink(
         decoration: BoxDecoration(
-          color: isColored ? accent.withValues(alpha: 0.88) : const Color(0xFFFFFBF1),
+          color: isColored ? accent.withValues(alpha: 0.88) : accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(26),
           border: Border.all(color: accent.withValues(alpha: isColored ? 0.0 : 0.22)),
           boxShadow: [
             BoxShadow(
-              color: accent.withValues(alpha: isColored ? 0.28 : 0.10),
+              color: accent.withValues(alpha: isColored ? 0.28 : 0.08),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -3023,7 +3231,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                 decoration: BoxDecoration(
                   color: isColored
                       ? Colors.white.withValues(alpha: 0.22)
-                      : accent.withValues(alpha: 0.13),
+                      : accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
@@ -3055,7 +3263,7 @@ class _JarsListPageState extends State<_JarsListPage> {
                         fontWeight: FontWeight.w600,
                         color: isColored
                             ? Colors.white.withValues(alpha: 0.85)
-                            : const Color(0xFF7A725F),
+                            : accent.withValues(alpha: 0.65),
                       ),
                     ),
                   ],
@@ -3115,6 +3323,13 @@ class _JarsListPageState extends State<_JarsListPage> {
         ),
       ),
     );
+
+    return _reorderMode
+        ? card
+        : GestureDetector(
+            onTap: () => widget.onJarTap?.call(jar),
+            child: card,
+          );
   }
 
   @override

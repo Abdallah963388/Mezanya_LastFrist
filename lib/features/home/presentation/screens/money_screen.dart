@@ -57,25 +57,32 @@ class _MoneyScreenState extends State<MoneyScreen> {
             .where((t) => t.type == 'expense')
             .fold<double>(0, (s, t) => s + t.amount);
         final netSaving = netIncome - netExpense;
-        final savingRate =
-            netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
+        // Empty month → full green; spending with no income → red
+        final savingRate = netIncome > 0
+            ? (netSaving / netIncome).clamp(-1.0, 1.0)
+            : (netExpense > 0 ? -1.0 : 1.0);
 
         return ListView(
             padding: EdgeInsets.zero,
             children: [
+              // ── Month selector bar (above card) ────────────────────────
+              _MonthBar(
+                month: _month,
+                onPrev: () => setState(
+                    () => _month = DateTime(_month.year, _month.month - 1, 1)),
+                onNext: () => setState(
+                    () => _month = DateTime(_month.year, _month.month + 1, 1)),
+              ),
+              const SizedBox(height: 10),
+
               // ── Hero card ──────────────────────────────────────────────
               _HeroCard(
-                month: _month,
                 totalBalance: totalBalance,
                 netIncome: netIncome,
                 netExpense: netExpense,
                 netSaving: netSaving,
                 savingRate: savingRate as double,
                 currencyCode: state.currencyCode,
-                onPrev: () => setState(
-                    () => _month = DateTime(_month.year, _month.month - 1, 1)),
-                onNext: () => setState(
-                    () => _month = DateTime(_month.year, _month.month + 1, 1)),
               ),
               const SizedBox(height: 14),
 
@@ -148,181 +155,330 @@ class _MoneyScreenState extends State<MoneyScreen> {
   }
 }
 
+// ── Month Bar (above hero card) ─────────────────────────────────────────────
+
+class _MonthBar extends StatelessWidget {
+  const _MonthBar({
+    required this.month,
+    required this.onPrev,
+    required this.onNext,
+  });
+
+  final DateTime month;
+  final VoidCallback onPrev, onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = DateFormat('MMMM yyyy', 'ar').format(month);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _NavBtn(icon: Icons.chevron_right_rounded, onTap: onPrev),
+          Expanded(
+            child: Center(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF165b47),
+                ),
+              ),
+            ),
+          ),
+          _NavBtn(icon: Icons.chevron_left_rounded, onTap: onNext),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavBtn extends StatelessWidget {
+  const _NavBtn({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: const Color(0xFF165b47).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: const Color(0xFF165b47), size: 22),
+      ),
+    );
+  }
+}
+
 // ── Hero Card ──────────────────────────────────────────────────────────────
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
-    required this.month,
     required this.totalBalance,
     required this.netIncome,
     required this.netExpense,
     required this.netSaving,
     required this.savingRate,
     required this.currencyCode,
-    required this.onPrev,
-    required this.onNext,
   });
 
-  final DateTime month;
   final double totalBalance, netIncome, netExpense, netSaving, savingRate;
   final String currencyCode;
-  final VoidCallback onPrev, onNext;
+
+  /// Returns gradient colors based on saving health
+  static List<Color> _gradientColors(double rate) {
+    if (rate >= 0.35) {
+      // Healthy — deep green
+      return [const Color(0xFF1e7a30), const Color(0xFF0b5c1a)];
+    } else if (rate >= 0.15) {
+      // Decent — medium green
+      return [const Color(0xFF2E8B57), const Color(0xFF1B6640)];
+    } else if (rate >= 0.03) {
+      // Getting tight — amber/yellow
+      return [const Color(0xFFB8820C), const Color(0xFF8B6508)];
+    } else if (rate >= -0.05) {
+      // Almost empty — orange
+      return [const Color(0xFFBF5E14), const Color(0xFF9C4410)];
+    } else {
+      // Over budget — red
+      return [const Color(0xFFC0392B), const Color(0xFF96261E)];
+    }
+  }
+
+  static Color _shadowColor(double rate) {
+    if (rate >= 0.35) return const Color(0x381e7a30);
+    if (rate >= 0.15) return const Color(0x352E8B57);
+    if (rate >= 0.03) return const Color(0x38B8820C);
+    if (rate >= -0.05) return const Color(0x38BF5E14);
+    return const Color(0x38C0392B);
+  }
+
+  static Color _barColor(double rate) {
+    if (rate >= 0.15) return const Color(0xFF4ADE80);
+    if (rate >= 0.03) return const Color(0xFFFFD060);
+    if (rate >= -0.05) return const Color(0xFFFFAA40);
+    return const Color(0xFFF87171);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final monthLabel = DateFormat('MMMM yyyy', 'ar').format(month);
     final isPositive = netSaving >= 0;
+    final savingPct = (savingRate * 100).toStringAsFixed(0);
+    final gradColors = _gradientColors(savingRate);
+    final shadowC = _shadowColor(savingRate);
+    final barC = _barColor(savingRate);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1C6D25), Color(0xFF096119)],
+        gradient: LinearGradient(
+          colors: gradColors,
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x301C6D25),
-            blurRadius: 30,
-            offset: Offset(0, 14),
+            color: shadowC,
+            blurRadius: 32,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Month selector inside card
+            // ── Balance label + amount ──────────────────────────────────
+            Text(
+              'إجمالي المحافظ',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.72),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                GestureDetector(
-                  onTap: onPrev,
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
+                Expanded(
+                  child: Text(
+                    totalBalance.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1,
+                      height: 1.0,
                     ),
-                    child: const Icon(Icons.chevron_right,
-                        color: Colors.white, size: 20),
                   ),
                 ),
-                Text(
-                  monthLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: onNext,
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    currencyCode,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.70),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
                     ),
-                    child: const Icon(Icons.chevron_left,
-                        color: Colors.white, size: 20),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
 
-            // Total balance
-            Text(
-              'إجمالي المحافظ',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.75),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${totalBalance.toStringAsFixed(2)} $currencyCode',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            // Income / Expense row
+            // ── Three stats: income / expense / saving ──────────────────
             Row(
               children: [
                 Expanded(
-                  child: _GlassStat(
+                  child: _HeroStat(
                     label: 'الدخل',
                     value: netIncome.toStringAsFixed(2),
                     icon: Icons.arrow_downward_rounded,
+                    iconBg: const Color(0x334ADE80),
                     iconColor: const Color(0xFF4ADE80),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: _GlassStat(
+                  child: _HeroStat(
                     label: 'المصروف',
                     value: netExpense.toStringAsFixed(2),
                     icon: Icons.arrow_upward_rounded,
+                    iconBg: const Color(0x33F87171),
                     iconColor: const Color(0xFFF87171),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Saving rate bar
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'نسبة التوفير',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.80),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      '${(savingRate * 100).toStringAsFixed(0)}%  •  ${isPositive ? '+' : ''}${netSaving.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: isPositive
-                            ? const Color(0xFF4ADE80)
-                            : const Color(0xFFF87171),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: savingRate,
-                    minHeight: 7,
-                    backgroundColor: Colors.white.withValues(alpha: 0.18),
-                    valueColor: const AlwaysStoppedAnimation(Color(0xFF4ADE80)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HeroStat(
+                    label: 'التوفير',
+                    value: '${isPositive ? '+' : ''}${netSaving.toStringAsFixed(2)}',
+                    icon: Icons.savings_rounded,
+                    iconBg: isPositive
+                        ? const Color(0x3360D4A0)
+                        : const Color(0x33F87171),
+                    iconColor: isPositive
+                        ? const Color(0xFF4ADE80)
+                        : const Color(0xFFF87171),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+
+            // ── Saving rate bar ─────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'نسبة التوفير',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: barC.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$savingPct%',
+                    style: TextStyle(
+                      color: barC,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: savingRate.clamp(0.0, 1.0),
+                minHeight: 8,
+                backgroundColor: Colors.white.withValues(alpha: 0.16),
+                valueColor: AlwaysStoppedAnimation(barC),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconBg,
+    required this.iconColor,
+  });
+
+  final String label, value;
+  final IconData icon;
+  final Color iconBg, iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, color: iconColor, size: 15),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              height: 1.1,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.65),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -48,6 +48,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _recurringIconColor = '#165b47';
   bool _isSaving = false;
   String? _selectedCategoryId;
+  String? _selectedIncomeCategoryId;
 
   @override
   void initState() {
@@ -219,7 +220,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   bool get _canSubmit {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    if (_isSaving || amount <= 0 || _walletId.isEmpty) {
+    if (_isSaving || amount <= 0 || (_walletId.isEmpty)) {
       return false;
     }
     if (_type == 'expense' &&
@@ -249,8 +250,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final budget = state.budgetSetup;
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     final selectedWallet = wallets.where((w) => w.id == _walletId).toList();
-    final selectedWalletName =
-        selectedWallet.isEmpty ? 'اختر المحفظة' : selectedWallet.first.name;
+    final selectedWalletName = _walletId == 'no-wallet'
+        ? 'بدون محفظة (افتراضي)'
+        : selectedWallet.isEmpty
+            ? 'اختر المحفظة'
+            : selectedWallet.first.name;
 
     // ── allocation label ──
     final selectedAllocation = budget.allocations
@@ -472,12 +476,109 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                     // ── INCOME fields ──
                     if (_type == 'income') ...[
-                      const SizedBox(height: 2),
-                      _RowCard(
-                        label: 'هدف الدخل',
-                        value: incomeTargetLabel,
-                        icon: Icons.download_for_offline_rounded,
-                        onTap: () => _openIncomeTargetPicker(budget, selectedWalletName),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF165b47).withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFF165b47).withValues(alpha: 0.15),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ── Income target row (inline, no card) ──
+                              InkWell(
+                                onTap: () => _openIncomeTargetPicker(
+                                    budget, selectedWalletName),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF165b47)
+                                              .withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(11),
+                                        ),
+                                        child: const Icon(
+                                          Icons.download_for_offline_rounded,
+                                          color: Color(0xFF165b47),
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'هدف الدخل',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              incomeTargetLabel,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w800),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.chevron_left_rounded,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // ── Divider ──
+                              Divider(
+                                height: 1,
+                                color: const Color(0xFF165b47).withValues(alpha: 0.12),
+                                indent: 14,
+                                endIndent: 14,
+                              ),
+                              // ── Categories section ──
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+                                child: _categoriesBlock(
+                                  title: 'الفئات',
+                                  categories: state.categories
+                                      .where((c) => c.scope == 'income')
+                                      .toList(),
+                                  onAdd: () => _openAddCategoryDialog(
+                                    budgetScope: 'outside-budget',
+                                    allocationId: '',
+                                    linkedWalletId: '',
+                                    existing: state.categories
+                                        .where((c) => c.scope == 'income')
+                                        .toList(),
+                                    scope: 'income',
+                                  ),
+                                  selectedId: _selectedIncomeCategoryId,
+                                  onSelectChange: (id) => setState(
+                                      () => _selectedIncomeCategoryId = id),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
 
@@ -559,7 +660,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   return;
                                 }
                                 if (_walletId.isEmpty) {
-                                  _showValidationError('اختر محفظة أولًا.');
+                                  _showValidationError(
+                                      'اختر محفظة أو اختر "بدون محفظة" أولًا.');
                                   return;
                                 }
                                 if (_type == 'expense' &&
@@ -593,7 +695,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 }
 
                                 if (!widget.recurringMode &&
-                                    _type == 'expense') {
+                                    _type == 'expense' &&
+                                    _walletId != 'no-wallet') {
                                   final currentWallet = wallets
                                       .where((wallet) => wallet.id == _walletId)
                                       .toList();
@@ -623,7 +726,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     amount: amount,
                                     dayOfMonth: _date.day.clamp(1, 28),
                                     executionType: 'confirm',
-                                    walletId: _walletId,
+                                    walletId: _walletId == 'no-wallet'
+                                        ? ''
+                                        : _walletId,
                                     budgetScope: _type == 'expense'
                                         ? _budgetScope
                                         : _incomeBudgetScope,
@@ -692,7 +797,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     );
                                   }
                                   await widget.cubit.addTransaction(
-                                    walletId: _walletId,
+                                    walletId: _walletId == 'no-wallet'
+                                        ? null
+                                        : _walletId,
                                     toWalletId: _type == 'income' &&
                                             _incomeBudgetScope == 'within-budget' &&
                                             _incomeJarId.isNotEmpty
@@ -813,7 +920,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   borderRadius: BorderRadius.circular(14),
                   onTap: widget.recurringMode
                       ? null
-                      : () => setState(() => _type = 'expense'),
+                      : () => setState(() {
+                            _type = 'expense';
+                            _selectedIncomeCategoryId = null;
+                          }),
                   child: Center(
                     child: Text(
                       'مصروف',
@@ -834,6 +944,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       : () => setState(() {
                             _type = 'income';
                             _budgetTargetId = '';
+                            _selectedCategoryId = null;
                           }),
                   child: Center(
                     child: Text(
@@ -861,30 +972,201 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.72,
-        child: ListView(
-          padding: const EdgeInsets.all(14),
-          children: wallets
-              .map(
-                (wallet) => Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(wallet.name),
-                    subtitle:
-                        Text('الرصيد: ${wallet.balance.toStringAsFixed(2)}'),
-                    trailing: _walletId == wallet.id
-                        ? Icon(Icons.check_circle,
-                            color: Theme.of(context).colorScheme.primary)
-                        : null,
-                    onTap: () {
-                      setState(() => _walletId = wallet.id);
-                      Navigator.pop(context);
-                    },
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.88,
+        expand: false,
+        builder: (ctx, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          children: [
+            const Text(
+              'اختر المحفظة',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              textAlign: TextAlign.right,
+            ),
+            const SizedBox(height: 14),
+
+            // ── No wallet option ──
+            GestureDetector(
+              onTap: () {
+                setState(() => _walletId = 'no-wallet');
+                Navigator.pop(sheetCtx);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: _walletId == 'no-wallet'
+                      ? const Color(0xFF165b47).withValues(alpha: 0.10)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _walletId == 'no-wallet'
+                        ? const Color(0xFF165b47).withValues(alpha: 0.55)
+                        : const Color(0xFF165b47).withValues(alpha: 0.18),
+                    width: _walletId == 'no-wallet' ? 1.8 : 1,
+                  ),
+                  boxShadow: _walletId == 'no-wallet'
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF165b47).withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF165b47).withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.money_off_csred_rounded,
+                          color: Color(0xFF165b47),
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'بدون محفظة (افتراضي)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF165b47),
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'تُسجَّل المعاملة دون التأثير على أي رصيد فعلي',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF165b47),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_walletId == 'no-wallet')
+                      const Icon(Icons.check_circle_rounded,
+                          color: Color(0xFF165b47), size: 24),
+                  ],
+                ),
+              ),
+            ),
+
+            if (wallets.isNotEmpty) ...[
+              const _SheetSectionLabel(label: 'المحافظ'),
+              const SizedBox(height: 10),
+            ],
+
+            ...wallets.map((wallet) {
+              final accent = _parseColor(wallet.iconColor ?? '#165b47');
+              final isSelected = _walletId == wallet.id;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _walletId = wallet.id);
+                    Navigator.pop(sheetCtx);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? accent.withValues(alpha: 0.10)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? accent.withValues(alpha: 0.55)
+                            : accent.withValues(alpha: 0.18),
+                        width: isSelected ? 1.8 : 1,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.13),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Center(
+                            child: AppIconPickerDialog.iconWidgetForName(
+                              wallet.icon ?? 'account_balance_wallet',
+                              color: accent,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                wallet.name,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: isSelected
+                                      ? accent
+                                      : const Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${wallet.balance.toStringAsFixed(2)} رصيد',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: accent.withValues(alpha: 0.78),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(Icons.check_circle_rounded,
+                              color: accent, size: 24),
+                      ],
+                    ),
                   ),
                 ),
-              )
-              .toList(),
+              );
+            }),
+          ],
         ),
       ),
     );
@@ -1028,17 +1310,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     );
                   }),
 
-                  // Jars section
+                  // Jars section — no progress bar, show balance like wallet
                   if (jars.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _SheetSectionLabel(label: 'الحصالات'),
                     ...jars.map((jar) {
                       final id = 'jar:${jar.id}';
-                      final ratio = (jar.balance / totalIncome).clamp(0.0, 1.0);
+                      final isJarSelected = _budgetTargetId == id;
+                      final jarAccent = jar.iconColor.isNotEmpty
+                          ? _parseColor(jar.iconColor)
+                          : const Color(0xFF8B5A2B);
                       return Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: _AllocationOption(
-                          isSelected: _budgetTargetId == id,
+                          isSelected: isJarSelected,
                           onTap: () {
                             setState(() {
                               _budgetTargetId = id;
@@ -1046,14 +1331,52 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             });
                             Navigator.pop(sheetCtx);
                           },
-                          child: _AllocationRow(
-                            icon: Icons.savings_outlined,
-                            iconColor: const Color(0xFF8B5A2B),
-                            name: jar.name,
-                            progressLabel:
-                                '${jar.balance.toStringAsFixed(2)} رصيد',
-                            ratio: ratio,
-                            isSelected: _budgetTargetId == id,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: jarAccent.withValues(alpha: 0.13),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Center(
+                                  child: AppIconPickerDialog.iconWidgetForName(
+                                    jar.icon.isNotEmpty
+                                        ? jar.icon
+                                        : 'savings',
+                                    color: jarAccent,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      jar.name,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '${jar.balance.toStringAsFixed(2)} رصيد',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: jarAccent.withValues(alpha: 0.78),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isJarSelected)
+                                Icon(Icons.check_circle_rounded,
+                                    color: jarAccent, size: 20),
+                            ],
                           ),
                         ),
                       );
@@ -1306,6 +1629,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required String title,
     required List<CategoryEntity> categories,
     required VoidCallback? onAdd,
+    String? selectedId,
+    void Function(String? id)? onSelectChange,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1340,10 +1665,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             runSpacing: 8,
             children: categories.map((c) {
               final color = _parseColor(c.color);
-              final selected = _selectedCategoryId == c.id;
+              final effectiveSelected =
+                  selectedId != null ? selectedId : _selectedCategoryId;
+              final selected = effectiveSelected == c.id;
               return GestureDetector(
-                onTap: () => setState(
-                    () => _selectedCategoryId = selected ? null : c.id),
+                onTap: () {
+                  if (onSelectChange != null) {
+                    onSelectChange(selected ? null : c.id);
+                  } else {
+                    setState(() => _selectedCategoryId = selected ? null : c.id);
+                  }
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   padding:
@@ -1408,6 +1740,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required String allocationId,
     required String linkedWalletId,
     required List<CategoryEntity> existing,
+    String scope = 'expense',
   }) async {
     _newCategoryController.clear();
     var selectedIcon = 'restaurant';
@@ -1512,7 +1845,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       name: name,
       icon: selectedIcon,
       color: selectedColor,
-      scope: 'expense',
+      scope: scope,
       allocationId:
           budgetScope == 'within-budget' && allocationId != 'unallocated'
               ? allocationId

@@ -25,14 +25,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
         final sections = _sectionsFor(state);
-        final totalCategories =
-            sections.fold<int>(0, (sum, section) => sum + section.categories.length);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
-            _heroCard(totalCategories),
-            const SizedBox(height: 14),
             _typeSwitcher(),
             const SizedBox(height: 16),
             if (sections.isEmpty) _emptySetupCard() else ...sections.map(_sectionCard),
@@ -58,38 +54,42 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           target: const _CategoryTarget('income', 'income'),
           categories: generalIncome,
           accent: const Color(0xFF4B7F52),
+          iconName: 'cash',
         ),
       ];
     }
 
     return [
+      _SectionData(
+        key: 'general-expense',
+        title: 'الفئات العامة',
+        subtitle: 'للمعاملات خارج الميزانية أو غير المرتبطة بمخصص.',
+        target: const _CategoryTarget('general-expense', 'general-expense'),
+        categories: generalExpense,
+        accent: const Color(0xFF8A6B3D),
+        iconName: 'category',
+      ),
       ...budget.allocations.map(
         (allocation) => _SectionData(
           key: 'allocation-${allocation.id}',
           title: allocation.name,
-          subtitle: 'فئات هذا المخصص داخل الميزانية.',
+          subtitle: 'فئات مخصص "${allocation.name}" داخل الميزانية.',
           target: _CategoryTarget('allocation', allocation.id),
           categories: allocation.categories,
           accent: _parseColor(allocation.iconColor),
+          iconName: allocation.icon,
         ),
       ),
       ...budget.linkedWallets.map(
         (wallet) => _SectionData(
           key: 'linked-${wallet.id}',
           title: wallet.name,
-          subtitle: 'فئات هذه الحصالة أو الحساب المرتبط.',
+          subtitle: 'فئات الحصالة أو الحساب المرتبط "${wallet.name}".',
           target: _CategoryTarget('linked-wallet', wallet.id),
           categories: wallet.categories,
           accent: _parseColor(wallet.iconColor),
+          iconName: wallet.icon,
         ),
-      ),
-      _SectionData(
-        key: 'general-expense',
-        title: 'فئات عامة',
-        subtitle: 'للمعاملات خارج الميزانية أو غير المرتبطة بمخصص.',
-        target: const _CategoryTarget('general-expense', 'general-expense'),
-        categories: generalExpense,
-        accent: const Color(0xFF8A6B3D),
       ),
     ];
   }
@@ -218,128 +218,223 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Widget _sectionCard(_SectionData section) {
     final theme = Theme.of(context);
+    final accent = section.accent;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      margin: const EdgeInsets.only(bottom: 18),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: section.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(Icons.folder_rounded, color: section.accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+          Container(
+            height: 5,
+            color: accent,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      section.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Center(
+                        child: AppIconPickerDialog.iconWidgetForName(
+                          section.iconName,
+                          color: accent,
+                          size: 26,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      section.subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            section.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            section.subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openCategoryEditor(section.target),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('إضافة'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: theme.colorScheme.outlineVariant),
-          const SizedBox(height: 10),
-          if (section.categories.isEmpty)
-            _emptySection('لا توجد فئات داخل هذا القسم حتى الآن.')
-          else
-            ...section.categories.map(
-              (category) => _categoryTile(section.target, category),
+                const SizedBox(height: 14),
+                Divider(
+                  color: theme.colorScheme.outlineVariant
+                      .withValues(alpha: 0.5),
+                  height: 1,
+                ),
+                const SizedBox(height: 14),
+                if (section.categories.isEmpty)
+                  _emptySection('لا توجد فئات في هذا القسم حتى الآن.')
+                else
+                  _categoriesGrid(section.target, section.categories),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openCategoryEditor(section.target),
+                    icon: Icon(
+                      Icons.add_rounded,
+                      color: accent,
+                      size: 20,
+                    ),
+                    label: Text(
+                      'إضافة فئة جديدة',
+                      style: TextStyle(
+                        color: accent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(
+                        color: accent.withValues(alpha: 0.45),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _categoryTile(_CategoryTarget target, CategoryEntity category) {
-    final color = _parseColor(category.color);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
-        ),
-        child: Row(
+  Widget _categoriesGrid(
+    _CategoryTarget target,
+    List<CategoryEntity> categories,
+  ) {
+    final rows = <Widget>[];
+    for (var i = 0; i < categories.length; i += 2) {
+      final left = categories[i];
+      final right = i + 1 < categories.length ? categories[i + 1] : null;
+      rows.add(
+        Row(
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  category.icon,
-                  color: color,
-                  size: 26,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
+            Expanded(child: _categoryCard(target, left)),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                category.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'تعديل',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _openCategoryEditor(target, editing: category),
-            ),
-            IconButton(
-              tooltip: 'حذف',
-              icon: Icon(
-                Icons.delete_outline_rounded,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => _deleteCategory(target, category),
+              child: right != null
+                  ? _categoryCard(target, right)
+                  : const SizedBox(),
             ),
           ],
         ),
+      );
+      if (i + 2 < categories.length) rows.add(const SizedBox(height: 10));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _categoryCard(_CategoryTarget target, CategoryEntity category) {
+    final color = _parseColor(category.color);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: AppIconPickerDialog.iconWidgetForName(
+                    category.icon,
+                    color: color,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _openCategoryEditor(target, editing: category),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.edit_rounded,
+                    size: 16,
+                    color: color.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              GestureDetector(
+                onTap: () => _deleteCategory(target, category),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 16,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .error
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            category.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -580,12 +675,58 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final accent = _parseColor(_selectedColor);
+    final isNew = widget.current == null;
+    final categoryName = _nameController.text.trim();
+
     return Scaffold(
+      backgroundColor: const Color(0xFFFFFBF1),
       appBar: AppBar(
-        title: Text(widget.current == null ? 'إضافة فئة' : 'تعديل الفئة'),
+        backgroundColor: const Color(0xFFFFFBF1),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEEDE6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Color(0xFF555550)),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          isNew ? 'فئة جديدة' : 'تعديل الفئة',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+        actions: [
+          if (!isNew)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'تعديل',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         top: false,
@@ -596,64 +737,104 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               backgroundColor: accent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
             ),
-            child: Text(widget.current == null ? 'إضافة الفئة' : 'حفظ التعديل'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isNew ? Icons.add_rounded : Icons.check_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isNew ? 'إضافة الفئة' : 'حفظ التعديلات',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
+          // ── Live Preview Card ──
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(26),
               gradient: LinearGradient(
                 colors: [
-                  accent.withValues(alpha: 0.95),
-                  accent.withValues(alpha: 0.72),
+                  accent,
+                  accent.withValues(alpha: 0.75),
                 ],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.28),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Container(
-                  width: 68,
-                  height: 68,
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
+                    color: Colors.white.withValues(alpha: 0.20),
                     borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
                   ),
                   child: Center(
                     child: AppIconPickerDialog.iconWidgetForName(
                       _selectedIcon,
                       color: Colors.white,
-                      size: 31,
+                      size: 32,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _nameController.text.trim().isEmpty
-                            ? 'فئة جديدة'
-                            : _nameController.text.trim(),
-                        style: theme.textTheme.titleLarge?.copyWith(
+                        categoryName.isEmpty ? 'اسم الفئة...' : categoryName,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
+                          fontSize: 20,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        widget.scope == 'income' ? 'فئة دخل' : 'فئة مصروف',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          fontWeight: FontWeight.w700,
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          widget.scope == 'income' ? 'فئة دخل' : 'فئة مصروف',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -662,75 +843,154 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          _EditorSection(
-            title: 'بيانات الفئة',
-            subtitle: 'اكتب اسمًا واضحًا واختر أيقونة ولونًا يناسبان الفئة.',
+          const SizedBox(height: 20),
+
+          // ── Name Field ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE0DED6)),
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  'اسم الفئة',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF888880),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الفئة',
-                    hintText: 'مثل: مطاعم أو مواصلات أو مكافآت',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'مثل: مطاعم، مواصلات، مكافآت...',
+                    hintStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFBBBBB5),
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: accent.withValues(alpha: 0.4),
+                        width: 1.5,
+                      ),
+                    ),
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: _pickIcon,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Icon & Color Picker ──
+          GestureDetector(
+            onTap: _pickIcon,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFE0DED6)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.35,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+                        color: accent.withValues(alpha: 0.3),
+                        width: 1.2,
                       ),
                     ),
-                    child: Row(
+                    child: Center(
+                      child: AppIconPickerDialog.iconWidgetForName(
+                        _selectedIcon,
+                        color: accent,
+                        size: 27,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Center(
-                            child: AppIconPickerDialog.iconWidgetForName(
-                              _selectedIcon,
-                              color: accent,
-                              size: 26,
-                            ),
+                        const Text(
+                          'الأيقونة واللون',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF1A1A1A),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'اختيار الأيقونة واللون',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'هذه الأيقونة ستظهر في المعاملات والقوائم.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 4),
+                        Text(
+                          'اضغط لاختيار أيقونة ولون مناسبَين.',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF888880),
                           ),
                         ),
-                        const Icon(Icons.chevron_left_rounded),
                       ],
+                    ),
+                  ),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.chevron_left_rounded,
+                      color: accent,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Hint Card ──
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: accent.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'الأيقونة واللون سيظهران في قائمة المعاملات وتقارير الفئات.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: accent,
                     ),
                   ),
                 ),
@@ -811,6 +1071,7 @@ class _SectionData {
     required this.target,
     required this.categories,
     required this.accent,
+    required this.iconName,
   });
 
   final String key;
@@ -819,4 +1080,5 @@ class _SectionData {
   final _CategoryTarget target;
   final List<CategoryEntity> categories;
   final Color accent;
+  final String iconName;
 }
