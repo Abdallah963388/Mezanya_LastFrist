@@ -543,7 +543,14 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _showAllocationDialog({AllocationEntity? current}) async {
-    if (_budget.incomeSources.isEmpty) return;
+    if (_budget.incomeSources.isEmpty && current == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يُنصح بإضافة مصدر دخل أولاً لتفعيل التمويل'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
     final result = await openAllocationEditorScreen(
       context,
       current: current,
@@ -671,7 +678,14 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _showLinkedDialog({LinkedWalletEntity? current}) async {
-    if (_budget.incomeSources.isEmpty) return;
+    if (_budget.incomeSources.isEmpty && current == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يُنصح بإضافة مصدر دخل أولاً لتفعيل التمويل'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
     final result = await Navigator.of(context).push<JarEditorResult>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -971,14 +985,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       reminderLeadDays: recurring?.reminderLeadDays ?? 0,
     );
 
+    final isSubscription = debt.isSubscription;
+    final sheetTitle = isSubscription ? 'تفاصيل الاشتراك' : 'تفاصيل الدين';
+    final nameLabel = isSubscription ? 'اسم الاشتراك' : 'اسم الدين';
+    final amountLabel = isSubscription ? 'قيمة الاشتراك' : 'قيمة القسط';
+    final editLabel = isSubscription ? 'تعديل الاشتراك' : 'تعديل الدين';
+    final deleteTitle = isSubscription ? 'حذف الاشتراك' : 'حذف الدين';
+    final deleteMessage = isSubscription
+        ? 'سيتم حذف "${debt.name}" من قائمة الاشتراكات. هل تريد المتابعة؟'
+        : 'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟';
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) {
-        final height = MediaQuery.of(context).size.height * 0.55;
+      builder: (sheetCtx) {
+        final height = MediaQuery.of(sheetCtx).size.height * 0.6;
         return SizedBox(
-          height: height.clamp(380.0, 520.0),
+          height: height.clamp(420.0, 580.0),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
@@ -986,8 +1010,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: Text(
-                    'تفاصيل الدين',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    sheetTitle,
+                    style: Theme.of(sheetCtx).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
                   ),
@@ -996,10 +1020,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Theme.of(sheetCtx).colorScheme.surface,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                        color: Theme.of(context)
+                        color: Theme.of(sheetCtx)
                             .colorScheme
                             .outlineVariant
                             .withValues(alpha: 0.6),
@@ -1010,9 +1034,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       children: [
                         _detailsBlocks(
                           blocks: [
-                            _DetailsBlock.wide('اسم الدين', debt.name),
+                            _DetailsBlock.wide(nameLabel, debt.name),
                             _DetailsBlock.narrow(
-                              'قيمة القسط',
+                              amountLabel,
                               debt.amount.toStringAsFixed(2),
                             ),
                             if (recurring?.debtPrincipalTotal != null)
@@ -1054,13 +1078,54 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: () {
-                      Navigator.of(context).pop();
+                      Navigator.of(sheetCtx).pop();
                       _showDebtDialog(current: debt);
                     },
                     icon: const Icon(Icons.edit_outlined),
-                    label: const Text('تعديل الدين'),
+                    label: Text(editLabel),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(sheetCtx).pop();
+                      final approved = await _confirmDeletion(
+                        title: deleteTitle,
+                        message: deleteMessage,
+                      );
+                      if (!approved) return;
+                      final rec = _linkedRecurringDebt(debt);
+                      if (rec != null) {
+                        await widget.cubit.deleteRecurringTransaction(rec.id);
+                      }
+                      await _saveBudget(
+                        _budget.copyWith(
+                          debts:
+                              _budget.debts.where((e) => e.id != debt.id).toList(),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      Icons.delete_outline_rounded,
+                      color: Theme.of(sheetCtx).colorScheme.error,
+                    ),
+                    label: Text(
+                      deleteTitle,
+                      style: TextStyle(
+                          color: Theme.of(sheetCtx).colorScheme.error),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      side: BorderSide(
+                          color: Theme.of(sheetCtx)
+                              .colorScheme
+                              .error
+                              .withValues(alpha: 0.4)),
                     ),
                   ),
                 ),
@@ -1447,22 +1512,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 ),
                 tint: _colorFromHex(iconColor),
                 onTap: () => _openDebtInfoSheet(debt),
-                onDelete: () async {
-                  final approved = await _confirmDeletion(
-                    title: 'حذف الدين',
-                    message: 'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟',
-                  );
-                  if (!approved) return;
-                  final rec = _linkedRecurringDebt(debt);
-                  if (rec != null) {
-                    await widget.cubit.deleteRecurringTransaction(rec.id);
-                  }
-                  await _saveBudget(
-                    _budget.copyWith(
-                      debts: _budget.debts.where((e) => e.id != debt.id).toList(),
-                    ),
-                  );
-                },
+                onDelete: null,
               );
             }).toList();
           }(),
@@ -1503,22 +1553,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 ),
                 tint: _colorFromHex(iconColor),
                 onTap: () => _openDebtInfoSheet(debt),
-                onDelete: () async {
-                  final approved = await _confirmDeletion(
-                    title: 'حذف الاشتراك',
-                    message: 'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟',
-                  );
-                  if (!approved) return;
-                  final rec = _linkedRecurringDebt(debt);
-                  if (rec != null) {
-                    await widget.cubit.deleteRecurringTransaction(rec.id);
-                  }
-                  await _saveBudget(
-                    _budget.copyWith(
-                      debts: _budget.debts.where((e) => e.id != debt.id).toList(),
-                    ),
-                  );
-                },
+                onDelete: null,
               );
             }).toList();
           }(),
