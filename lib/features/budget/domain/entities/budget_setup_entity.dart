@@ -259,6 +259,8 @@ class DebtEntity {
     this.recurringTransactionId,
     this.kind = 'installment',
     this.principalTotal,
+    this.installmentCount,
+    this.downPayment,
     this.recurrencePattern = 'monthly',
     this.monthOfYear,
   });
@@ -280,6 +282,12 @@ class DebtEntity {
 
   /// أصل الدين الكلي — يُستخدم فقط لو [kind] == 'installment'
   final double? principalTotal;
+
+  /// عدد الأقساط الكلي — يُستخدم فقط لو [kind] == 'installment'
+  final int? installmentCount;
+
+  /// المقدم — يُستخدم فقط لو [kind] == 'installment'
+  final double? downPayment;
 
   /// تكرار الاشتراك — يُستخدم فقط لو [kind] == 'subscription'
   /// قيم: 'weekly' | 'biweekly' | 'every_3_weeks' | 'monthly' |
@@ -357,6 +365,8 @@ class DebtEntity {
     String? recurringTransactionId,
     String? kind,
     double? principalTotal,
+    int? installmentCount,
+    double? downPayment,
     String? recurrencePattern,
     int? monthOfYear,
   }) =>
@@ -371,6 +381,8 @@ class DebtEntity {
             recurringTransactionId ?? this.recurringTransactionId,
         kind: kind ?? this.kind,
         principalTotal: principalTotal ?? this.principalTotal,
+        installmentCount: installmentCount ?? this.installmentCount,
+        downPayment: downPayment ?? this.downPayment,
         recurrencePattern: recurrencePattern ?? this.recurrencePattern,
         monthOfYear: monthOfYear ?? this.monthOfYear,
       );
@@ -385,6 +397,8 @@ class DebtEntity {
         'recurringTransactionId': recurringTransactionId,
         'kind': kind,
         'principalTotal': principalTotal,
+        'installmentCount': installmentCount,
+        'downPayment': downPayment,
         'recurrencePattern': recurrencePattern,
         'monthOfYear': monthOfYear,
       };
@@ -399,6 +413,8 @@ class DebtEntity {
         recurringTransactionId: map['recurringTransactionId'] as String?,
         kind: map['kind'] as String? ?? 'installment',
         principalTotal: (map['principalTotal'] as num?)?.toDouble(),
+        installmentCount: map['installmentCount'] as int?,
+        downPayment: (map['downPayment'] as num?)?.toDouble(),
         recurrencePattern: map['recurrencePattern'] as String? ?? 'monthly',
         monthOfYear: map['monthOfYear'] as int?,
       );

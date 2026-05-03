@@ -24,8 +24,9 @@ class RecurringTransactionEntity {
     this.isVariableIncome = false,
     this.isDebtOrSubscription = false,
     this.expensePlanKind,
-    /// إجمالي أصل الدين (للميزانية وحساب المتبقي). يساوي مبلغ القسط إن لم يُحدد.
     this.debtPrincipalTotal,
+    this.installmentCount,
+    this.installmentDownPayment,
     this.notes,
     this.snoozedUntil,
     this.lastHandledOccurrenceAt,
@@ -57,6 +58,8 @@ class RecurringTransactionEntity {
   final bool isDebtOrSubscription;
   final String? expensePlanKind;
   final double? debtPrincipalTotal;
+  final int? installmentCount;
+  final double? installmentDownPayment;
   final String? notes;
   final String? snoozedUntil;
   final String? lastHandledOccurrenceAt;
@@ -88,6 +91,8 @@ class RecurringTransactionEntity {
     bool? isDebtOrSubscription,
     String? expensePlanKind,
     double? debtPrincipalTotal,
+    int? installmentCount,
+    double? installmentDownPayment,
     String? notes,
     String? snoozedUntil,
     String? lastHandledOccurrenceAt,
@@ -118,8 +123,10 @@ class RecurringTransactionEntity {
       isVariableIncome: isVariableIncome ?? this.isVariableIncome,
       isDebtOrSubscription: isDebtOrSubscription ?? this.isDebtOrSubscription,
       expensePlanKind: expensePlanKind ?? this.expensePlanKind,
-      debtPrincipalTotal:
-          debtPrincipalTotal ?? this.debtPrincipalTotal,
+      debtPrincipalTotal: debtPrincipalTotal ?? this.debtPrincipalTotal,
+      installmentCount: installmentCount ?? this.installmentCount,
+      installmentDownPayment:
+          installmentDownPayment ?? this.installmentDownPayment,
       notes: notes ?? this.notes,
       snoozedUntil: snoozedUntil ?? this.snoozedUntil,
       lastHandledOccurrenceAt:
@@ -155,6 +162,8 @@ class RecurringTransactionEntity {
       'isDebtOrSubscription': isDebtOrSubscription,
       'expensePlanKind': expensePlanKind,
       'debtPrincipalTotal': debtPrincipalTotal,
+      'installmentCount': installmentCount,
+      'installmentDownPayment': installmentDownPayment,
       'notes': notes,
       'snoozedUntil': snoozedUntil,
       'lastHandledOccurrenceAt': lastHandledOccurrenceAt,
@@ -193,6 +202,9 @@ class RecurringTransactionEntity {
       isDebtOrSubscription: map['isDebtOrSubscription'] as bool? ?? false,
       expensePlanKind: map['expensePlanKind'] as String?,
       debtPrincipalTotal: (map['debtPrincipalTotal'] as num?)?.toDouble(),
+      installmentCount: map['installmentCount'] as int?,
+      installmentDownPayment:
+          (map['installmentDownPayment'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
       snoozedUntil: map['snoozedUntil'] as String?,
       lastHandledOccurrenceAt: map['lastHandledOccurrenceAt'] as String?,

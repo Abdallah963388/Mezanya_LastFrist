@@ -654,6 +654,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     bool isDebtOrSubscription = false,
     String? expensePlanKind,
     double? debtPrincipalTotal,
+    int? installmentCount,
+    double? installmentDownPayment,
     String? notes,
   }) async {
     final recurring = RecurringTransactionEntity(
@@ -682,6 +684,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       isDebtOrSubscription: isDebtOrSubscription,
       expensePlanKind: expensePlanKind,
       debtPrincipalTotal: debtPrincipalTotal,
+      installmentCount: installmentCount,
+      installmentDownPayment: installmentDownPayment,
       notes: notes,
     );
 
@@ -705,6 +709,8 @@ class AppCubit extends Cubit<AppStateEntity> {
                   ? 'installment'
                   : 'subscription',
               principalTotal: recurring.debtPrincipalTotal,
+              installmentCount: recurring.installmentCount,
+              downPayment: recurring.installmentDownPayment,
               recurrencePattern: recurring.recurrencePattern,
               monthOfYear: recurring.monthOfYear,
             ),
@@ -742,6 +748,8 @@ class AppCubit extends Cubit<AppStateEntity> {
               ? 'installment'
               : 'subscription',
           principalTotal: recurring.debtPrincipalTotal,
+          installmentCount: recurring.installmentCount,
+          downPayment: recurring.installmentDownPayment,
           recurrencePattern: recurring.recurrencePattern,
           monthOfYear: recurring.monthOfYear,
         );

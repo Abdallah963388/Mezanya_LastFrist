@@ -871,6 +871,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       principalTotal: isSubscription
           ? null
           : (principal != null && principal > 0 ? principal : null),
+      installmentCount: isSubscription ? null : recurring.installmentCount,
+      downPayment: isSubscription ? null : recurring.installmentDownPayment,
       recurrencePattern: recurring.recurrencePattern,
       monthOfYear: recurring.monthOfYear,
     );
@@ -913,6 +915,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         isDebtOrSubscription: true,
         expensePlanKind: recurringToSave.expensePlanKind,
         debtPrincipalTotal: recurringToSave.debtPrincipalTotal,
+        installmentCount: recurringToSave.installmentCount,
+        installmentDownPayment: recurringToSave.installmentDownPayment,
         notes: recurringToSave.notes,
       );
     } else {

@@ -62,6 +62,8 @@ class _RecurringTransactionComposerScreenState
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _debtPrincipalController = TextEditingController();
+  final _installmentCountController = TextEditingController();
+  final _downPaymentController = TextEditingController();
   final _notesController = TextEditingController();
 
   late String _type;
@@ -72,6 +74,7 @@ class _RecurringTransactionComposerScreenState
   late String _iconName;
   late String _iconColor;
   late String _expensePlanKind;
+  late DateTime _firstPaymentDate;
 
   bool _isVariableIncome = false;
   bool _isDebtOrSubscription = true;
@@ -116,6 +119,13 @@ class _RecurringTransactionComposerScreenState
     final principal = recurring?.debtPrincipalTotal;
     _debtPrincipalController.text =
         principal != null && principal > 0 ? principal.toStringAsFixed(2) : '';
+    _installmentCountController.text =
+        recurring?.installmentCount != null && recurring!.installmentCount! > 0
+            ? recurring.installmentCount.toString()
+            : '';
+    final downPay = recurring?.installmentDownPayment;
+    _downPaymentController.text =
+        downPay != null && downPay > 0 ? downPay.toStringAsFixed(2) : '';
     _isVariableIncome = recurring?.isVariableIncome ?? false;
     _isDebtOrSubscription = recurring?.isDebtOrSubscription ??
         (_expensePlanKind == 'installment' || _expensePlanKind == 'subscription');
@@ -138,6 +148,17 @@ class _RecurringTransactionComposerScreenState
     _selectedSubscriptionPresetId =
         subscriptionPresetByName(recurring?.name)?.id;
 
+    // تاريخ أول دفعة
+    final anchor = recurring?.anchorDate != null
+        ? DateTime.tryParse(recurring!.anchorDate!)
+        : null;
+    if (anchor != null) {
+      _firstPaymentDate = anchor;
+    } else {
+      final now = DateTime.now();
+      _firstPaymentDate = DateTime(now.year, now.month, now.day + 1);
+    }
+
     if (widget.subscriptionOnlyMode && widget.initialSubscriptionPresetId != null) {
       final preset = subscriptionPresetById(widget.initialSubscriptionPresetId);
       if (preset != null) {
@@ -155,6 +176,8 @@ class _RecurringTransactionComposerScreenState
     _nameController.addListener(_refreshFormState);
     _amountController.addListener(_refreshFormState);
     _debtPrincipalController.addListener(_refreshFormState);
+    _installmentCountController.addListener(_refreshFormState);
+    _downPaymentController.addListener(_refreshFormState);
   }
 
   @override
@@ -162,12 +185,47 @@ class _RecurringTransactionComposerScreenState
     _nameController.removeListener(_refreshFormState);
     _amountController.removeListener(_refreshFormState);
     _debtPrincipalController.removeListener(_refreshFormState);
+    _installmentCountController.removeListener(_refreshFormState);
+    _downPaymentController.removeListener(_refreshFormState);
     _nameController.dispose();
     _amountController.dispose();
     _debtPrincipalController.dispose();
+    _installmentCountController.dispose();
+    _downPaymentController.dispose();
     _notesController.dispose();
     super.dispose();
   }
+
+  // ── computed helpers for installment mode ─────────────────────────────────
+
+  double get _totalPrincipal =>
+      double.tryParse(_debtPrincipalController.text.trim()) ?? 0;
+
+  int get _installmentCount =>
+      int.tryParse(_installmentCountController.text.trim()) ?? 0;
+
+  double get _downPayment =>
+      double.tryParse(_downPaymentController.text.trim()) ?? 0;
+
+  double get _calculatedInstallment {
+    final n = _installmentCount;
+    if (n <= 0) return 0;
+    final net = _totalPrincipal - _downPayment;
+    if (net <= 0) return 0;
+    return net / n;
+  }
+
+  double get _enteredInstallment =>
+      double.tryParse(_amountController.text.trim()) ?? 0;
+
+  double get _ribaAmount {
+    final calc = _calculatedInstallment;
+    if (calc <= 0) return 0;
+    final diff = _enteredInstallment - calc;
+    return diff > 0 ? diff : 0;
+  }
+
+  // ── visibility helpers ────────────────────────────────────────────────────
 
   bool get _showAmount =>
       !(_type == 'income' && _withinBudget && _isVariableIncome);
@@ -193,6 +251,11 @@ class _RecurringTransactionComposerScreenState
   bool get _canSave {
     if (_isSaving || _nameController.text.trim().isEmpty || _walletId.isEmpty) {
       return false;
+    }
+    if (_isExpenseInstallment) {
+      final amt = _enteredInstallment;
+      if (amt <= 0) return false;
+      return true;
     }
     if (_showAmount) {
       final amt = double.tryParse(_amountController.text.trim()) ?? 0;
@@ -251,272 +314,524 @@ class _RecurringTransactionComposerScreenState
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
-              _typeSwitcher(theme),
-              const SizedBox(height: 14),
-            ],
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'اسم المعاملة',
-                prefixIcon: Icon(Icons.title_rounded),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_type == 'income' && _withinBudget) ...[
-              _surfaceSection(
-                child: SwitchListTile.adaptive(
-                  value: _isVariableIncome,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('دخل متغير'),
-                  subtitle: const Text(
-                    'الدخل المتغير يكون يدويًا ولا يحتاج مبلغ أو توقيت ثابت',
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _isVariableIncome = value;
-                      if (value) {
-                        _executionType = 'manual';
-                        _amountController.clear();
-                      }
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_showAmount) ...[
-              TextField(
-                controller: _amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: _type == 'expense' &&
-                          _withinBudget &&
-                          _isExpenseInstallment
-                      ? 'مبلغ القسط أو الدفعة'
-                      : 'المبلغ',
-                  prefixIcon: const Icon(Icons.payments_rounded),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_type == 'expense' &&
-                _withinBudget &&
-                _isExpenseInstallment) ...[
-              TextField(
-                controller: _debtPrincipalController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'إجمالي الدين (الأصل)',
-                  helperText:
-                      'مثل ١٠٠٠٠ — يُستخدم في الميزانية لحساب المتبقي والنسبة',
-                  prefixIcon: Icon(Icons.account_balance_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            DropdownButtonFormField<String>(
-              value: _walletId.isEmpty ? null : _walletId,
-              decoration: const InputDecoration(
-                labelText: 'المحفظة',
-                prefixIcon: Icon(Icons.account_balance_wallet_rounded),
-              ),
-              items: wallets
-                  .map(
-                    (wallet) => DropdownMenuItem<String>(
-                      value: wallet.id,
-                      child: Text(wallet.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _walletId = value);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
-              _budgetScopePickerTile(budget),
-              const SizedBox(height: 12),
-            ],
-            // الأيقونة دايمًا ظاهرة
-            _surfaceSection(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('الأيقونة واللون'),
-                subtitle: const Text('تظهر داخل التخطيط والميزانية'),
-                leading: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _parseColor(_iconColor).withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: AppIconPickerDialog.iconWidgetForName(
-                    _iconName,
-                    color: _parseColor(_iconColor),
-                    size: 22,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: _pickIcon,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _categorySection(visibleCategories, budget),
-            const SizedBox(height: 12),
-            if (_showRecurrenceDetails) ...[
-              DropdownButtonFormField<String>(
-                value: _recurrencePattern,
-                decoration: const InputDecoration(
-                  labelText: 'نوع التكرار',
-                  prefixIcon: Icon(Icons.repeat_rounded),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'daily', child: Text('يومي')),
-                  DropdownMenuItem(value: 'weekly', child: Text('أسبوعي')),
-                  DropdownMenuItem(
-                      value: 'biweekly', child: Text('كل أسبوعين')),
-                  DropdownMenuItem(
-                      value: 'every_3_weeks', child: Text('كل 3 أسابيع')),
-                  DropdownMenuItem(value: 'monthly', child: Text('شهري')),
-                  DropdownMenuItem(
-                      value: 'every_2_months', child: Text('كل شهرين')),
-                  DropdownMenuItem(
-                      value: 'every_3_months', child: Text('كل 3 شهور')),
-                  DropdownMenuItem(
-                      value: 'every_6_months', child: Text('كل 6 شهور')),
-                  DropdownMenuItem(value: 'yearly', child: Text('سنوي')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _recurrencePattern = value);
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-              _recurrenceDetails(),
-              const SizedBox(height: 12),
-            ],
-            if (_type == 'income' && _withinBudget && _isVariableIncome)
-              _surfaceSection(
-                child: const ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.info_outline_rounded),
-                  title: Text('دخل متغير'),
-                  subtitle: Text(
-                    'سيتم تسجيله يدويًا فقط بدون تاريخ أو تكرار ثابت',
-                  ),
-                ),
-              )
+            // ── وضع القسط المبسّط ──────────────────────────────────────
+            if (_isExpenseInstallment && (widget.debtOnlyMode || _expensePlanKind == 'installment'))
+              ..._installmentFormChildren(theme, wallets)
             else ...[
-              DropdownButtonFormField<String>(
-                value: _executionType,
+              // ── النموذج العادي ────────────────────────────────────────
+              if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
+                _typeSwitcher(theme),
+                const SizedBox(height: 14),
+              ],
+              TextField(
+                controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'طريقة التنفيذ',
-                  prefixIcon: Icon(Icons.bolt_rounded),
+                  labelText: 'اسم المعاملة',
+                  prefixIcon: Icon(Icons.title_rounded),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
-                  DropdownMenuItem(
-                      value: 'confirm', child: Text('يحتاج تأكيد')),
-                ],
+              ),
+              const SizedBox(height: 12),
+              if (_type == 'income' && _withinBudget) ...[
+                _surfaceSection(
+                  child: SwitchListTile.adaptive(
+                    value: _isVariableIncome,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('دخل متغير'),
+                    subtitle: const Text(
+                      'الدخل المتغير يكون يدويًا ولا يحتاج مبلغ أو توقيت ثابت',
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _isVariableIncome = value;
+                        if (value) {
+                          _executionType = 'manual';
+                          _amountController.clear();
+                        }
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_showAmount) ...[
+                TextField(
+                  controller: _amountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: _type == 'expense' &&
+                            _withinBudget &&
+                            _isExpenseInstallment
+                        ? 'مبلغ القسط أو الدفعة'
+                        : 'المبلغ',
+                    prefixIcon: const Icon(Icons.payments_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_type == 'expense' &&
+                  _withinBudget &&
+                  _isExpenseInstallment) ...[
+                TextField(
+                  controller: _debtPrincipalController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'إجمالي الدين (الأصل)',
+                    helperText:
+                        'مثل ١٠٠٠٠ — يُستخدم في الميزانية لحساب المتبقي والنسبة',
+                    prefixIcon: Icon(Icons.account_balance_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              DropdownButtonFormField<String>(
+                value: _walletId.isEmpty ? null : _walletId,
+                decoration: const InputDecoration(
+                  labelText: 'المحفظة',
+                  prefixIcon: Icon(Icons.account_balance_wallet_rounded),
+                ),
+                items: wallets
+                    .map(
+                      (wallet) => DropdownMenuItem<String>(
+                        value: wallet.id,
+                        child: Text(wallet.name),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    setState(() => _executionType = value);
+                    setState(() => _walletId = value);
                   }
                 },
               ),
-              if (_executionType == 'confirm') ...[
+              const SizedBox(height: 12),
+              if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
+                _budgetScopePickerTile(budget),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  value: _reminderLeadDays,
-                  decoration: InputDecoration(
-                    labelText: _recurrencePattern == 'daily' || _isWeekPattern
-                        ? 'وقت الإشعار'
-                        : 'وقت الإشعار',
-                    prefixIcon: const Icon(Icons.notifications_active_rounded),
+              ],
+              _surfaceSection(
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('الأيقونة واللون'),
+                  subtitle: const Text('تظهر داخل التخطيط والميزانية'),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _parseColor(_iconColor).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: AppIconPickerDialog.iconWidgetForName(
+                      _iconName,
+                      color: _parseColor(_iconColor),
+                      size: 22,
+                    ),
                   ),
-                  items: (_recurrencePattern == 'daily' || _isWeekPattern)
-                      ? const [
-                          DropdownMenuItem(
-                            value: 0,
-                            child: Text('في الوقت المحدد'),
-                          ),
-                          DropdownMenuItem(
-                            value: 1,
-                            child: Text('قبلها بساعة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 2,
-                            child: Text('قبلها بساعتين'),
-                          ),
-                          DropdownMenuItem(
-                            value: 3,
-                            child: Text('قبلها بـ 3 ساعات'),
-                          ),
-                        ]
-                      : const [
-                          DropdownMenuItem(
-                              value: 0, child: Text('في نفس اليوم')),
-                          DropdownMenuItem(value: 1, child: Text('مبكر بيوم')),
-                          DropdownMenuItem(
-                              value: 2, child: Text('مبكر بيومين')),
-                          DropdownMenuItem(
-                              value: 3, child: Text('مبكر بـ 3 أيام')),
-                        ],
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _pickIcon,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _categorySection(visibleCategories, budget),
+              const SizedBox(height: 12),
+              if (_showRecurrenceDetails) ...[
+                DropdownButtonFormField<String>(
+                  value: _recurrencePattern,
+                  decoration: const InputDecoration(
+                    labelText: 'نوع التكرار',
+                    prefixIcon: Icon(Icons.repeat_rounded),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'daily', child: Text('يومي')),
+                    DropdownMenuItem(value: 'weekly', child: Text('أسبوعي')),
+                    DropdownMenuItem(
+                        value: 'biweekly', child: Text('كل أسبوعين')),
+                    DropdownMenuItem(
+                        value: 'every_3_weeks', child: Text('كل 3 أسابيع')),
+                    DropdownMenuItem(value: 'monthly', child: Text('شهري')),
+                    DropdownMenuItem(
+                        value: 'every_2_months', child: Text('كل شهرين')),
+                    DropdownMenuItem(
+                        value: 'every_3_months', child: Text('كل 3 شهور')),
+                    DropdownMenuItem(
+                        value: 'every_6_months', child: Text('كل 6 شهور')),
+                    DropdownMenuItem(value: 'yearly', child: Text('سنوي')),
+                  ],
                   onChanged: (value) {
                     if (value != null) {
-                      setState(() => _reminderLeadDays = value);
+                      setState(() => _recurrencePattern = value);
                     }
                   },
                 ),
+                const SizedBox(height: 12),
+                _recurrenceDetails(),
+                const SizedBox(height: 12),
               ],
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesController,
-              minLines: 3,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظات',
-                alignLabelWithHint: true,
-                prefixIcon: Icon(Icons.notes_rounded),
-              ),
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: _canSave ? _save : null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Text(_isSaving
-                    ? 'جارٍ الحفظ...'
-                    : widget.initialRecurring == null
-                        ? 'حفظ المعاملة المتكررة'
-                        : 'تحديث المعاملة المتكررة'),
-              ),
-            ),
-            if (widget.allowDelete && widget.initialRecurring != null) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton.icon(
-                  onPressed: _deleteFromComposer,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('حذف المعاملة'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
+              if (_type == 'income' && _withinBudget && _isVariableIncome)
+                _surfaceSection(
+                  child: const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.info_outline_rounded),
+                    title: Text('دخل متغير'),
+                    subtitle: Text(
+                      'سيتم تسجيله يدويًا فقط بدون تاريخ أو تكرار ثابت',
+                    ),
                   ),
+                )
+              else ...[
+                DropdownButtonFormField<String>(
+                  value: _executionType,
+                  decoration: const InputDecoration(
+                    labelText: 'طريقة التنفيذ',
+                    prefixIcon: Icon(Icons.bolt_rounded),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+                    DropdownMenuItem(
+                        value: 'confirm', child: Text('يحتاج تأكيد')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _executionType = value);
+                    }
+                  },
+                ),
+                if (_executionType == 'confirm') ...[
+                  const SizedBox(height: 12),
+                  _reminderDropdown(),
+                ],
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                minLines: 3,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظات',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.notes_rounded),
                 ),
               ),
+              const SizedBox(height: 18),
+              _saveButton(),
+              if (widget.allowDelete && widget.initialRecurring != null) ...[
+                const SizedBox(height: 12),
+                _deleteButton(theme),
+              ],
             ],
           ],
         ),
       ),
     );
   }
+
+  // ── نموذج القسط الجديد ────────────────────────────────────────────────────
+
+  List<Widget> _installmentFormChildren(
+      ThemeData theme, List<dynamic> wallets) {
+    final calcInstallment = _calculatedInstallment;
+    final hasCalc = calcInstallment > 0;
+    final riba = _ribaAmount;
+    final hasRiba = riba > 0.005;
+
+    return [
+      // ١. اسم القسط
+      TextField(
+        controller: _nameController,
+        decoration: const InputDecoration(
+          labelText: 'اسم القسط أو المنتج',
+          prefixIcon: Icon(Icons.title_rounded),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٢. المبلغ الإجمالي
+      TextField(
+        controller: _debtPrincipalController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'المبلغ الإجمالي',
+          helperText: 'السعر الأصلي للمنتج أو قيمة الدين الكامل',
+          prefixIcon: Icon(Icons.account_balance_outlined),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٣. عدد الأقساط
+      TextField(
+        controller: _installmentCountController,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'عدد الأقساط',
+          helperText: 'كم قسط إجمالي ستدفع؟',
+          prefixIcon: Icon(Icons.format_list_numbered_rounded),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٤. المقدم (اختياري)
+      TextField(
+        controller: _downPaymentController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'المقدم (اختياري)',
+          helperText: 'المبلغ الذي دفعته مقدمًا، إن وجد',
+          prefixIcon: Icon(Icons.monetization_on_outlined),
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٥. القسط الشهري (auto-calc + ربا)
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _amountController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'القسط الشهري',
+              helperText: hasCalc
+                  ? 'المحسوب: ${calcInstallment.toStringAsFixed(2)}'
+                  : 'أدخل المبلغ الإجمالي والعدد أولاً',
+              prefixIcon: const Icon(Icons.payments_rounded),
+              suffixIcon: hasCalc
+                  ? IconButton(
+                      icon: const Icon(Icons.calculate_rounded, size: 18),
+                      tooltip: 'تطبيق المبلغ المحسوب',
+                      onPressed: () {
+                        _amountController.text =
+                            calcInstallment.toStringAsFixed(2);
+                      },
+                    )
+                  : null,
+            ),
+          ),
+          if (hasRiba) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC65D2E).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFC65D2E).withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: Color(0xFFC65D2E), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ربا / فائدة زيادة: ${riba.toStringAsFixed(2)} لكل قسط'
+                      ' (${(riba * _installmentCount).toStringAsFixed(2)} إجمالي)',
+                      style: const TextStyle(
+                        color: Color(0xFFC65D2E),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 14),
+
+      // ٦. تاريخ أول دفعة
+      _surfaceSection(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.event_rounded),
+          title: const Text('تاريخ أول دفعة'),
+          subtitle: Text(
+            '${_firstPaymentDate.day}/${_firstPaymentDate.month}/${_firstPaymentDate.year}',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          trailing: const Icon(Icons.chevron_left_rounded),
+          onTap: _pickFirstPaymentDate,
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٧. المحفظة
+      DropdownButtonFormField<String>(
+        value: _walletId.isEmpty ? null : _walletId,
+        decoration: const InputDecoration(
+          labelText: 'المحفظة',
+          prefixIcon: Icon(Icons.account_balance_wallet_rounded),
+        ),
+        items: (widget.cubit.state.wallets)
+            .map(
+              (wallet) => DropdownMenuItem<String>(
+                value: wallet.id,
+                child: Text(wallet.name),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => _walletId = value);
+          }
+        },
+      ),
+      const SizedBox(height: 14),
+
+      // ٨. الأيقونة
+      _surfaceSection(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('الأيقونة واللون'),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _parseColor(_iconColor).withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: AppIconPickerDialog.iconWidgetForName(
+              _iconName,
+              color: _parseColor(_iconColor),
+              size: 22,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: _pickIcon,
+        ),
+      ),
+      const SizedBox(height: 14),
+
+      // ٩. طريقة التنفيذ
+      DropdownButtonFormField<String>(
+        value: _executionType,
+        decoration: const InputDecoration(
+          labelText: 'طريقة التنفيذ',
+          prefixIcon: Icon(Icons.bolt_rounded),
+        ),
+        items: const [
+          DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+          DropdownMenuItem(value: 'confirm', child: Text('يحتاج تأكيد')),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => _executionType = value);
+          }
+        },
+      ),
+      if (_executionType == 'confirm') ...[
+        const SizedBox(height: 12),
+        _reminderDropdown(),
+      ],
+      const SizedBox(height: 14),
+
+      // ١٠. ملاحظات
+      TextField(
+        controller: _notesController,
+        minLines: 2,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          labelText: 'ملاحظات',
+          alignLabelWithHint: true,
+          prefixIcon: Icon(Icons.notes_rounded),
+        ),
+      ),
+      const SizedBox(height: 18),
+
+      _saveButton(),
+      if (widget.allowDelete && widget.initialRecurring != null) ...[
+        const SizedBox(height: 12),
+        _deleteButton(Theme.of(context)),
+      ],
+    ];
+  }
+
+  Future<void> _pickFirstPaymentDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _firstPaymentDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2040),
+    );
+    if (picked != null) {
+      setState(() => _firstPaymentDate = picked);
+    }
+  }
+
+  Widget _reminderDropdown() {
+    return DropdownButtonFormField<int>(
+      value: _reminderLeadDays,
+      decoration: InputDecoration(
+        labelText: _recurrencePattern == 'daily' || _isWeekPattern
+            ? 'وقت الإشعار'
+            : 'وقت الإشعار',
+        prefixIcon: const Icon(Icons.notifications_active_rounded),
+      ),
+      items: (_recurrencePattern == 'daily' || _isWeekPattern)
+          ? const [
+              DropdownMenuItem(
+                value: 0,
+                child: Text('في الوقت المحدد'),
+              ),
+              DropdownMenuItem(
+                value: 1,
+                child: Text('قبلها بساعة'),
+              ),
+              DropdownMenuItem(
+                value: 2,
+                child: Text('قبلها بساعتين'),
+              ),
+              DropdownMenuItem(
+                value: 3,
+                child: Text('قبلها بـ 3 ساعات'),
+              ),
+            ]
+          : const [
+              DropdownMenuItem(value: 0, child: Text('في نفس اليوم')),
+              DropdownMenuItem(value: 1, child: Text('مبكر بيوم')),
+              DropdownMenuItem(value: 2, child: Text('مبكر بيومين')),
+              DropdownMenuItem(value: 3, child: Text('مبكر بـ 3 أيام')),
+            ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() => _reminderLeadDays = value);
+        }
+      },
+    );
+  }
+
+  Widget _saveButton() {
+    return FilledButton(
+      onPressed: _canSave ? _save : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Text(_isSaving
+            ? 'جارٍ الحفظ...'
+            : widget.initialRecurring == null
+                ? 'حفظ القسط'
+                : 'تحديث القسط'),
+      ),
+    );
+  }
+
+  Widget _deleteButton(ThemeData theme) {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _deleteFromComposer,
+        icon: const Icon(Icons.delete_outline_rounded),
+        label: const Text('حذف المعاملة'),
+        style: TextButton.styleFrom(
+          foregroundColor: theme.colorScheme.error,
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   Widget _typeSwitcher(ThemeData theme) {
     final isIncome = _type == 'income';
@@ -620,147 +935,6 @@ class _RecurringTransactionComposerScreenState
     );
   }
 
-  Widget _expenseKindSection() {
-    final theme = Theme.of(context);
-    final isNormal = _expensePlanKind == 'normal';
-    final accent = theme.colorScheme.primary;
-
-    Widget kindBtn({
-      required String label,
-      required IconData icon,
-      required bool selected,
-      required VoidCallback onTap,
-    }) {
-      return Expanded(
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: selected ? accent : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-        ),
-      ),
-      child: Row(
-        children: [
-          kindBtn(
-            label: 'معاملة تكرار',
-            icon: Icons.repeat_rounded,
-            selected: isNormal,
-            onTap: () {
-              setState(() {
-                _expensePlanKind = 'normal';
-                _isDebtOrSubscription = false;
-                _debtPrincipalController.clear();
-                _selectedSubscriptionPresetId = null;
-              });
-            },
-          ),
-          const SizedBox(width: 4),
-          kindBtn(
-            label: 'تقسيط',
-            icon: Icons.account_balance_outlined,
-            selected: _isExpenseInstallment,
-            onTap: () {
-              setState(() {
-                _withinBudget = true;
-                _expensePlanKind = 'installment';
-                _isDebtOrSubscription = true;
-                _allocationId = null;
-                _targetJarId = null;
-                _selectedSubscriptionPresetId = null;
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _planChoiceTile({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: selected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-  // ── Budget scope picker (replaces old switch + expansion tile) ───────────
   Widget _budgetScopePickerTile(BudgetSetupEntity budget) {
     final label = _budgetScopeLabel(budget);
     return Material(
@@ -852,7 +1026,6 @@ class _RecurringTransactionComposerScreenState
                   fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
-            // خارج الميزانية
             _ScopeOptionTile(
               isSelected: !_withinBudget,
               icon: Icons.public_off_rounded,
@@ -938,34 +1111,6 @@ class _RecurringTransactionComposerScreenState
         ),
       ),
     );
-  }
-
-  Widget _budgetTargetSection(BudgetSetupEntity budget) {
-    return const SizedBox.shrink(); // replaced by _budgetScopePickerTile
-  }
-
-  String _selectedBudgetTargetLabel(BudgetSetupEntity budget) {
-    if (_isDebtOrSubscription) {
-      return _isExpenseSubscription ? 'اشتراك أو خدمة شهرية' : 'تقسيط';
-    }
-
-    if (_allocationId != null) {
-      for (final allocation in budget.allocations) {
-        if (allocation.id == _allocationId) {
-          return 'المخصص: ${allocation.name}';
-        }
-      }
-    }
-
-    if (_targetJarId != null) {
-      for (final jar in budget.linkedWallets) {
-        if (jar.id == _targetJarId) {
-          return 'الحصالة: ${jar.name}';
-        }
-      }
-    }
-
-    return 'اضغط للاختيار';
   }
 
   Widget _categorySection(List<CategoryEntity> categories, BudgetSetupEntity budget) {
@@ -1314,33 +1459,6 @@ class _RecurringTransactionComposerScreenState
     });
   }
 
-  Future<void> _pickSubscriptionService() async {
-    final preset = await showSubscriptionServicePickerSheet(
-      context,
-      selectedPresetId: _selectedSubscriptionPresetId,
-    );
-    if (preset == null) return;
-    _applySubscriptionPreset(
-      name: preset.name,
-      icon: preset.iconName,
-      color: preset.colorHex,
-      presetId: preset.id,
-    );
-  }
-
-  IconData _subscriptionIcon(String key) {
-    switch (key) {
-      case 'live_tv':
-        return Icons.live_tv_rounded;
-      case 'music_note':
-        return Icons.music_note_rounded;
-      case 'local_shipping':
-        return Icons.local_shipping_rounded;
-      default:
-        return Icons.movie_rounded;
-    }
-  }
-
   Future<void> _pickIcon() async {
     final picked = await AppIconPickerDialog.show(
       context,
@@ -1358,14 +1476,18 @@ class _RecurringTransactionComposerScreenState
   Future<void> _save() async {
     setState(() => _isSaving = true);
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
-    final effectivePattern =
-        _type == 'income' && _withinBudget && _isVariableIncome
+
+    final effectivePattern = _isExpenseInstallment
+        ? 'monthly'
+        : (_type == 'income' && _withinBudget && _isVariableIncome
             ? 'manual-variable'
-            : _recurrencePattern;
+            : _recurrencePattern);
+
     final effectiveExecutionType =
         _type == 'income' && _withinBudget && _isVariableIncome
             ? 'manual'
             : _executionType;
+
     final principalRaw = double.tryParse(_debtPrincipalController.text.trim());
     final debtPrincipalTotal = (_type == 'expense' &&
             _withinBudget &&
@@ -1375,27 +1497,50 @@ class _RecurringTransactionComposerScreenState
         ? principalRaw
         : null;
 
+    final countRaw = int.tryParse(_installmentCountController.text.trim());
+    final installmentCount = (_isExpenseInstallment && countRaw != null && countRaw > 0)
+        ? countRaw
+        : null;
+
+    final downPayRaw = double.tryParse(_downPaymentController.text.trim());
+    final installmentDownPayment =
+        (_isExpenseInstallment && downPayRaw != null && downPayRaw > 0)
+            ? downPayRaw
+            : null;
+
+    // اليوم الشهري للأقساط يُستخرج من تاريخ أول دفعة
+    final effectiveDayOfMonth = _isExpenseInstallment
+        ? _firstPaymentDate.day.clamp(1, 28)
+        : (_recurrencePattern == 'yearly'
+            ? _yearlyDay
+            : _isMonthPattern
+                ? _monthlyDay
+                : 1);
+
+    final effectiveAnchorDate = _isExpenseInstallment
+        ? _firstPaymentDate.toIso8601String()
+        : widget.initialRecurring?.anchorDate;
+
     final recurringDraft = RecurringTransactionEntity(
       id: widget.initialRecurring?.id ?? '',
       name: _nameController.text.trim(),
       type: _type,
       amount: _showAmount ? amount : 0,
-      dayOfMonth: _recurrencePattern == 'yearly'
-          ? _yearlyDay
-          : _isMonthPattern
-              ? _monthlyDay
-              : 1,
+      dayOfMonth: effectiveDayOfMonth,
       executionType: effectiveExecutionType,
       walletId: _walletId,
-      budgetScope: _withinBudget ? 'within-budget' : 'outside-budget',
+      budgetScope:
+          _isExpenseInstallment ? 'within-budget' : (_withinBudget ? 'within-budget' : 'outside-budget'),
       recurrencePattern: effectivePattern,
       icon: _iconName,
       iconColor: _iconColor,
       weekday: _selectedWeekdays.isEmpty ? null : _selectedWeekdays.first,
       weekdays: _selectedWeekdays.toList()..sort(),
       monthOfYear: _recurrencePattern == 'yearly' ? _yearlyMonth : null,
-      anchorDate: widget.initialRecurring?.anchorDate,
-      scheduledTime: _showRecurrenceDetails ? _formatTime(_selectedTime) : null,
+      anchorDate: effectiveAnchorDate,
+      scheduledTime: _isExpenseInstallment
+          ? null
+          : (_showRecurrenceDetails ? _formatTime(_selectedTime) : null),
       reminderLeadDays:
           effectiveExecutionType == 'confirm' ? _reminderLeadDays : null,
       allocationId:
@@ -1409,18 +1554,23 @@ class _RecurringTransactionComposerScreenState
       categoryIds: _selectedCategoryIds.toList(),
       isVariableIncome: _isVariableIncome,
       isDebtOrSubscription:
-          _type == 'expense' && _withinBudget && _isDebtOrSubscription,
+          _isExpenseInstallment || (_type == 'expense' && _withinBudget && _isDebtOrSubscription),
       expensePlanKind: _type == 'expense' ? _expensePlanKind : null,
       debtPrincipalTotal: debtPrincipalTotal,
+      installmentCount: installmentCount,
+      installmentDownPayment: installmentDownPayment,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
     );
-    final recurring = recurringDraft.copyWith(
-      anchorDate: recurringDraft.anchorDate ??
-          RecurringScheduleEngine.defaultAnchorDate(recurringDraft)
-              .toIso8601String(),
-    );
+
+    final recurring = effectiveAnchorDate != null
+        ? recurringDraft
+        : recurringDraft.copyWith(
+            anchorDate:
+                RecurringScheduleEngine.defaultAnchorDate(recurringDraft)
+                    .toIso8601String(),
+          );
 
     if (widget.returnOnSave) {
       if (!mounted) return;
@@ -1456,6 +1606,8 @@ class _RecurringTransactionComposerScreenState
         isDebtOrSubscription: recurring.isDebtOrSubscription,
         expensePlanKind: recurring.expensePlanKind,
         debtPrincipalTotal: recurring.debtPrincipalTotal,
+        installmentCount: recurring.installmentCount,
+        installmentDownPayment: recurring.installmentDownPayment,
         notes: recurring.notes,
       );
     } else {
@@ -1485,14 +1637,14 @@ class _RecurringTransactionComposerScreenState
           isDebtOrSubscription: recurring.isDebtOrSubscription,
           expensePlanKind: recurring.expensePlanKind,
           debtPrincipalTotal: recurring.debtPrincipalTotal,
+          installmentCount: recurring.installmentCount,
+          installmentDownPayment: recurring.installmentDownPayment,
           notes: recurring.notes,
         ),
       );
     }
 
     if (!mounted) return;
-    // When saving a new subscription from the preset selection flow,
-    // pop twice to close both the composer AND the preset selection screen.
     if (widget.subscriptionOnlyMode && widget.initialRecurring == null) {
       Navigator.of(context).pop();
       if (mounted && Navigator.of(context).canPop()) {

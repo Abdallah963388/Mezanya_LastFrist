@@ -2874,7 +2874,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) async {
     final theme = Theme.of(context);
     const accent = Color(0xFFC65D2E);
-    final recurring = _linkedRecurringDebt(widget.cubit.state, debt);
+    final state = widget.cubit.state;
+    final budget = state.budgetSetup;
+    final recurring = _linkedRecurringDebt(state, debt);
     final now = DateTime.now();
     final dueDate = debt.isSubscription && recurring != null
         ? (RecurringScheduleEngine.dueOccurrenceNow(recurring, now) ??
@@ -2900,6 +2902,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final paidRatio = debt.isSubscription
         ? (dueThisCycle <= 0 ? null : (paid / dueThisCycle).clamp(0.0, 1.0))
         : (principal <= 0 ? null : (paid / principal).clamp(0.0, 1.0));
+
+    // حسابات دفعات القسط في هذه الدورة
+    final monthTx = state.transactions
+        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .where((t) =>
+            !t.createdAt.isBefore(_cycleStart) &&
+            !t.createdAt.isAfter(_cycleEnd))
+        .toList();
+    final monthPaid = monthTx.fold<double>(0, (s, t) => s + t.amount);
+    final installmentAmt = debt.amount;
+    final currentPaid = monthPaid >= installmentAmt;
+    final nextPaid = monthPaid >= installmentAmt * 2;
+
     final sortedTx = [...tx]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final pctLabel =
@@ -2996,6 +3011,27 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     backgroundColor:
                         theme.colorScheme.onSurface.withValues(alpha: 0.10),
                   ),
+                ),
+              ],
+              // ── قسم الدفعات القابل للتوسع ────────────────────────────
+              if (debt.isInstallment && recurring != null) ...[
+                const SizedBox(height: 14),
+                _InstallmentPaymentsCard(
+                  theme: theme,
+                  debt: debt,
+                  recurring: recurring,
+                  installmentAmt: installmentAmt,
+                  currentPaid: currentPaid,
+                  nextPaid: nextPaid,
+                  dueDate: dueDate,
+                  onPayCurrent: () async {
+                    Navigator.pop(sheetContext);
+                    await _confirmDebtPayment(state, budget, debt, recurring);
+                  },
+                  onPayNext: () async {
+                    Navigator.pop(sheetContext);
+                    await _confirmDebtPayment(state, budget, debt, recurring);
+                  },
                 ),
               ],
             ],
@@ -3231,6 +3267,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       principalTotal: isSubscription
           ? null
           : (principal != null && principal > 0 ? principal : null),
+      installmentCount: isSubscription ? null : recurring.installmentCount,
+      downPayment: isSubscription ? null : recurring.installmentDownPayment,
       recurrencePattern: recurring.recurrencePattern,
       monthOfYear: recurring.monthOfYear,
     );
@@ -3268,6 +3306,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         isDebtOrSubscription: true,
         expensePlanKind: recurringToSave.expensePlanKind,
         debtPrincipalTotal: recurringToSave.debtPrincipalTotal,
+        installmentCount: recurringToSave.installmentCount,
+        installmentDownPayment: recurringToSave.installmentDownPayment,
         notes: recurringToSave.notes,
       );
     } else {
@@ -3595,6 +3635,240 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return t.transferType == 'jar-allocation' ||
         t.transferType == 'jar-allocation-cancel' ||
         t.transferType == 'jar-allocation-spend';
+  }
+}
+
+// ── ويدجت قسم الدفعات القابل للتوسع ──────────────────────────────────────
+
+class _InstallmentPaymentsCard extends StatefulWidget {
+  const _InstallmentPaymentsCard({
+    required this.theme,
+    required this.debt,
+    required this.recurring,
+    required this.installmentAmt,
+    required this.currentPaid,
+    required this.nextPaid,
+    required this.dueDate,
+    required this.onPayCurrent,
+    required this.onPayNext,
+  });
+
+  final ThemeData theme;
+  final DebtEntity debt;
+  final RecurringTransactionEntity recurring;
+  final double installmentAmt;
+  final bool currentPaid;
+  final bool nextPaid;
+  final DateTime dueDate;
+  final VoidCallback onPayCurrent;
+  final VoidCallback onPayNext;
+
+  @override
+  State<_InstallmentPaymentsCard> createState() =>
+      _InstallmentPaymentsCardState();
+}
+
+class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final accent = const Color(0xFFC65D2E);
+    final now = DateTime.now();
+    final nextMonth = DateTime(now.year, now.month + 1, widget.debt.executionDay.clamp(1, 28));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          // رأس القسم
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.credit_card_rounded,
+                        color: accent, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'دفعات هذه الدورة',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.keyboard_arrow_down_rounded,
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // المحتوى القابل للتوسع
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: _expandedContent(theme, accent, nextMonth),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _expandedContent(ThemeData theme, Color accent, DateTime nextMonth) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // ── الدفعة الحالية ─────────────────────────────────────
+          _paymentRow(
+            theme: theme,
+            label: 'الدفعة الحالية',
+            date:
+                '${widget.dueDate.day}/${widget.dueDate.month}/${widget.dueDate.year}',
+            amount: widget.installmentAmt,
+            isPaid: widget.currentPaid,
+            buttonLabel: 'دفع الآن',
+            onPay: widget.currentPaid ? null : widget.onPayCurrent,
+          ),
+          const SizedBox(height: 10),
+
+          // ── الدفعة القادمة ─────────────────────────────────────
+          _paymentRow(
+            theme: theme,
+            label: 'الدفعة القادمة',
+            date:
+                '${nextMonth.day}/${nextMonth.month}/${nextMonth.year}',
+            amount: widget.installmentAmt,
+            isPaid: widget.nextPaid,
+            buttonLabel: 'تسديد الآن',
+            onPay: widget.nextPaid ? null : widget.onPayNext,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentRow({
+    required ThemeData theme,
+    required String label,
+    required String date,
+    required double amount,
+    required bool isPaid,
+    required String buttonLabel,
+    required VoidCallback? onPay,
+  }) {
+    final accent = const Color(0xFFC65D2E);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isPaid
+            ? Colors.green.withValues(alpha: 0.07)
+            : theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isPaid
+              ? Colors.green.withValues(alpha: 0.3)
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: isPaid
+                  ? Colors.green.withValues(alpha: 0.12)
+                  : accent.withValues(alpha: 0.09),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isPaid
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isPaid ? Colors.green : accent,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 13)),
+                Text(date,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          Text(
+            amount.toStringAsFixed(2),
+            style: const TextStyle(
+                fontWeight: FontWeight.w900, fontSize: 14),
+          ),
+          if (!isPaid && onPay != null) ...[
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: onPay,
+              style: FilledButton.styleFrom(
+                backgroundColor: accent,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w800),
+              ),
+              child: Text(buttonLabel),
+            ),
+          ] else if (isPaid) ...[
+            const SizedBox(width: 8),
+            Text(
+              'مدفوعة ✓',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.green.shade700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
