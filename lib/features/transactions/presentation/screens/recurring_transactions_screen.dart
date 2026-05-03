@@ -620,6 +620,10 @@ class _RecurringTransactionsScreenState
                       _openRecurringComposer(
                         mode: record.type,
                         editing: record,
+                        subscriptionOnlyMode:
+                            record.expensePlanKind == 'subscription',
+                        debtOnlyMode:
+                            record.expensePlanKind == 'installment',
                       );
                     },
                     icon: const Icon(Icons.edit_outlined),
@@ -909,6 +913,7 @@ class _RecurringTransactionsScreenState
     RecurringTransactionEntity? editing,
     String? initialExpensePlanKind,
     bool subscriptionOnlyMode = false,
+    bool debtOnlyMode = false,
   }) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -922,6 +927,7 @@ class _RecurringTransactionsScreenState
               editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
           subscriptionOnlyMode: subscriptionOnlyMode,
+          debtOnlyMode: debtOnlyMode,
         ),
       ),
     );

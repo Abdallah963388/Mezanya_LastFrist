@@ -740,7 +740,7 @@ class _DebtsAndSubscriptionsScreenState
           initialType: mode,
           initialRecurring: editing,
           initialWithinBudget: true,
-          initialExpensePlanKind: initialExpensePlanKind,
+          initialExpensePlanKind: editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
           subscriptionOnlyMode: subscriptionOnlyMode,
           debtOnlyMode: debtOnlyMode,

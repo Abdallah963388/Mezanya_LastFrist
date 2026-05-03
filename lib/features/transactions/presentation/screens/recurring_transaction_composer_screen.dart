@@ -105,7 +105,7 @@ class _RecurringTransactionComposerScreenState
         recurring?.iconColor ?? (_type == 'income' ? '#0f9d7a' : '#c65d2e');
     _expensePlanKind = recurring?.expensePlanKind ??
         widget.initialExpensePlanKind ??
-        (_type == 'expense' && _withinBudget ? 'installment' : 'normal');
+        'normal';
     _nameController.text = recurring?.name ?? '';
     _amountController.text = recurring == null
         ? ''
@@ -217,6 +217,20 @@ class _RecurringTransactionComposerScreenState
     setState(() {});
   }
 
+  String _composerTitle() {
+    final isNew = widget.initialRecurring == null;
+    if (widget.subscriptionOnlyMode || _expensePlanKind == 'subscription') {
+      return isNew ? 'إضافة اشتراك' : 'تعديل اشتراك';
+    }
+    if (widget.debtOnlyMode || _expensePlanKind == 'installment') {
+      return isNew ? 'إضافة قسط' : 'تعديل قسط';
+    }
+    if (_type == 'income') {
+      return isNew ? 'إضافة دخل متكرر' : 'تعديل دخل متكرر';
+    }
+    return isNew ? 'إضافة مصروف متكرر' : 'تعديل مصروف متكرر';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -231,13 +245,7 @@ class _RecurringTransactionComposerScreenState
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(
-          isSubscriptionOnly
-              ? 'إضافة اشتراك'
-              : widget.initialRecurring == null
-                  ? 'إضافة معاملة متكررة'
-                  : 'تعديل معاملة متكررة',
-        ),
+        title: Text(_composerTitle()),
       ),
       body: SafeArea(
         child: ListView(
@@ -1402,10 +1410,7 @@ class _RecurringTransactionComposerScreenState
       isVariableIncome: _isVariableIncome,
       isDebtOrSubscription:
           _type == 'expense' && _withinBudget && _isDebtOrSubscription,
-      expensePlanKind:
-          _type == 'expense' && _withinBudget && _isDebtOrSubscription
-              ? _expensePlanKind
-              : null,
+      expensePlanKind: _type == 'expense' ? _expensePlanKind : null,
       debtPrincipalTotal: debtPrincipalTotal,
       notes: _notesController.text.trim().isEmpty
           ? null
