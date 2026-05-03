@@ -22,12 +22,57 @@ class AppCubit extends Cubit<AppStateEntity> {
     emit(await _repository.loadState());
     await ensureDefaultSavingsJar();
     await syncSavingsJarWithReserved();
+    await _migrateOrphanedDebtRecurring();
     final key = _monthKey();
     if (!state.monthlyBudgetSnapshots.containsKey(key)) {
       final next = _withMonthlySnapshot(state, state.budgetSetup);
       await _repository.saveState(next);
       emit(next);
     }
+  }
+
+  /// مزامنة الديون/الاشتراكات القديمة التي تُحفظ كـ RecurringTransaction
+  /// بدون DebtEntity مقابلة في budget.debts
+  Future<void> _migrateOrphanedDebtRecurring() async {
+    final linkedIds = state.budgetSetup.debts
+        .map((d) => d.recurringTransactionId)
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet();
+
+    final orphaned = state.recurringTransactions.where(
+      (r) =>
+          r.isDebtOrSubscription &&
+          r.type == 'expense' &&
+          r.budgetScope == 'within-budget' &&
+          !linkedIds.contains(r.id),
+    );
+
+    if (orphaned.isEmpty) return;
+
+    final fallbackFundingSource = state.budgetSetup.incomeSources.isNotEmpty
+        ? state.budgetSetup.incomeSources.first.id
+        : '';
+
+    final newDebts = orphaned.map((r) => DebtEntity(
+          id: 'debt-${r.id}',
+          name: r.name,
+          amount: r.amount,
+          executionDay: r.dayOfMonth.clamp(1, 28),
+          type: r.executionType,
+          fundingSource: fallbackFundingSource,
+          recurringTransactionId: r.id,
+          kind: r.expensePlanKind == 'installment' ? 'installment' : 'subscription',
+          principalTotal: r.debtPrincipalTotal,
+          recurrencePattern: r.recurrencePattern,
+          monthOfYear: r.monthOfYear,
+        ));
+
+    final nextSetup = state.budgetSetup.copyWith(
+      debts: [...state.budgetSetup.debts, ...newDebts],
+    );
+    final next = state.copyWith(budgetSetup: nextSetup);
+    await _repository.saveState(next);
+    emit(next);
   }
 
   String _id(String prefix) =>
