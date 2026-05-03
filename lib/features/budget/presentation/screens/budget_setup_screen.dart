@@ -792,7 +792,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
   }
 
   Future<void> _showDebtDialog({DebtEntity? current}) async {
-    if (_budget.incomeSources.isEmpty) return;
     final linkedRecurring =
         current == null ? null : _linkedRecurringDebt(current);
     final draftRecurring = (linkedRecurring ??
@@ -934,6 +933,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           ),
         ),
       );
+      if (mounted) setState(() => _budget = widget.cubit.state.budgetSetup);
       return;
     }
 
