@@ -840,6 +840,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           initialType: 'expense',
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
+          initialExpensePlanKind: draftRecurring.expensePlanKind ?? 'installment',
+          debtOnlyMode: true,
           returnOnSave: true,
         ),
         fullscreenDialog: true,
@@ -920,7 +922,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
 
   Future<void> _showAddRecurringOrDebtComposer({bool subscriptionOnly = false}) async {
     if (subscriptionOnly) {
-      // اشتراك → صفحة اختيار الخدمات
       await Navigator.of(context).push(
         MaterialPageRoute(
           fullscreenDialog: true,
@@ -932,13 +933,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
       return;
     }
 
-    // دين → صفحة الديون والاشتراكات
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => DebtsAndSubscriptionsScreen(cubit: widget.cubit),
-      ),
-    );
+    // دين → فتح composer مباشرة
+    await _showDebtDialog();
   }
 
   Future<void> _openDebtInfoSheet(DebtEntity debt) async {
