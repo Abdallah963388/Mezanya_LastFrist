@@ -55,6 +55,29 @@ class BudgetRecurringPlanService {
     return _fallbackOccurrences(debt, cycleStart, cycleEnd);
   }
 
+  static List<DateTime> occurrenceDatesInCycle({
+    required DebtEntity debt,
+    required RecurringTransactionEntity? recurring,
+    required DateTime cycleStart,
+    required DateTime cycleEnd,
+  }) {
+    if (debt.isInstallment) {
+      // الأقساط بنديها تاريخ واحد في بداية الدورة لعدم وجود تواريخ تفصيلية،
+      // أو ممكن نرجعلها قائمة فاضية لو مش مهمة في السياق ده
+      return [cycleStart];
+    }
+
+    if (recurring != null) {
+      return RecurringScheduleEngine.occurrenceDatesInRange(
+        recurring,
+        cycleStart,
+        cycleEnd,
+      );
+    }
+
+    return _fallbackOccurrenceDates(debt, cycleStart, cycleEnd);
+  }
+
   static bool isDueInCycle({
     required DebtEntity debt,
     required RecurringTransactionEntity? recurring,
@@ -142,6 +165,41 @@ class BudgetRecurringPlanService {
     }
   }
 
+  static List<DateTime> _fallbackOccurrenceDates(
+    DebtEntity debt,
+    DateTime cycleStart,
+    DateTime cycleEnd,
+  ) {
+    final pattern = debt.recurrencePattern;
+    final dates = <DateTime>[];
+    switch (pattern) {
+      case 'monthly':
+        final d = _getDateInRange(debt.executionDay, cycleStart, cycleEnd);
+        if (d != null) dates.add(d);
+        break;
+      case 'yearly':
+        final month = debt.monthOfYear ?? cycleStart.month;
+        final d = _getYearlyDateInRange(
+            debt.executionDay, month, cycleStart, cycleEnd);
+        if (d != null) dates.add(d);
+        break;
+      case 'every_2_months':
+      case 'every_3_months':
+      case 'every_6_months':
+        final interval = pattern == 'every_2_months'
+            ? 2
+            : pattern == 'every_3_months'
+                ? 3
+                : 6;
+        dates.addAll(_getMultiMonthOccurrenceDates(
+            debt.executionDay, interval, cycleStart, cycleEnd));
+        break;
+      default:
+        break;
+    }
+    return dates;
+  }
+
   static bool _dayInRange(int day, DateTime start, DateTime end) {
     var cursor = start;
     while (!cursor.isAfter(end)) {
@@ -172,5 +230,37 @@ class BudgetRecurringPlanService {
       cursor = cursor.add(const Duration(days: 1));
     }
     return count;
+  }
+
+  static DateTime? _getDateInRange(int day, DateTime start, DateTime end) {
+    var cursor = start;
+    while (!cursor.isAfter(end)) {
+      if (cursor.day == day.clamp(1, 28)) return cursor;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return null;
+  }
+
+  static DateTime? _getYearlyDateInRange(
+      int day, int month, DateTime start, DateTime end) {
+    var cursor = start;
+    while (!cursor.isAfter(end)) {
+      if (cursor.day == day.clamp(1, 28) && cursor.month == month) return cursor;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return null;
+  }
+
+  static List<DateTime> _getMultiMonthOccurrenceDates(
+      int day, int interval, DateTime start, DateTime end) {
+    final dates = <DateTime>[];
+    var cursor = start;
+    while (!cursor.isAfter(end)) {
+      if (cursor.day == day.clamp(1, 28) && cursor.month % interval == 0) {
+        dates.add(cursor);
+      }
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return dates;
   }
 }

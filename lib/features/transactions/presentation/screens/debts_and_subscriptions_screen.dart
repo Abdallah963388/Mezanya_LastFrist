@@ -7,25 +7,25 @@ import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
+import 'subscription_preset_selection_screen.dart';
 
-class RecurringTransactionsScreen extends StatefulWidget {
-  const RecurringTransactionsScreen({super.key, required this.cubit});
+class DebtsAndSubscriptionsScreen extends StatefulWidget {
+  const DebtsAndSubscriptionsScreen({super.key, required this.cubit});
 
   final AppCubit cubit;
 
   @override
-  State<RecurringTransactionsScreen> createState() =>
-      _RecurringTransactionsScreenState();
+  State<DebtsAndSubscriptionsScreen> createState() =>
+      _DebtsAndSubscriptionsScreenState();
 }
 
-class _RecurringTransactionsScreenState
-    extends State<RecurringTransactionsScreen> {
-  static const Color _incomeAccent = Color(0xFF2F6F5E);
-  static const Color _expenseAccent = Color(0xFFC65D2E);
+class _DebtsAndSubscriptionsScreenState
+    extends State<DebtsAndSubscriptionsScreen> {
+  static const Color _debtAccent = Color(0xFFC65D2E);
   static const Color _subscriptionAccent = Color(0xFF2E5CC6);
   static const Color _sharedCardBackground = Color(0xFFF9F3E7);
 
-  String _tab = 'expense';
+  String _tab = 'subscriptions';
 
   @override
   Widget build(BuildContext context) {
@@ -47,168 +47,93 @@ class _RecurringTransactionsScreenState
             .where((item) => item.budgetScope != 'within-budget')
             .toList();
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-          children: [
-            _heroHeader(records),
-            const SizedBox(height: 14),
-            _typeSwitcher(),
-            const SizedBox(height: 14),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FilledButton.icon(
-                onPressed: _handleAddPressed,
-                icon: const Icon(Icons.add_rounded),
-                label: Text(_addButtonLabel()),
+        return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          appBar: AppBar(
+            title: const Text('الديون والاشتراكات'),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              _typeSwitcher(),
+              const SizedBox(height: 14),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: FilledButton.icon(
+                  onPressed: _handleAddPressed,
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(_addButtonLabel()),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _scopeSection(
-              state: state,
-              title: 'داخل الميزانية',
-              subtitle: _scopeSubtitle(withinBudget: true),
-              records: inBudget,
-              emptyLabel: _emptyScopeLabel(withinBudget: true),
-              accent: _currentAccent,
-            ),
-            const SizedBox(height: 14),
-            _scopeSection(
-              state: state,
-              title: 'عام',
-              subtitle: _scopeSubtitle(withinBudget: false),
-              records: outBudget,
-              emptyLabel: _emptyScopeLabel(withinBudget: false),
-              accent: _currentAccent,
-            ),
-          ],
+              const SizedBox(height: 16),
+              _scopeSection(
+                state: state,
+                title: 'داخل الميزانية',
+                subtitle: _scopeSubtitle(),
+                records: inBudget,
+                emptyLabel: _emptyScopeLabel(),
+                accent: _currentAccent,
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
   bool _matchesTab(RecurringTransactionEntity item) {
-    if (_tab == 'income') {
-      return item.type == 'income';
+    if (_tab == 'subscriptions') {
+      return item.type == 'expense' && item.expensePlanKind == 'subscription';
     }
-    return item.type == 'expense' &&
-        item.expensePlanKind != 'subscription' &&
-        item.expensePlanKind != 'installment';
+    return item.type == 'expense' && item.expensePlanKind == 'installment';
   }
 
   Color get _currentAccent {
-    if (_tab == 'income') return _incomeAccent;
-    return _expenseAccent;
+    if (_tab == 'subscriptions') return _subscriptionAccent;
+    return _debtAccent;
   }
 
   String _tabTitle() {
-    if (_tab == 'income') return 'الدخل المتكرر';
-    return 'المصروفات المتكررة';
+    if (_tab == 'subscriptions') return 'الاشتراكات المتكررة';
+    return 'الديون والأقساط';
   }
 
   String _addButtonLabel() {
-    if (_tab == 'income') return 'إضافة دخل متكرر';
-    return 'إضافة مصروف متكرر';
+    if (_tab == 'subscriptions') return 'إضافة اشتراك';
+    return 'إضافة دين';
   }
 
-  String _scopeSubtitle({required bool withinBudget}) {
-    if (_tab == 'income') {
-      return withinBudget
-          ? 'الدخل المتكرر الذي يدخل في خطة الميزانية ومصادر دخلها.'
-          : 'الدخل المتكرر العام خارج تخطيط الميزانية الشهرية.';
+  String _scopeSubtitle() {
+    if (_tab == 'subscriptions') {
+      return 'اشتراكاتك المرتبطة بالميزانية مثل خدمات البث والأدوات الدورية.';
     }
-    return withinBudget
-        ? 'المصروفات المتكررة المرتبطة بخطة الميزانية.'
-        : 'مصروفات متكررة عامة خارج حسابات الميزانية الشهرية.';
+    return 'الديون والأقساط المرتبطة بخطة الميزانية.';
   }
 
-  String _emptyScopeLabel({required bool withinBudget}) {
-    if (_tab == 'income') {
-      return withinBudget
-          ? 'لا توجد معاملات دخل متكررة داخل الميزانية.'
-          : 'لا توجد معاملات دخل متكررة عامة.';
+  String _emptyScopeLabel() {
+    if (_tab == 'subscriptions') {
+      return 'لا توجد اشتراكات مسجلة حالياً.';
     }
-    return withinBudget
-        ? 'لا توجد مصروفات متكررة داخل الميزانية.'
-        : 'لا توجد مصروفات متكررة عامة.';
+    return 'لا توجد ديون أو أقساط مسجلة حالياً.';
   }
 
   void _handleAddPressed() {
-    if (_tab == 'expense') {
-      _openExpenseEntryChooser();
+    if (_tab == 'subscriptions') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SubscriptionPresetSelectionScreen(
+            cubit: widget.cubit,
+          ),
+          fullscreenDialog: true,
+        ),
+      );
       return;
     }
-    _openRecurringComposer(mode: _tab);
-  }
-
-  Widget _heroHeader(List<RecurringTransactionEntity> records) {
-    final theme = Theme.of(context);
-    final total = records
-        .where((item) => !item.isVariableIncome)
-        .fold<double>(0, (sum, item) => sum + item.amount);
-    final accent = _currentAccent;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            accent.withValues(alpha: 0.95),
-            accent.withValues(alpha: 0.72),
-          ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              _tab == 'income'
-                  ? Icons.event_available_rounded
-                  : Icons.receipt_long_rounded,
-              color: Colors.white,
-              size: 30,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tabTitle(),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${records.length} عملية · الإجمالي ${total.toStringAsFixed(2)}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    _openRecurringComposer(
+      mode: 'expense',
+      initialExpensePlanKind: 'installment',
+      debtOnlyMode: true,
     );
   }
 
@@ -226,9 +151,13 @@ class _RecurringTransactionsScreenState
       ),
       child: Row(
         children: [
-          _switchTile('expense', 'المصروف', Icons.north_east_rounded),
+          _switchTile(
+            'subscriptions',
+            'الاشتراكات',
+            Icons.subscriptions_rounded,
+          ),
           const SizedBox(width: 8),
-          _switchTile('income', 'الدخل', Icons.south_west_rounded),
+          _switchTile('debts', 'الديون', Icons.account_balance_outlined),
         ],
       ),
     );
@@ -517,7 +446,6 @@ class _RecurringTransactionsScreenState
     RecurringTransactionEntity record,
   ) async {
     final accent = _parseColor(record.iconColor);
-    final relatedTransactions = _relatedTransactions(state, record);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -609,8 +537,6 @@ class _RecurringTransactionsScreenState
             const SizedBox(height: 14),
             _DetailsTable(rows: _detailsRows(state, record)),
             const SizedBox(height: 14),
-            _relatedTransactionsSection(relatedTransactions),
-            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
@@ -620,6 +546,8 @@ class _RecurringTransactionsScreenState
                       _openRecurringComposer(
                         mode: record.type,
                         editing: record,
+                        subscriptionOnlyMode: record.expensePlanKind == 'subscription',
+                        debtOnlyMode: record.expensePlanKind == 'installment',
                       );
                     },
                     icon: const Icon(Icons.edit_outlined),
@@ -645,74 +573,6 @@ class _RecurringTransactionsScreenState
     );
   }
 
-  Widget _relatedTransactionsSection(List<TransactionEntity> transactions) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'المعاملات المرتبطة',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            transactions.isEmpty
-                ? 'لا توجد معاملات مسجلة لهذه العملية المتكررة حتى الآن.'
-                : 'آخر المعاملات المسجلة المرتبطة بهذه العملية.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (transactions.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            ...transactions.map(_relatedTransactionTile),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _relatedTransactionTile(TransactionEntity transaction) {
-    final date = '${transaction.createdAt.day.toString().padLeft(2, '0')}/'
-        '${transaction.createdAt.month.toString().padLeft(2, '0')}/'
-        '${transaction.createdAt.year}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        tileColor:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.28,
-                ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        title: Text(
-          transaction.amount.toStringAsFixed(2),
-          style: const TextStyle(fontWeight: FontWeight.w900),
-        ),
-        subtitle: Text(
-          transaction.notes?.trim().isNotEmpty == true
-              ? '${transaction.notes}\n$date'
-              : date,
-        ),
-        isThreeLine: transaction.notes?.trim().isNotEmpty == true,
-        trailing: const Icon(Icons.chevron_left_rounded),
-        onTap: () => openTransactionDetailsSheet(
-          context,
-          cubit: widget.cubit,
-          transaction: transaction,
-        ),
-      ),
-    );
-  }
 
   Map<String, String> _detailsRows(
     AppStateEntity state,
@@ -732,11 +592,11 @@ class _RecurringTransactionsScreenState
       if (record.reminderLeadDays != null)
         'التنبيه قبل': _reminderLabel(record),
       if (record.incomeSourceId != null)
-        'مصدر الدخل': _incomeName(state, record.incomeSourceId),
+        'مصدر الدخل': _incomeName(state, record.incomeSourceId!),
       if (record.allocationId != null)
-        'المخصص': _allocationName(state, record.allocationId),
+        'المخصص': _allocationName(state, record.allocationId!),
       if (record.targetJarId != null)
-        'الحصالة': _jarName(state, record.targetJarId),
+        'الحصالة': _jarName(state, record.targetJarId!),
       if (record.categoryIds.isNotEmpty)
         'الفئات':
             record.categoryIds.map((id) => _categoryName(state, id)).join('، '),
@@ -771,334 +631,184 @@ class _RecurringTransactionsScreenState
     };
   }
 
-  String _weekdayName(int? day) {
-    return switch (day) {
-      1 => 'الإثنين',
-      2 => 'الثلاثاء',
-      3 => 'الأربعاء',
-      4 => 'الخميس',
-      5 => 'الجمعة',
-      6 => 'السبت',
-      7 => 'الأحد',
-      _ => 'غير محدد',
-    };
-  }
-
-  String _executionLabel(String value) {
-    return switch (value) {
-      'auto' => 'تلقائي',
-      'confirm' => 'يحتاج تأكيد',
-      'manual' => 'يدوي',
-      _ => value,
-    };
-  }
-
   String _typeLabel(RecurringTransactionEntity record) {
-    if (record.type == 'income') {
-      return 'دخل';
-    }
-    if (record.expensePlanKind == 'subscription') {
-      return 'اشتراك';
-    }
-    if (record.expensePlanKind == 'installment') {
-      return 'قسط';
-    }
+    if (record.type == 'income') return 'دخل';
     return 'مصروف';
-  }
-
-  String _reminderLabel(RecurringTransactionEntity record) {
-    final value = record.reminderLeadDays ?? 0;
-    if (value == 0) return 'في نفس الموعد';
-    final isHours = record.recurrencePattern == 'daily' ||
-        record.recurrencePattern == 'weekly' ||
-        record.recurrencePattern == 'biweekly' ||
-        record.recurrencePattern == 'every_3_weeks';
-    return isHours ? '$value ساعة' : '$value يوم';
-  }
-
-  String _walletName(AppStateEntity state, String? id) {
-    if (id == null || id.isEmpty) return '-';
-    final wallets = state.wallets.where((item) => item.id == id).toList();
-    return wallets.isEmpty ? id : wallets.first.name;
-  }
-
-  String _incomeName(AppStateEntity state, String? id) {
-    if (id == null || id.isEmpty) return '-';
-    final items =
-        state.budgetSetup.incomeSources.where((item) => item.id == id).toList();
-    return items.isEmpty ? id : items.first.name;
-  }
-
-  String _allocationName(AppStateEntity state, String? id) {
-    if (id == null || id.isEmpty) return '-';
-    final items =
-        state.budgetSetup.allocations.where((item) => item.id == id).toList();
-    return items.isEmpty ? id : items.first.name;
-  }
-
-  String _jarName(AppStateEntity state, String? id) {
-    if (id == null || id.isEmpty) return '-';
-    final items =
-        state.budgetSetup.linkedWallets.where((item) => item.id == id).toList();
-    return items.isEmpty ? id : items.first.name;
-  }
-
-  String _categoryName(AppStateEntity state, String id) {
-    final items = state.categories.where((item) => item.id == id).toList();
-    return items.isEmpty ? id : items.first.name;
   }
 
   String _expensePlanKindLabel(RecurringTransactionEntity record) {
-    final kind = record.expensePlanKind;
-    if (kind == 'installment') {
-      return 'قسط';
-    }
-    if (kind == 'subscription') {
-      return 'اشتراك';
-    }
-    return 'مصروف';
+    if (record.expensePlanKind == 'installment') return 'قسط / دين';
+    if (record.expensePlanKind == 'subscription') return 'اشتراك';
+    return 'مصروف متكرر';
   }
 
-  Color _parseColor(String hex) {
-    final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
-    return Color(0xFF000000 | (value ?? 0x2F6F5E));
+  String _executionLabel(String type) => type == 'auto' ? 'تلقائي' : 'يدوي';
+
+  String _reminderLabel(RecurringTransactionEntity record) {
+    final days = record.reminderLeadDays ?? 0;
+    if (days == 0) {
+      return record.recurrencePattern == 'daily' ||
+              record.recurrencePattern == 'weekly' ||
+              record.recurrencePattern == 'biweekly' ||
+              record.recurrencePattern == 'every_3_weeks'
+          ? 'في نفس الوقت'
+          : 'في نفس اليوم';
+    }
+    if (record.recurrencePattern == 'daily' ||
+        record.recurrencePattern == 'weekly' ||
+        record.recurrencePattern == 'biweekly' ||
+        record.recurrencePattern == 'every_3_weeks') {
+      return 'قبلها بـ $days ساعة';
+    }
+    return 'قبلها بـ $days يوم';
   }
 
-  List<TransactionEntity> _relatedTransactions(
-    AppStateEntity state,
-    RecurringTransactionEntity record,
-  ) {
-    final items = state.transactions.where((transaction) {
-      if (transaction.type != record.type) {
-        return false;
-      }
-      if (record.type == 'income') {
-        if ((record.incomeSourceId ?? '').isNotEmpty) {
-          return transaction.incomeSourceId == record.incomeSourceId;
-        }
-        return transaction.walletId == record.walletId;
-      }
-      if (transaction.walletId != record.walletId) {
-        return false;
-      }
-      if ((record.allocationId ?? '').isNotEmpty) {
-        return transaction.allocationId == record.allocationId;
-      }
-      if ((record.targetJarId ?? '').isNotEmpty) {
-        return transaction.toWalletId == record.targetJarId ||
-            transaction.walletId == record.targetJarId;
-      }
-      if (record.categoryIds.isNotEmpty &&
-          transaction.categoryId != null &&
-          record.categoryIds.contains(transaction.categoryId)) {
-        return true;
-      }
-      final notes = (transaction.notes ?? '').toLowerCase();
-      final recurringName = record.name.trim().toLowerCase();
-      if (notes.contains(recurringName)) {
-        return true;
-      }
-      return (transaction.amount - record.amount).abs() < 0.01;
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return items.take(12).toList();
+  String _walletName(AppStateEntity state, String id) {
+    try {
+      return state.wallets.firstWhere((w) => w.id == id).name;
+    } catch (_) {
+      return '-';
+    }
   }
+
+  String _incomeName(AppStateEntity state, String id) {
+    try {
+      return state.budgetSetup.incomeSources.firstWhere((i) => i.id == id).name;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _allocationName(AppStateEntity state, String id) {
+    try {
+      return state.budgetSetup.allocations.firstWhere((a) => a.id == id).name;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _jarName(AppStateEntity state, String id) {
+    try {
+      return state.budgetSetup.linkedWallets.firstWhere((j) => j.id == id).name;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _categoryName(AppStateEntity state, String id) {
+    try {
+      return state.categories.firstWhere((c) => c.id == id).name;
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _weekdayName(int? dayIndex) {
+    if (dayIndex == null) return '';
+    return [
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'الجمعة',
+      'السبت',
+      'الأحد'
+    ][(dayIndex - 1).clamp(0, 6)];
+  }
+
+  Color _parseColor(String? hexString) {
+    if (hexString == null || hexString.isEmpty) return Colors.grey;
+    final buffer = StringBuffer();
+    if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+    buffer.write(hexString.replaceFirst('#', ''));
+    return Color(int.parse(buffer.toString(), radix: 16));
+  }
+
 
   Future<void> _openRecurringComposer({
     required String mode,
     RecurringTransactionEntity? editing,
     String? initialExpensePlanKind,
     bool subscriptionOnlyMode = false,
+    bool debtOnlyMode = false,
   }) async {
-    await Navigator.of(context).push(
+    await Navigator.push<void>(
+      context,
       MaterialPageRoute(
-        fullscreenDialog: true,
         builder: (_) => RecurringTransactionComposerScreen(
           cubit: widget.cubit,
           initialType: mode,
           initialRecurring: editing,
-          initialWithinBudget: editing?.budgetScope == 'within-budget',
-          initialExpensePlanKind:
-              editing?.expensePlanKind ?? initialExpensePlanKind,
+          initialWithinBudget: true,
+          initialExpensePlanKind: initialExpensePlanKind,
           allowDelete: editing != null,
           subscriptionOnlyMode: subscriptionOnlyMode,
+          debtOnlyMode: debtOnlyMode,
         ),
-      ),
-    );
-  }
-
-  Future<void> _openExpenseEntryChooser() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  'اختر نوع العملية المتكررة',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  'اختر بين المصروف العادي أو القسط أو الاشتراك حتى تفتح لك الفورمة المناسبة مباشرة.',
-                  textAlign: TextAlign.right,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _entryChoiceTile(
-                title: 'مصروف متكرر عادي',
-                subtitle: 'لأي مصروف يتكرر بشكل طبيعي داخل أو خارج الميزانية',
-                icon: Icons.repeat_rounded,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(mode: 'expense');
-                },
-              ),
-              const SizedBox(height: 10),
-              _entryChoiceTile(
-                title: 'إضافة قسط',
-                subtitle: 'عند وجود أصل دين أو خدمة مقسطة على دفعات',
-                icon: Icons.account_balance_outlined,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(
-                    mode: 'expense',
-                    initialExpensePlanKind: 'installment',
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              _entryChoiceTile(
-                title: 'إضافة اشتراك',
-                subtitle: 'مثل نتفلكس أو شاهد أو أي خدمة دورية',
-                icon: Icons.subscriptions_rounded,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(
-                    mode: 'expense',
-                    initialExpensePlanKind: 'subscription',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _entryChoiceTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Ink(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFE1D9CA)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.chevron_left_rounded),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9F3E7),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(icon, color: _currentAccent),
-            ),
-          ],
-        ),
+        fullscreenDialog: true,
       ),
     );
   }
 }
 
 class _DetailsTable extends StatelessWidget {
-  const _DetailsTable({required this.rows});
-
   final Map<String, String> rows;
+
+  const _DetailsTable({required this.rows});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: Theme.of(context)
-              .colorScheme
-              .outlineVariant
-              .withValues(alpha: 0.7),
+          color:
+              Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.65),
         ),
       ),
       child: Column(
         children: rows.entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    entry.value,
-                    textAlign: TextAlign.start,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
+          final isLast = entry.key == rows.entries.last.key;
+          return Column(
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        entry.key,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        entry.value,
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Text(
-                  entry.key,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+              ),
+              if (!isLast)
+                Divider(
+                  height: 1,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.3),
                 ),
-              ],
-            ),
+            ],
           );
         }).toList(),
       ),

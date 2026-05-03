@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -916,7 +916,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     }
   }
 
-  Future<void> _showAddRecurringOrDebtComposer() async {
+  Future<void> _showAddRecurringOrDebtComposer({bool subscriptionOnly = false}) async {
     final result =
         await Navigator.of(context).push<RecurringTransactionComposerResult>(
       MaterialPageRoute(
@@ -925,6 +925,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           initialType: 'expense',
           initialWithinBudget: true,
           returnOnSave: true,
+          subscriptionOnlyMode: subscriptionOnly,
         ),
         fullscreenDialog: true,
       ),
@@ -1484,17 +1485,31 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         ),
         const SizedBox(height: 14),
         _plannerSection(
-          title: 'الديون والمعاملات المكررة',
-          subtitle: 'أقساط ودفعات وأي مصروف متكرر في الميزانية.',
+          title: 'الديون والاشتراكات',
+          subtitle: 'أقساط واشتراكات وأي مصروف متكرر في الميزانية.',
           icon: Icons.repeat_rounded,
           accent: const Color(0xFFC65D2E),
-          actionLabel: 'إضافة دين أو معاملة مكررة',
-          onAction: () => _showAddRecurringOrDebtComposer(),
+          actionLabel: '',
+          onAction: () {},
           showHeaderAction: false,
-          footerAction: _thinAddButton(
-            label: 'إضافة دين أو معاملة مكررة',
-            onPressed: () => _showAddRecurringOrDebtComposer(),
-            tint: const Color(0xFFC65D2E),
+          footerAction: Row(
+            children: [
+              Expanded(
+                child: _thinAddButton(
+                  label: 'إضافة دين',
+                  onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: false),
+                  tint: const Color(0xFFC65D2E),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _thinAddButton(
+                  label: 'إضافة اشتراك',
+                  onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: true),
+                  tint: const Color(0xFF4A7C59),
+                ),
+              ),
+            ],
           ),
           children: _visibleDebtsForDisplayCycle.isEmpty
               ? [

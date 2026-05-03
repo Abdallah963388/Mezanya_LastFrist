@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -37,6 +37,8 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
     this.returnOnSave = false,
     this.allowDelete = false,
     this.subscriptionOnlyMode = false,
+    this.debtOnlyMode = false,
+    this.initialSubscriptionPresetId,
   });
 
   final AppCubit cubit;
@@ -47,6 +49,8 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
   final bool returnOnSave;
   final bool allowDelete;
   final bool subscriptionOnlyMode;
+  final bool debtOnlyMode;
+  final String? initialSubscriptionPresetId;
 
   @override
   State<RecurringTransactionComposerScreen> createState() =>
@@ -134,6 +138,16 @@ class _RecurringTransactionComposerScreenState
     _selectedSubscriptionPresetId =
         subscriptionPresetByName(recurring?.name)?.id;
 
+    if (widget.subscriptionOnlyMode && widget.initialSubscriptionPresetId != null) {
+      final preset = subscriptionPresetById(widget.initialSubscriptionPresetId);
+      if (preset != null) {
+        _nameController.text = preset.name;
+        _iconName = preset.iconName;
+        _iconColor = preset.colorHex;
+        _selectedSubscriptionPresetId = preset.id;
+      }
+    }
+
     if (_type == 'income' && _withinBudget && _isVariableIncome) {
       _executionType = 'manual';
     }
@@ -180,9 +194,10 @@ class _RecurringTransactionComposerScreenState
     if (_isSaving || _nameController.text.trim().isEmpty || _walletId.isEmpty) {
       return false;
     }
-    if (_showAmount &&
-        (double.tryParse(_amountController.text.trim()) ?? 0) <= 0) {
-      return false;
+    if (_showAmount) {
+      final amt = double.tryParse(_amountController.text.trim()) ?? 0;
+      if (amt < 0) return false;
+      if (amt == 0 && !widget.subscriptionOnlyMode) return false;
     }
     if (_type == 'expense' &&
         _withinBudget &&
@@ -228,15 +243,11 @@ class _RecurringTransactionComposerScreenState
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            if (isSubscriptionOnly) ...[
-              _subscriptionSuggestionSection(),
-              const SizedBox(height: 14),
-            ],
-            if (!isSubscriptionOnly) ...[
+            if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
               _typeSwitcher(theme),
               const SizedBox(height: 14),
             ],
-            if (_type == 'expense' && !isSubscriptionOnly) ...[
+            if (_type == 'expense' && !isSubscriptionOnly && !widget.debtOnlyMode) ...[
               _expenseKindSection(),
               const SizedBox(height: 12),
             ],
@@ -323,37 +334,34 @@ class _RecurringTransactionComposerScreenState
               },
             ),
             const SizedBox(height: 12),
-            _surfaceSection(
-              child: SwitchListTile.adaptive(
-                value: _withinBudget,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('داخل الميزانية'),
-                subtitle: Text(
-                  _withinBudget
-                      ? 'المعاملة ستدخل في تخطيط الميزانية'
-                      : 'المعاملة ستبقى خارج حسابات الميزانية',
+            if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
+              _surfaceSection(
+                child: SwitchListTile.adaptive(
+                  value: _withinBudget,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('داخل الميزانية'),
+                  subtitle: Text(
+                    _withinBudget
+                        ? 'المعاملة ستدخل في تخطيط الميزانية'
+                        : 'المعاملة ستبقى خارج حسابات الميزانية',
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _withinBudget = value;
+                      if (!value) {
+                        _allocationId = null;
+                        _targetJarId = null;
+                        _isDebtOrSubscription = false;
+                        _expensePlanKind = 'normal';
+                        _isVariableIncome = false;
+                      } else if (_type == 'expense') {
+                        _expensePlanKind = widget.initialExpensePlanKind ?? 'normal';
+                        _isDebtOrSubscription = _expensePlanKind != 'normal';
+                      }
+                    });
+                  },
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _withinBudget = value;
-                    if (!value) {
-                      _allocationId = null;
-                      _targetJarId = null;
-                      _isDebtOrSubscription = false;
-                      _expensePlanKind = isSubscriptionOnly ? 'subscription' : 'normal';
-                      _isVariableIncome = false;
-                    } else if (_type == 'expense') {
-                      _expensePlanKind = widget.initialExpensePlanKind ??
-                          _expensePlanKind;
-                      _isDebtOrSubscription = _expensePlanKind != 'normal';
-                    }
-                  });
-                },
               ),
-            ),
-            const SizedBox(height: 12),
-            if (_type == 'expense' && _isExpenseSubscription && !isSubscriptionOnly) ...[
-              _subscriptionSuggestionSection(),
               const SizedBox(height: 12),
             ],
             if (_withinBudget) ...[
@@ -381,7 +389,7 @@ class _RecurringTransactionComposerScreenState
               ),
               const SizedBox(height: 12),
             ],
-            if (_type == 'expense' && _withinBudget) ...[
+            if (_type == 'expense' && _withinBudget && !_isDebtOrSubscription) ...[
               _budgetTargetSection(budget),
               const SizedBox(height: 12),
             ],
@@ -778,59 +786,6 @@ class _RecurringTransactionComposerScreenState
     );
   }
 
-  Widget _subscriptionSuggestionSection() {
-    final highlightedPresets = subscriptionServicePresets.take(8).toList();
-    final selectedPreset = subscriptionPresetById(_selectedSubscriptionPresetId);
-
-    return _surfaceSection(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'الخدمة المشترك فيها',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            selectedPreset == null
-                ? 'اختر من قائمة الخدمات الجاهزة ليتم تعبئة الاسم والأيقونة واللون تلقائيًا.'
-                : 'الخدمة المحددة الآن: ${selectedPreset.name}',
-          ),
-          const SizedBox(height: 10),
-          FilledButton.tonalIcon(
-            onPressed: _pickSubscriptionService,
-            icon: const Icon(Icons.travel_explore_rounded),
-            label: Text(
-              selectedPreset == null
-                  ? 'اختيار من الخدمات الجاهزة'
-                  : 'تغيير الخدمة',
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: highlightedPresets.map((preset) {
-              return ActionChip(
-                label: Text(preset.name),
-                avatar: Icon(
-                  _subscriptionIcon(preset.iconName),
-                  size: 18,
-                  color: _parseColor(preset.colorHex),
-                ),
-                onPressed: () => _applySubscriptionPreset(
-                  name: preset.name,
-                  icon: preset.iconName,
-                  color: preset.colorHex,
-                  presetId: preset.id,
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _budgetTargetSection(BudgetSetupEntity budget) {
     return _surfaceSection(

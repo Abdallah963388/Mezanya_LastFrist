@@ -1,4 +1,4 @@
-﻿// ignore_for_file: no_wildcard_variable_uses
+// ignore_for_file: no_wildcard_variable_uses
 
 import 'dart:convert';
 
@@ -2168,32 +2168,54 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     // ── الاشتراكات ──────────────────────────────────────────────────────────
     for (final debt in subscriptions) {
       final recurring = _linkedRecurringDebt(state, debt);
-      final occurrencesInCycle = BudgetRecurringPlanService.occurrencesInCycle(
+      final cycleDates = BudgetRecurringPlanService.occurrenceDatesInCycle(
         debt: debt,
         recurring: recurring,
         cycleStart: _cycleStart,
         cycleEnd: _cycleEnd,
       );
-      final isDueThisCycle = occurrencesInCycle > 0;
-      if (!isDueThisCycle) {
-        continue;
-      }
+      final isDueThisCycle = cycleDates.isNotEmpty;
+      if (!isDueThisCycle) continue;
+
+      final amountPerOccurrence = BudgetRecurringPlanService.amountPerOccurrence(
+        debt: debt,
+        recurring: recurring,
+      );
+      final cycleDue = amountPerOccurrence * cycleDates.length;
       final cyclePaid = monthTx
           .where((t) => _transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
-      final cycleDue = BudgetRecurringPlanService.amountDueInCycle(
-        debt: debt,
-        recurring: recurring,
-        cycleStart: _cycleStart,
-        cycleEnd: _cycleEnd,
-      );
-      final amountPerOccurrence =
-          BudgetRecurringPlanService.amountPerOccurrence(
-        debt: debt,
-        recurring: recurring,
-      );
-      final pendingMeta = _expensePendingMeta(recurring);
-      final isPending = pendingMeta?['pending'] == true && cyclePaid < cycleDue;
+
+      int paidCount = amountPerOccurrence > 0
+          ? (cyclePaid / amountPerOccurrence).floor()
+          : 0;
+      if (paidCount > cycleDates.length) paidCount = cycleDates.length;
+
+      final pendingDates = cycleDates.skip(paidCount).toList();
+      final isFullyPaid = pendingDates.isEmpty;
+      final nextDate = isFullyPaid ? null : pendingDates.first;
+
+      final today = DateTime.now();
+      final todayMidnight = DateTime(today.year, today.month, today.day);
+
+      bool isDueOrLate = false;
+      if (nextDate != null) {
+        final nextMidnight =
+            DateTime(nextDate.year, nextDate.month, nextDate.day);
+        isDueOrLate = !todayMidnight.isBefore(nextMidnight);
+      }
+
+      String metaText;
+      if (isFullyPaid) {
+        metaText = 'تم السداد ✓';
+      } else {
+        final nextStr = '${nextDate!.day}/${nextDate.month}';
+        if (cycleDates.length > 1) {
+          metaText = 'استحقاق يوم $nextStr · ${amountPerOccurrence.toStringAsFixed(2)} لكل مرة';
+        } else {
+          metaText = 'استحقاق يوم $nextStr · ${amountPerOccurrence.toStringAsFixed(2)}';
+        }
+      }
 
       widgets.add(_entityTile(
         title: debt.name,
@@ -2203,23 +2225,26 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           size: 54,
         ),
         amountText: cycleDue.toStringAsFixed(2),
-        metaText: cyclePaid >= cycleDue
-            ? 'تم الدفع ✓'
-            : occurrencesInCycle > 1
-                ? 'مستحق $occurrencesInCycle مرات · ${amountPerOccurrence.toStringAsFixed(2)} لكل مرة'
-                : 'مستحق · ${amountPerOccurrence.toStringAsFixed(2)}',
+        metaText: metaText,
         supportingText: _recurrenceLabel(
             recurring?.recurrencePattern ?? debt.recurrencePattern),
         progress: cycleDue <= 0
             ? null
             : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
         progressColor: Colors.teal,
-        tint: isPending ? const Color(0xFFC65D2E) : null,
-        onTap: () => _openDebtDetailsSheet(debt, monthTx, cycleDue - cyclePaid),
-        actions: isPending && recurring != null
+        tint: isDueOrLate ? const Color(0xFFC65D2E) : null,
+        onTap: () => _openSubscriptionDetailsSheet(
+          debt: debt,
+          recurring: recurring,
+          cycleDates: cycleDates,
+          cyclePaid: cyclePaid,
+          amountPerOccurrence: amountPerOccurrence,
+          monthTx: monthTx,
+        ),
+        actions: isDueOrLate && recurring != null
             ? <Widget>[
                 _compactActionButton(
-                  label: 'تأكيد الدفع',
+                  label: 'تسديد الآن',
                   onPressed: () =>
                       _confirmDebtPayment(state, budget, debt, recurring),
                 ),
@@ -2233,6 +2258,142 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
 
     return widgets;
+  }
+
+  Future<void> _openSubscriptionDetailsSheet({
+    required DebtEntity debt,
+    required RecurringTransactionEntity? recurring,
+    required List<DateTime> cycleDates,
+    required double cyclePaid,
+    required double amountPerOccurrence,
+    required List<TransactionEntity> monthTx,
+  }) async {
+    final theme = Theme.of(context);
+    final accent = _colorFromHex(recurring?.iconColor ?? '#4a7c59');
+
+    final tx = monthTx
+        .where((t) => _transactionCountsTowardDebt(t, debt))
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    int paidCount = amountPerOccurrence > 0
+        ? (cyclePaid / amountPerOccurrence).floor()
+        : 0;
+    if (paidCount > cycleDates.length) paidCount = cycleDates.length;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        theme: theme,
+        accent: accent,
+        transactions: tx,
+        initialMonth: _month,
+        emptyMessage: 'لا توجد معاملات دفع لهذا الاشتراك.',
+        sheetContext: sheetContext,
+        tileBuilder: (item) =>
+            _trackingMonthTransactionTile(sheetContext, theme, item),
+        topSectionAfterGrab: [
+          _trackingDetailHeroShell(
+            accent: accent,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _iconBadge(
+                    recurring?.icon ?? 'subscriptions',
+                    recurring?.iconColor ?? '#4a7c59',
+                    size: 56,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          debt.name,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'استحقاقات الشهر (${cycleDates.length})',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(cycleDates.length, (index) {
+                final date = cycleDates[index];
+                final isPaid = index < paidCount;
+                final dateStr = '${date.day}/${date.month}';
+
+                final today = DateTime.now();
+                final todayMidnight =
+                    DateTime(today.year, today.month, today.day);
+                final occurrenceMidnight =
+                    DateTime(date.year, date.month, date.day);
+                final isDueOrLate = !todayMidnight.isBefore(occurrenceMidnight);
+
+                final statusText = isPaid
+                    ? 'مسدد ✓'
+                    : (isDueOrLate ? 'مستحق الآن' : 'قادم');
+                final statusColor = isPaid
+                    ? Colors.green
+                    : (isDueOrLate
+                        ? const Color(0xFFC65D2E)
+                        : theme.colorScheme.onSurfaceVariant);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: statusColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'استحقاق $dateStr',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Text(
+                        amountPerOccurrence.toStringAsFixed(2),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openAllocationSheet(

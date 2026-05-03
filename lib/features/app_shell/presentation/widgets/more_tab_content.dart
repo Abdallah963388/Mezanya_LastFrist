@@ -11,6 +11,7 @@ import 'package:mezanya_app/features/settings/presentation/screens/app_settings_
 import 'section_page_scaffold.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../transactions/presentation/screens/debts_and_subscriptions_screen.dart';
 
 class MoreTabContent extends StatefulWidget {
   final AppCubit cubit;
@@ -187,6 +188,21 @@ class _MoreTabContentState extends State<MoreTabContent> {
                     cubit: widget.cubit,
                     displayMonth: DateTime.now(),
                   ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        _tile(
+          'الديون والاشتراكات',
+          Icons.account_balance_wallet_rounded,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DebtsAndSubscriptionsScreen(
+                  cubit: widget.cubit,
                 ),
               ),
             );
