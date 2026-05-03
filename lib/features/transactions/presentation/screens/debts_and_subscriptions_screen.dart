@@ -66,14 +66,20 @@ class _DebtsAndSubscriptionsScreenState
                 ),
               ),
               const SizedBox(height: 16),
-              _scopeSection(
-                state: state,
-                title: 'داخل الميزانية',
-                subtitle: _scopeSubtitle(),
-                records: inBudget,
-                emptyLabel: _emptyScopeLabel(),
-                accent: _currentAccent,
-              ),
+              if (_tab == 'subscriptions') ...[
+                if (inBudget.isEmpty)
+                  _emptyCard(_emptyScopeLabel())
+                else
+                  ...inBudget.map((record) => _recurringCard(state, record)),
+              ] else
+                _scopeSection(
+                  state: state,
+                  title: 'داخل الميزانية',
+                  subtitle: _scopeSubtitle(),
+                  records: inBudget,
+                  emptyLabel: _emptyScopeLabel(),
+                  accent: _currentAccent,
+                ),
             ],
           ),
         );
