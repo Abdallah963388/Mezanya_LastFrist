@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -247,10 +247,6 @@ class _RecurringTransactionComposerScreenState
               _typeSwitcher(theme),
               const SizedBox(height: 14),
             ],
-            if (_type == 'expense' && !isSubscriptionOnly && !widget.debtOnlyMode) ...[
-              _expenseKindSection(),
-              const SizedBox(height: 12),
-            ],
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -335,65 +331,34 @@ class _RecurringTransactionComposerScreenState
             ),
             const SizedBox(height: 12),
             if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
-              _surfaceSection(
-                child: SwitchListTile.adaptive(
-                  value: _withinBudget,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('داخل الميزانية'),
-                  subtitle: Text(
-                    _withinBudget
-                        ? 'المعاملة ستدخل في تخطيط الميزانية'
-                        : 'المعاملة ستبقى خارج حسابات الميزانية',
+              _budgetScopePickerTile(budget),
+              const SizedBox(height: 12),
+            ],
+            // الأيقونة دايمًا ظاهرة
+            _surfaceSection(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('الأيقونة واللون'),
+                subtitle: const Text('تظهر داخل التخطيط والميزانية'),
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _parseColor(_iconColor).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _withinBudget = value;
-                      if (!value) {
-                        _allocationId = null;
-                        _targetJarId = null;
-                        _isDebtOrSubscription = false;
-                        _expensePlanKind = 'normal';
-                        _isVariableIncome = false;
-                      } else if (_type == 'expense') {
-                        _expensePlanKind = widget.initialExpensePlanKind ?? 'normal';
-                        _isDebtOrSubscription = _expensePlanKind != 'normal';
-                      }
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_withinBudget) ...[
-              _surfaceSection(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('الأيقونة واللون'),
-                  subtitle: const Text('تظهر داخل التخطيط والميزانية'),
-                  leading: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _parseColor(_iconColor).withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: AppIconPickerDialog.iconWidgetForName(
-                      _iconName,
-                      color: _parseColor(_iconColor),
-                      size: 22,
-                    ),
+                  child: AppIconPickerDialog.iconWidgetForName(
+                    _iconName,
+                    color: _parseColor(_iconColor),
+                    size: 22,
                   ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _pickIcon,
                 ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _pickIcon,
               ),
-              const SizedBox(height: 12),
-            ],
-            if (_type == 'expense' && _withinBudget && !_isDebtOrSubscription) ...[
-              _budgetTargetSection(budget),
-              const SizedBox(height: 12),
-            ],
-            _categorySection(visibleCategories),
+            ),
+            const SizedBox(height: 12),
+            _categorySection(visibleCategories, budget),
             const SizedBox(height: 12),
             if (_showRecurrenceDetails) ...[
               DropdownButtonFormField<String>(
@@ -787,101 +752,188 @@ class _RecurringTransactionComposerScreenState
   }
 
 
-  Widget _budgetTargetSection(BudgetSetupEntity budget) {
-    return _surfaceSection(
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: EdgeInsets.zero,
-          expandedCrossAxisAlignment: CrossAxisAlignment.start,
-          title: const Text(
-            'المخصصات والحصالات',
-            style: TextStyle(fontWeight: FontWeight.w800),
+  // ── Budget scope picker (replaces old switch + expansion tile) ───────────
+  Widget _budgetScopePickerTile(BudgetSetupEntity budget) {
+    final label = _budgetScopeLabel(budget);
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => _openBudgetScopePicker(budget),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withValues(alpha: 0.6)),
           ),
-          subtitle: Text(_selectedBudgetTargetLabel(budget)),
+          child: Row(
+            children: [
+              Icon(
+                _withinBudget
+                    ? Icons.pie_chart_outline_rounded
+                    : Icons.public_off_rounded,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('المخصص',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            )),
+                    const SizedBox(height: 2),
+                    Text(label,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded,
+                  color:
+                      Theme.of(context).colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _budgetScopeLabel(BudgetSetupEntity budget) {
+    if (!_withinBudget) return 'خارج الميزانية';
+    if (_allocationId != null) {
+      final a = budget.allocations
+          .where((a) => a.id == _allocationId)
+          .toList();
+      if (a.isNotEmpty) return 'مخصص: ${a.first.name}';
+    }
+    if (_targetJarId != null) {
+      final j = budget.linkedWallets
+          .where((j) => j.id == _targetJarId)
+          .toList();
+      if (j.isNotEmpty) return 'حصالة: ${j.first.name}';
+    }
+    return 'داخل الميزانية (عام)';
+  }
+
+  void _openBudgetScopePicker(BudgetSetupEntity budget) {
+    final totalIncome =
+        budget.totalIncome <= 0 ? 1.0 : budget.totalIncome;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.82,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            RadioListTile<bool>(
-              value: true,
-              groupValue: _isDebtOrSubscription,
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                _isExpenseSubscription
-                    ? 'اشتراك أو خدمة شهرية'
-                    : 'معاملة تقسيط',
-              ),
-              subtitle: Text(
-                _isExpenseSubscription
-                    ? 'لن تُحسب من أي مخصص وستظهر ضمن الديون والاشتراكات'
-                    : 'تظهر ضمن الديون والاشتراكات مع متابعة أصل التقسيط',
-              ),
-              onChanged: (value) {
+            Text(
+              _type == 'income' ? 'وجهة الدخل' : 'المخصص',
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 14),
+            // خارج الميزانية
+            _ScopeOptionTile(
+              isSelected: !_withinBudget,
+              icon: Icons.public_off_rounded,
+              iconColor: Colors.grey,
+              title: 'خارج الميزانية',
+              subtitle: 'لن تُحتسب في خطة الميزانية',
+              progress: null,
+              onTap: () {
                 setState(() {
-                  _isDebtOrSubscription = true;
-                  if (_expensePlanKind == 'normal') {
-                    _expensePlanKind = 'installment';
-                  }
+                  _withinBudget = false;
                   _allocationId = null;
                   _targetJarId = null;
+                  _isDebtOrSubscription = false;
+                  _expensePlanKind = 'normal';
+                  _isVariableIncome = false;
                 });
+                Navigator.pop(ctx);
               },
             ),
-            const Divider(height: 24),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'المخصصات',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            ...budget.allocations.map(
-              (allocation) => RadioListTile<String>(
-                value: allocation.id,
-                groupValue: !_isDebtOrSubscription && _targetJarId == null
-                    ? _allocationId
-                    : null,
-                contentPadding: EdgeInsets.zero,
-                title: Text(allocation.name),
-                onChanged: (value) {
-                  setState(() {
-                    _expensePlanKind = 'normal';
-                    _isDebtOrSubscription = false;
-                    _allocationId = value;
-                    _targetJarId = null;
-                  });
-                },
-              ),
-            ),
-            const Divider(height: 24),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'الحصالات',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            ...budget.linkedWallets.map(
-              (jar) => RadioListTile<String>(
-                value: jar.id,
-                groupValue: !_isDebtOrSubscription && _allocationId == null
-                    ? _targetJarId
-                    : null,
-                contentPadding: EdgeInsets.zero,
-                title: Text(jar.name),
-                onChanged: (value) {
-                  setState(() {
-                    _expensePlanKind = 'normal';
-                    _isDebtOrSubscription = false;
-                    _targetJarId = value;
-                    _allocationId = null;
-                  });
-                },
-              ),
-            ),
+            if (_type == 'expense' || _type == 'income') ...[
+              const SizedBox(height: 14),
+              const _ScopeDivider(label: 'المخصصات'),
+              const SizedBox(height: 8),
+              ...budget.allocations.map((a) {
+                final planned = a.funding.fold<double>(
+                    0, (s, f) => s + f.plannedAmount);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _ScopeOptionTile(
+                    isSelected: _withinBudget &&
+                        _allocationId == a.id &&
+                        _targetJarId == null,
+                    icon: Icons.pie_chart_outline_rounded,
+                    iconColor: Theme.of(context).colorScheme.primary,
+                    title: a.name,
+                    subtitle: '${planned.toStringAsFixed(0)} مخطط',
+                    progress: (planned / totalIncome).clamp(0.0, 1.0),
+                    onTap: () {
+                      setState(() {
+                        _withinBudget = true;
+                        _allocationId = a.id;
+                        _targetJarId = null;
+                        _isDebtOrSubscription = false;
+                        _expensePlanKind = 'normal';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+              const _ScopeDivider(label: 'الحصالات'),
+              const SizedBox(height: 8),
+              ...budget.linkedWallets.map((jar) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _ScopeOptionTile(
+                    isSelected: _withinBudget &&
+                        _targetJarId == jar.id &&
+                        _allocationId == null,
+                    icon: Icons.savings_outlined,
+                    iconColor: const Color(0xFF8B6B3D),
+                    title: jar.name,
+                    subtitle:
+                        '${jar.balance.toStringAsFixed(0)} رصيد',
+                    progress:
+                        (jar.balance / totalIncome).clamp(0.0, 1.0),
+                    onTap: () {
+                      setState(() {
+                        _withinBudget = true;
+                        _targetJarId = jar.id;
+                        _allocationId = null;
+                        _isDebtOrSubscription = false;
+                        _expensePlanKind = 'normal';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _budgetTargetSection(BudgetSetupEntity budget) {
+    return const SizedBox.shrink(); // replaced by _budgetScopePickerTile
   }
 
   String _selectedBudgetTargetLabel(BudgetSetupEntity budget) {
@@ -908,15 +960,32 @@ class _RecurringTransactionComposerScreenState
     return 'اضغط للاختيار';
   }
 
-  Widget _categorySection(List<CategoryEntity> categories) {
+  Widget _categorySection(List<CategoryEntity> categories, BudgetSetupEntity budget) {
     return _surfaceSection(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('الفئات', style: TextStyle(fontWeight: FontWeight.w800)),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('الفئات',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              TextButton.icon(
+                onPressed: () => _openAddCategoryDialog(budget, categories),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('إضافة فئة'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           if (categories.isEmpty)
-            const Text('لا توجد فئات متاحة لهذا النوع حاليًا')
+            const Text('لا توجد فئات متاحة لهذا الجزء')
           else
             Wrap(
               spacing: 8,
@@ -924,7 +993,8 @@ class _RecurringTransactionComposerScreenState
               children: categories
                   .map(
                     (category) => FilterChip(
-                      selected: _selectedCategoryIds.contains(category.id),
+                      selected:
+                          _selectedCategoryIds.contains(category.id),
                       label: Text(category.name),
                       onSelected: (selected) {
                         setState(() {
@@ -942,6 +1012,103 @@ class _RecurringTransactionComposerScreenState
         ],
       ),
     );
+  }
+
+  Future<void> _openAddCategoryDialog(
+    BudgetSetupEntity budget,
+    List<CategoryEntity> existing,
+  ) async {
+    final nameCtrl = TextEditingController();
+    var iconName = 'category';
+    var iconColor = '#165b47';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('إضافة فئة'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                onChanged: (_) => setDialog(() {}),
+                decoration:
+                    const InputDecoration(hintText: 'اسم الفئة'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final picked = await AppIconPickerDialog.show(
+                    ctx,
+                    initialIconName: iconName,
+                    initialColorHex: iconColor,
+                    title: 'اختر أيقونة الفئة',
+                  );
+                  if (picked == null) return;
+                  setDialog(() {
+                    iconName = picked.iconName;
+                    iconColor = picked.colorHex;
+                  });
+                },
+                icon: const Icon(Icons.palette_outlined),
+                label: const Text('الأيقونة واللون'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('إلغاء')),
+            FilledButton(
+                onPressed: nameCtrl.text.trim().isEmpty
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: const Text('إضافة')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final name = nameCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    final category = CategoryEntity(
+      id: 'cat-${DateTime.now().microsecondsSinceEpoch}',
+      name: name,
+      icon: iconName,
+      color: iconColor,
+      scope: _type == 'income' ? 'income' : 'expense',
+      allocationId: (_withinBudget && _allocationId != null &&
+              _allocationId != 'unallocated')
+          ? _allocationId
+          : null,
+    );
+
+    if (_withinBudget && _allocationId != null) {
+      final alloc = budget.allocations
+          .where((a) => a.id == _allocationId)
+          .toList();
+      if (alloc.isNotEmpty) {
+        await widget.cubit.updateAllocationCategories(
+          allocationId: _allocationId!,
+          categories: [...alloc.first.categories, category],
+        );
+      }
+    } else if (_withinBudget && _targetJarId != null) {
+      final jar = budget.linkedWallets
+          .where((j) => j.id == _targetJarId)
+          .toList();
+      if (jar.isNotEmpty) {
+        await widget.cubit.updateLinkedWalletCategories(
+          linkedWalletId: _targetJarId!,
+          categories: [...jar.first.categories, category],
+        );
+      }
+    } else {
+      final current = widget.cubit.state.categories;
+      await widget.cubit.setCategories([...current, category]);
+    }
+    if (mounted) setState(() {});
   }
 
   Widget _recurrenceDetails() {
@@ -1419,5 +1586,128 @@ class _RecurringTransactionComposerScreenState
     final value =
         int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0x165b47;
     return Color(0xFF000000 | value);
+  }
+}
+
+// ── Scope picker helpers ───────────────────────────────────────────────────
+class _ScopeOptionTile extends StatelessWidget {
+  const _ScopeOptionTile({
+    required this.isSelected,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.progress,
+    required this.onTap,
+  });
+  final bool isSelected;
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final double? progress;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: isSelected
+          ? theme.colorScheme.primary.withValues(alpha: 0.08)
+          : theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.45)
+                  : theme.colorScheme.outlineVariant,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800)),
+                      ),
+                      if (isSelected)
+                        Icon(Icons.check_circle_rounded,
+                            color: theme.colorScheme.primary, size: 18),
+                    ]),
+                    Text(subtitle,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600)),
+                    if (progress != null) ...[
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 4,
+                          backgroundColor:
+                              iconColor.withValues(alpha: 0.12),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(iconColor),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScopeDivider extends StatelessWidget {
+  const _ScopeDivider({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+            child: Divider(
+                color: Theme.of(context).colorScheme.outlineVariant)),
+        const SizedBox(width: 8),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(width: 8),
+        Expanded(
+            child: Divider(
+                color: Theme.of(context).colorScheme.outlineVariant)),
+      ],
+    );
   }
 }
