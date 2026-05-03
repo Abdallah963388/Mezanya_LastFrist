@@ -639,8 +639,36 @@ class AppCubit extends Cubit<AppStateEntity> {
       debtPrincipalTotal: debtPrincipalTotal,
       notes: notes,
     );
+
+    // زامن DebtEntity في budget.debts عند إضافة اشتراك/دين من خارج شاشة الميزانية
+    final alreadyLinked = state.budgetSetup.debts
+        .any((d) => d.recurringTransactionId == recurring.id);
+    final nextBudget = (isDebtOrSubscription && !alreadyLinked)
+        ? state.budgetSetup.copyWith(debts: [
+            ...state.budgetSetup.debts,
+            DebtEntity(
+              id: 'debt-${recurring.id}',
+              name: recurring.name,
+              amount: recurring.amount,
+              executionDay: recurring.dayOfMonth.clamp(1, 28),
+              type: recurring.executionType,
+              fundingSource: state.budgetSetup.incomeSources.isNotEmpty
+                  ? state.budgetSetup.incomeSources.first.id
+                  : '',
+              recurringTransactionId: recurring.id,
+              kind: recurring.expensePlanKind == 'installment'
+                  ? 'installment'
+                  : 'subscription',
+              principalTotal: recurring.debtPrincipalTotal,
+              recurrencePattern: recurring.recurrencePattern,
+              monthOfYear: recurring.monthOfYear,
+            ),
+          ])
+        : state.budgetSetup;
+
     final next = state.copyWith(
       recurringTransactions: [...state.recurringTransactions, recurring],
+      budgetSetup: nextBudget,
     );
     await _applyAndLog(
       action: 'add',
@@ -653,10 +681,35 @@ class AppCubit extends Cubit<AppStateEntity> {
 
   Future<void> updateRecurringTransaction(
       RecurringTransactionEntity recurring) async {
+    // زامن DebtEntity المرتبط لو كان دين/اشتراك
+    BudgetSetupEntity nextBudget = state.budgetSetup;
+    if (recurring.isDebtOrSubscription) {
+      final linkedIndex = state.budgetSetup.debts
+          .indexWhere((d) => d.recurringTransactionId == recurring.id);
+      if (linkedIndex >= 0) {
+        final existing = state.budgetSetup.debts[linkedIndex];
+        final updated = existing.copyWith(
+          name: recurring.name,
+          amount: recurring.amount,
+          executionDay: recurring.dayOfMonth.clamp(1, 28),
+          type: recurring.executionType,
+          kind: recurring.expensePlanKind == 'installment'
+              ? 'installment'
+              : 'subscription',
+          principalTotal: recurring.debtPrincipalTotal,
+          recurrencePattern: recurring.recurrencePattern,
+          monthOfYear: recurring.monthOfYear,
+        );
+        final updatedDebts = List<DebtEntity>.from(state.budgetSetup.debts)
+          ..[linkedIndex] = updated;
+        nextBudget = state.budgetSetup.copyWith(debts: updatedDebts);
+      }
+    }
     final next = state.copyWith(
       recurringTransactions: state.recurringTransactions
           .map((item) => item.id == recurring.id ? recurring : item)
           .toList(),
+      budgetSetup: nextBudget,
     );
     await _applyAndLog(
       action: 'edit',
@@ -671,9 +724,18 @@ class AppCubit extends Cubit<AppStateEntity> {
     final target =
         state.recurringTransactions.where((item) => item.id == id).toList();
     final deleted = target.isEmpty ? null : target.first;
+
+    // احذف DebtEntity المرتبط لو وُجد
+    final nextBudget = state.budgetSetup.copyWith(
+      debts: state.budgetSetup.debts
+          .where((d) => d.recurringTransactionId != id)
+          .toList(),
+    );
+
     final next = state.copyWith(
       recurringTransactions:
           state.recurringTransactions.where((item) => item.id != id).toList(),
+      budgetSetup: nextBudget,
     );
     await _applyAndLog(
       action: 'delete',
