@@ -232,9 +232,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   : budgetJars
                       .map((jar) => _jarSummaryTile(state, jar, monthTx)),
               const SizedBox(height: 18),
-              _sectionTitle('الديون'),
+              _sectionTitle('الديون والأقساط'),
               const SizedBox(height: 12),
-              ..._debtInlineCards(state, budget, monthTx),
+              ..._installmentCards(state, budget, monthTx),
+              const SizedBox(height: 18),
+              _sectionTitle('الاشتراكات'),
+              const SizedBox(height: 12),
+              ..._subscriptionCards(state, budget, monthTx),
               const SizedBox(height: 18),
               _sectionTitle('ملخص الدورة'),
               const SizedBox(height: 12),
@@ -310,6 +314,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   BudgetSetupEntity _budgetForMonth(AppStateEntity state) {
     final budget = state.budgetSetup;
+
+    // الدورة الحالية: دايمًا نستخدم budgetSetup الحالي لضمان ظهور آخر التحديثات
+    if (_isCurrentCycle(budget)) return state.budgetSetup;
+
     final cycleKey = budget.cycleKeyFor(_cycleStart);
 
     // جرب الـ snapshot الجديد بمفتاح الدورة
@@ -325,8 +333,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (oldSnapshot != null && oldSnapshot.isNotEmpty) {
       return BudgetSetupEntity.fromMap(oldSnapshot);
     }
-
-    if (_isCurrentCycle(budget)) return state.budgetSetup;
 
     final end = _cycleEnd;
     for (final log in state.logs) {
@@ -2107,18 +2113,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
-  List<Widget> _debtInlineCards(
+  List<Widget> _installmentCards(
     AppStateEntity state,
     BudgetSetupEntity budget,
     List<TransactionEntity> monthTx,
   ) {
-    // نفصل الأقساط عن الاشتراكات
     final installments = budget.debts.where((d) => d.isInstallment).toList();
-    final subscriptions = budget.debts.where((d) => d.isSubscription).toList();
-
+    if (installments.isEmpty) {
+      return [const _StaticInfoCard(text: 'لا توجد ديون أو أقساط مسجلة.')];
+    }
     final widgets = <Widget>[];
-
-    // ── الأقساط ────────────────────────────────────────────────────────────
     for (final debt in installments) {
       final recurring = _linkedRecurringDebt(state, debt);
       final allDebtTx = _allDebtPayments(state, debt);
@@ -2136,7 +2140,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           pendingMeta?['pending'] == true && monthPaid < debt.amount;
       final remainingInstallments =
           debt.amount > 0 ? ((remaining - monthPaid) / debt.amount).ceil() : 0;
-
       widgets.add(_entityTile(
         title: debt.name,
         leading: _iconBadge(
@@ -2164,8 +2167,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             : <Widget>[],
       ));
     }
+    return widgets;
+  }
 
-    // ── الاشتراكات ──────────────────────────────────────────────────────────
+  List<Widget> _subscriptionCards(
+    AppStateEntity state,
+    BudgetSetupEntity budget,
+    List<TransactionEntity> monthTx,
+  ) {
+    final subscriptions = budget.debts.where((d) => d.isSubscription).toList();
+    if (subscriptions.isEmpty) {
+      return [const _StaticInfoCard(text: 'لا توجد اشتراكات مسجلة.')];
+    }
+    final widgets = <Widget>[];
     for (final debt in subscriptions) {
       final recurring = _linkedRecurringDebt(state, debt);
       final cycleDates = BudgetRecurringPlanService.occurrenceDatesInCycle(
@@ -2252,11 +2266,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             : const <Widget>[],
       ));
     }
-
     if (widgets.isEmpty) {
-      widgets.add(const _StaticInfoCard(text: 'لا توجد ديون أو اشتراكات.'));
+      return [const _StaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')];
     }
-
     return widgets;
   }
 

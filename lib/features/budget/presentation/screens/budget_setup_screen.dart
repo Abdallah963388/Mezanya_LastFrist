@@ -1410,82 +1410,114 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         ),
         const SizedBox(height: 14),
         _plannerSection(
-          title: 'الديون والاشتراكات',
-          subtitle: 'أقساط واشتراكات وأي مصروف متكرر في الميزانية.',
-          icon: Icons.repeat_rounded,
+          title: 'الديون والأقساط',
+          subtitle: 'أقساط شهرية وديون ذات أصل كلي مربوطة بالميزانية.',
+          icon: Icons.receipt_long_rounded,
           accent: const Color(0xFFC65D2E),
           actionLabel: '',
           onAction: () {},
           showHeaderAction: false,
-          footerAction: Row(
-            children: [
-              Expanded(
-                child: _thinAddButton(
-                  label: 'إضافة دين',
-                  onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: false),
-                  tint: const Color(0xFFC65D2E),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _thinAddButton(
-                  label: 'إضافة اشتراك',
-                  onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: true),
-                  tint: const Color(0xFF4A7C59),
-                ),
-              ),
-            ],
+          footerAction: _thinAddButton(
+            label: 'إضافة دين',
+            onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: false),
+            tint: const Color(0xFFC65D2E),
           ),
-          children: _visibleDebtsForDisplayCycle.isEmpty
-              ? [
-                  _emptyState(
-                      'لا توجد التزامات مستحقة في هذه الدورة. يمكنك إدارة كل المعاملات المتكررة من صفحة المعاملات المتكررة.')
-                ]
-              : _visibleDebtsForDisplayCycle.map(
-                  (debt) {
-                    final recurring = _linkedRecurringDebt(debt);
-                    final iconName = recurring?.icon ?? 'receipt';
-                    final iconColor = recurring?.iconColor ?? '#c65d2e';
-                    final detailText = debt.isSubscription
-                        ? _recurrenceLabel(recurring?.recurrencePattern ??
-                            debt.recurrencePattern)
-                        : 'يوم ${debt.executionDay}';
-                    return _planTile(
-                      title: debt.name,
-                      amountText: debt.amount.toStringAsFixed(2),
-                      detailText: detailText,
-                      leadingWidget: _iconBadge(
-                        iconName: iconName,
-                        colorHex: iconColor,
-                        size: 42,
-                      ),
-                      tint: _colorFromHex(iconColor),
-                      onTap: () => _openDebtInfoSheet(debt),
-                      onDelete: () async {
-                        final approved = await _confirmDeletion(
-                          title: 'حذف الدين',
-                          message:
-                              'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟',
-                        );
-                        if (!approved) {
-                          return;
-                        }
-                        final recurring = _linkedRecurringDebt(debt);
-                        if (recurring != null) {
-                          await widget.cubit
-                              .deleteRecurringTransaction(recurring.id);
-                        }
-                        await _saveBudget(
-                          _budget.copyWith(
-                            debts: _budget.debts
-                                .where((e) => e.id != debt.id)
-                                .toList(),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ).toList(),
+          children: () {
+            final installments = _visibleDebtsForDisplayCycle
+                .where((d) => d.isInstallment)
+                .toList();
+            if (installments.isEmpty) {
+              return [_emptyState('لا توجد ديون أو أقساط مستحقة في هذه الدورة.')];
+            }
+            return installments.map((debt) {
+              final recurring = _linkedRecurringDebt(debt);
+              final iconColor = recurring?.iconColor ?? '#c65d2e';
+              return _planTile(
+                title: debt.name,
+                amountText: debt.amount.toStringAsFixed(2),
+                detailText: 'يوم ${debt.executionDay}',
+                leadingWidget: _iconBadge(
+                  iconName: recurring?.icon ?? 'receipt',
+                  colorHex: iconColor,
+                  size: 42,
+                ),
+                tint: _colorFromHex(iconColor),
+                onTap: () => _openDebtInfoSheet(debt),
+                onDelete: () async {
+                  final approved = await _confirmDeletion(
+                    title: 'حذف الدين',
+                    message: 'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟',
+                  );
+                  if (!approved) return;
+                  final rec = _linkedRecurringDebt(debt);
+                  if (rec != null) {
+                    await widget.cubit.deleteRecurringTransaction(rec.id);
+                  }
+                  await _saveBudget(
+                    _budget.copyWith(
+                      debts: _budget.debts.where((e) => e.id != debt.id).toList(),
+                    ),
+                  );
+                },
+              );
+            }).toList();
+          }(),
+        ),
+        const SizedBox(height: 14),
+        _plannerSection(
+          title: 'الاشتراكات',
+          subtitle: 'اشتراكات متكررة مثل خدمات البث والأدوات الدورية.',
+          icon: Icons.subscriptions_rounded,
+          accent: const Color(0xFF4A7C59),
+          actionLabel: '',
+          onAction: () {},
+          showHeaderAction: false,
+          footerAction: _thinAddButton(
+            label: 'إضافة اشتراك',
+            onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: true),
+            tint: const Color(0xFF4A7C59),
+          ),
+          children: () {
+            final subscriptions = _visibleDebtsForDisplayCycle
+                .where((d) => d.isSubscription)
+                .toList();
+            if (subscriptions.isEmpty) {
+              return [_emptyState('لا توجد اشتراكات مستحقة في هذه الدورة.')];
+            }
+            return subscriptions.map((debt) {
+              final recurring = _linkedRecurringDebt(debt);
+              final iconColor = recurring?.iconColor ?? '#4a7c59';
+              return _planTile(
+                title: debt.name,
+                amountText: debt.amount.toStringAsFixed(2),
+                detailText: _recurrenceLabel(
+                    recurring?.recurrencePattern ?? debt.recurrencePattern),
+                leadingWidget: _iconBadge(
+                  iconName: recurring?.icon ?? 'subscriptions',
+                  colorHex: iconColor,
+                  size: 42,
+                ),
+                tint: _colorFromHex(iconColor),
+                onTap: () => _openDebtInfoSheet(debt),
+                onDelete: () async {
+                  final approved = await _confirmDeletion(
+                    title: 'حذف الاشتراك',
+                    message: 'سيتم حذف "${debt.name}" من خطة الميزانية. هل تريد المتابعة؟',
+                  );
+                  if (!approved) return;
+                  final rec = _linkedRecurringDebt(debt);
+                  if (rec != null) {
+                    await widget.cubit.deleteRecurringTransaction(rec.id);
+                  }
+                  await _saveBudget(
+                    _budget.copyWith(
+                      debts: _budget.debts.where((e) => e.id != debt.id).toList(),
+                    ),
+                  );
+                },
+              );
+            }).toList();
+          }(),
         ),
         const SizedBox(height: 18),
         _planSummaryCard(),
