@@ -1491,7 +1491,16 @@ class _RecurringTransactionComposerScreenState
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // When saving a new subscription from the preset selection flow,
+    // pop twice to close both the composer AND the preset selection screen.
+    if (widget.subscriptionOnlyMode && widget.initialRecurring == null) {
+      Navigator.of(context).pop();
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _deleteFromComposer() async {
