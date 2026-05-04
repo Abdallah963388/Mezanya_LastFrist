@@ -38,7 +38,9 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   GoogleSignInAccount? _account;
   bool loading = false;
+  bool _uploadLoading = false;
   String? localPath;
+  String? _lastBackupAt;
   BackupFrequency localFreq = BackupFrequency.onExit;
   BackupFrequency cloudFreq = BackupFrequency.weekly;
 
@@ -54,6 +56,20 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     await _loadSettings();
     await _loadGoogle();
     if (mounted) setState(() => loading = false);
+  }
+
+  String _formatBackupTime(String? iso) {
+    if (iso == null) return 'لم يتم النسخ بعد';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return 'لم يتم النسخ بعد';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'الآن';
+    if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+    if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+    if (diff.inDays == 1) return 'أمس';
+    if (diff.inDays < 7) return 'منذ ${diff.inDays} أيام';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   @override
@@ -80,6 +96,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     localPath = prefs.getString('backup_local_path');
+    _lastBackupAt = prefs.getString('last_cloud_backup_at');
     final local = prefs.getString('backup_local_freq');
     final cloud = prefs.getString('backup_cloud_freq');
     if (local != null) {
@@ -226,9 +243,10 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       );
 
       // نحفظ وقت آخر رفع محلياً
+      final now = DateTime.now().toIso8601String();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'last_cloud_backup_at', DateTime.now().toIso8601String());
+      await prefs.setString('last_cloud_backup_at', now);
+      if (mounted) setState(() => _lastBackupAt = now);
 
       _msg('تم رفع النسخة بنجاح ✓');
     } catch (e) {
@@ -276,8 +294,18 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       body: Stack(
         children: [
           ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
             children: [
+              // ── شريط حالة النسخ السحابي ───────────────────
+              _BackupStatusBar(
+                lastBackupLabel: _formatBackupTime(_lastBackupAt),
+                txCount: widget.cubit.state.transactions.length,
+                isLoggedIn: _account != null,
+                isLoading: loading,
+                onUpload: _backupFirestore,
+              ),
+              const SizedBox(height: 18),
+
               // ── النسخ المحلي ────────────────────────────────
               _sectionHeader('النسخ المحلي', Icons.phone_android_rounded),
               _BackupCard(
@@ -766,6 +794,183 @@ class _SecondaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Backup Status Bar Widget
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BackupStatusBar extends StatelessWidget {
+  const _BackupStatusBar({
+    required this.lastBackupLabel,
+    required this.txCount,
+    required this.isLoggedIn,
+    required this.isLoading,
+    required this.onUpload,
+  });
+
+  final String lastBackupLabel;
+  final int txCount;
+  final bool isLoggedIn;
+  final bool isLoading;
+  final VoidCallback onUpload;
+
+  static const _green = Color(0xFF2F6F5E);
+  static const _orange = Color(0xFFC65D2E);
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBackup = lastBackupLabel != 'لم يتم النسخ بعد';
+    final statusColor = isLoggedIn
+        ? (hasBackup ? _green : _orange)
+        : const Color(0xFF888888);
+    final statusIcon = isLoggedIn
+        ? (hasBackup ? Icons.cloud_done_rounded : Icons.cloud_off_rounded)
+        : Icons.cloud_off_rounded;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // الصف الأول — الحالة + زر رفع
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(statusIcon, color: statusColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'حالة النسخة السحابية',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: statusColor,
+                      ),
+                    ),
+                    Text(
+                      isLoggedIn
+                          ? lastBackupLabel
+                          : 'سجل دخول لتفعيل النسخ السحابي',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: statusColor.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // زر رفع سريع
+              if (isLoggedIn)
+                isLoading
+                    ? SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: _green,
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: onUpload,
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.cloud_upload_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+            ],
+          ),
+
+          // الفاصل
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Divider(
+              height: 1,
+              color: statusColor.withValues(alpha: 0.15),
+            ),
+          ),
+
+          // الصف الثاني — تفاصيل
+          Row(
+            children: [
+              _chip(
+                icon: Icons.receipt_rounded,
+                label: '$txCount معاملة',
+                color: statusColor,
+              ),
+              const SizedBox(width: 8),
+              if (isLoggedIn && hasBackup)
+                _chip(
+                  icon: Icons.check_circle_rounded,
+                  label: 'محفوظة',
+                  color: _green,
+                ),
+              if (!isLoggedIn || !hasBackup)
+                _chip(
+                  icon: Icons.warning_amber_rounded,
+                  label: isLoggedIn ? 'لا يوجد نسخة' : 'غير مسجل',
+                  color: _orange,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
