@@ -191,6 +191,30 @@ class AllocationEntity {
   }
 }
 
+/// تصنيف مصدر فلوس الحصالة — label فقط بدون transactions فعلية
+class JarWalletSource {
+  const JarWalletSource({
+    required this.walletId,
+    required this.amount,
+  });
+
+  final String walletId;
+  final double amount;
+
+  JarWalletSource copyWith({String? walletId, double? amount}) =>
+      JarWalletSource(
+        walletId: walletId ?? this.walletId,
+        amount: amount ?? this.amount,
+      );
+
+  Map<String, dynamic> toMap() => {'walletId': walletId, 'amount': amount};
+
+  factory JarWalletSource.fromMap(Map<String, dynamic> map) => JarWalletSource(
+        walletId: map['walletId'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 class LinkedWalletEntityFunding {
   const LinkedWalletEntityFunding({
     required this.id,
@@ -230,6 +254,7 @@ class LinkedWalletEntity {
     required this.automationType,
     required this.categories,
     this.walletBalances = const {},
+    this.walletSources = const [],
   });
 
   final String id;
@@ -243,7 +268,30 @@ class LinkedWalletEntity {
   final String iconColor;
   final String automationType;
   final List<CategoryEntity> categories;
+
+  /// legacy field — kept for backward compat
   final Map<String, double> walletBalances;
+
+  /// مصادر الحصالة — label فقط، بدون transactions فعلية
+  final List<JarWalletSource> walletSources;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  /// مجموع المبالغ المصنفة من المحافظ
+  double get labeledTotal =>
+      walletSources.fold(0.0, (s, e) => s + e.amount);
+
+  /// الجزء غير المصنف من رصيد الحصالة
+  double get unlabeledAmount => (balance - labeledTotal).clamp(0.0, balance);
+
+  /// تحديث مصدر محفظة معينة (أو إضافته لو مش موجود)
+  LinkedWalletEntity withUpdatedSource(String walletId, double amount) {
+    final rest = walletSources.where((s) => s.walletId != walletId).toList();
+    if (amount > 0) {
+      rest.add(JarWalletSource(walletId: walletId, amount: amount));
+    }
+    return copyWith(walletSources: rest);
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -258,6 +306,7 @@ class LinkedWalletEntity {
         'automationType': automationType,
         'categories': categories.map((e) => e.toMap()).toList(),
         'walletBalances': walletBalances,
+        'walletSources': walletSources.map((s) => s.toMap()).toList(),
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -282,6 +331,10 @@ class LinkedWalletEntity {
         walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)
                 ?.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
             const {},
+        walletSources: (map['walletSources'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(JarWalletSource.fromMap)
+            .toList(),
       );
 
   LinkedWalletEntity copyWith({
@@ -297,6 +350,7 @@ class LinkedWalletEntity {
     String? automationType,
     List<CategoryEntity>? categories,
     Map<String, double>? walletBalances,
+    List<JarWalletSource>? walletSources,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -311,6 +365,7 @@ class LinkedWalletEntity {
       automationType: automationType ?? this.automationType,
       categories: categories ?? this.categories,
       walletBalances: walletBalances ?? this.walletBalances,
+      walletSources: walletSources ?? this.walletSources,
     );
   }
 }
