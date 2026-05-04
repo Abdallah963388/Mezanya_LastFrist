@@ -1181,7 +1181,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    r'${jar.balance.toStringAsFixed(2)} جنيه',
+                                    '${jar.balance.toStringAsFixed(2)} جنيه',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
