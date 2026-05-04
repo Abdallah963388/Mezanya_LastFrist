@@ -111,6 +111,13 @@ class AppStateEntity {
     );
   }
 
+  bool get isEmpty =>
+      transactions.isEmpty &&
+      recurringTransactions.isEmpty &&
+      budgetSetup.incomeSources.isEmpty &&
+      budgetSetup.allocations.isEmpty &&
+      wallets.every((w) => w.balance == 0);
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'wallets': wallets.map((wallet) => wallet.toMap()).toList(),

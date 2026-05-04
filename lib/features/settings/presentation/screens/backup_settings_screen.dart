@@ -7,6 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../../features/backup/backup_service.dart';
+import '../../../../features/backup/backup_conflict_dialog.dart';
 
 class BackupSettingsScreen extends StatefulWidget {
   final AppCubit cubit;
@@ -170,19 +172,66 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   Future<void> _backupFirestore() async {
     if (!_guardAuth()) return;
+
+    final appState = widget.cubit.state;
+
+    // لا نرفع نسخة فارغة أبداً
+    if (appState.isEmpty) {
+      _msg('لا توجد بيانات للرفع بعد');
+      return;
+    }
+
     try {
       setState(() => loading = true);
-      await FirebaseFirestore.instance
-          .collection('backups')
-          .doc(_account!.email)
-          .set({
-        'email': _account!.email,
-        'name': _account!.displayName,
-        'backup': widget.cubit.exportStateJson(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      _msg('تم رفع النسخة');
-    } catch (_) {
+
+      final email = _account!.email!;
+      final existingMeta = await BackupService.fetchMetadata(email);
+
+      if (existingMeta != null) {
+        // يوجد نسخة قديمة — نسأل المستخدم
+        if (!mounted) return;
+        final remoteTx =
+            (existingMeta['recordsCount']?['transactions'] as int?) ?? 0;
+        final remoteUpdatedAt = existingMeta['updatedAt'] is Timestamp
+            ? (existingMeta['updatedAt'] as Timestamp).toDate()
+            : null;
+
+        final choice = await BackupConflictDialog.show(
+          context,
+          remoteTxCount: remoteTx,
+          localTxCount: appState.transactions.length,
+          remoteUpdatedAt: remoteUpdatedAt,
+        );
+
+        if (choice == BackupConflictChoice.cancel) return;
+
+        if (choice == BackupConflictChoice.merge) {
+          // نجلب البيانات الكاملة ونعمل merge
+          final remoteJson = await BackupService.fetchData(email);
+          if (remoteJson != null) {
+            await widget.cubit.mergeStateJson(remoteJson);
+          }
+        }
+        // في حالة overwrite أو بعد merge — نرفع الحالة الحالية
+      }
+
+      final currentState = widget.cubit.state;
+      await BackupService.upload(
+        email: email,
+        displayName: _account!.displayName ?? '',
+        jsonData: widget.cubit.exportStateJson(),
+        txCount: currentState.transactions.length,
+        walletCount: currentState.wallets.length,
+        recurringCount: currentState.recurringTransactions.length,
+      );
+
+      // نحفظ وقت آخر رفع محلياً
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'last_cloud_backup_at', DateTime.now().toIso8601String());
+
+      _msg('تم رفع النسخة بنجاح ✓');
+    } catch (e) {
       _msg('فشل رفع النسخة');
     } finally {
       if (mounted) setState(() => loading = false);
@@ -193,17 +242,13 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     if (!_guardAuth()) return;
     try {
       setState(() => loading = true);
-      final doc = await FirebaseFirestore.instance
-          .collection('backups')
-          .doc(_account!.email)
-          .get();
-      if (!doc.exists || doc.data() == null) {
-        _msg('لا توجد نسخة');
+      final json = await BackupService.fetchData(_account!.email!);
+      if (json == null) {
+        _msg('لا توجد نسخة محفوظة');
         return;
       }
-      final json = doc.data()!['backup'];
-      await widget.cubit.importStateJson(json.toString());
-      _msg('تم الاسترجاع');
+      await widget.cubit.importStateJson(json);
+      _msg('تم الاسترجاع بنجاح ✓');
     } catch (_) {
       _msg('فشل الاسترجاع');
     } finally {

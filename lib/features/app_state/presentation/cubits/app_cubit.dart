@@ -1023,6 +1023,60 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> mergeStateJson(String remoteJson) async {
+    final remoteMap = jsonDecode(remoteJson) as Map<String, dynamic>;
+    final remote = AppStateEntity.fromMap(remoteMap);
+    final local = state;
+
+    final mergedWallets = {
+      for (final w in [...local.wallets, ...remote.wallets]) w.id: w,
+    }.values.toList();
+
+    final mergedTx = {
+      for (final t in [...local.transactions, ...remote.transactions]) t.id: t,
+    }.values.toList();
+
+    final mergedRecurring = {
+      for (final r in [
+        ...local.recurringTransactions,
+        ...remote.recurringTransactions
+      ])
+        r.id: r,
+    }.values.toList();
+
+    final mergedGoals = {
+      for (final g in [...local.goals, ...remote.goals]) g.id: g,
+    }.values.toList();
+
+    final mergedCategories = {
+      for (final c in [...local.categories, ...remote.categories]) c.id: c,
+    }.values.toList();
+
+    final localBudgetNewer = local.lastAutoBackupAt.compareTo(
+          remote.lastAutoBackupAt,
+        ) >=
+        0;
+    final budget =
+        localBudgetNewer ? local.budgetSetup : remote.budgetSetup;
+
+    final next = local.copyWith(
+      wallets: mergedWallets,
+      transactions: mergedTx,
+      recurringTransactions: mergedRecurring,
+      goals: mergedGoals,
+      categories: mergedCategories,
+      budgetSetup: budget,
+    );
+
+    await _applyAndLog(
+      action: 'import',
+      entityType: 'backup',
+      entityId: 'merge',
+      details: 'تم دمج النسخة الاحتياطية مع البيانات المحلية',
+      apply: () async => next,
+    );
+  }
+
   Future<void> resetAllData() async {
     final next = AppStateEntity.initial();
     await _applyAndLog(

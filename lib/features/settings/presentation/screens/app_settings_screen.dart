@@ -3,13 +3,17 @@ import 'dart:developer';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
 import 'package:mezanya_app/features/app_state/presentation/cubits/app_cubit.dart';
+import 'package:mezanya_app/features/backup/backup_service.dart';
+import 'package:mezanya_app/features/backup/restore_prompt_dialog.dart';
 import 'backup_settings_screen.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -214,8 +218,67 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         googleEmail: account.email,
       );
       setState(() => _account = account);
+
+      // بعد تسجيل الدخول — نتحقق من وجود نسخة على السحابة
+      await _checkAndPromptRestore(account.email);
     } catch (e) {
       log('$e');
+    }
+  }
+
+  Future<void> _checkAndPromptRestore(String email) async {
+    try {
+      // نتحقق إذا سبق وسألنا المستخدم لهذا الحساب
+      final prefs = await SharedPreferences.getInstance();
+      final promptKey = 'restore_prompt_shown_$email';
+      final alreadyShown = prefs.getBool(promptKey) ?? false;
+      if (alreadyShown) return;
+
+      // البيانات المحلية فارغة؟
+      if (!widget.cubit.state.isEmpty) {
+        await prefs.setBool(promptKey, true);
+        return;
+      }
+
+      // جلب الـ metadata بكول خفيف
+      final meta = await BackupService.fetchMetadata(email);
+      if (meta == null) {
+        await prefs.setBool(promptKey, true);
+        return;
+      }
+
+      final txCount =
+          (meta['recordsCount']?['transactions'] as int?) ?? 0;
+      final walletCount =
+          (meta['recordsCount']?['wallets'] as int?) ?? 0;
+      final updatedAt = meta['updatedAt'] is Timestamp
+          ? (meta['updatedAt'] as Timestamp).toDate()
+          : null;
+
+      if (!mounted) return;
+
+      final restore = await RestorePromptDialog.show(
+        context,
+        txCount: txCount,
+        walletCount: walletCount,
+        updatedAt: updatedAt,
+      );
+
+      await prefs.setBool(promptKey, true);
+
+      if (restore) {
+        final json = await BackupService.fetchData(email);
+        if (json != null) {
+          await widget.cubit.importStateJson(json);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('تم استعادة بياناتك بنجاح ✓')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      log('restore check error: $e');
     }
   }
 
