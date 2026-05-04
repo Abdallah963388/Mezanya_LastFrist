@@ -80,11 +80,14 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if ((state == AppLifecycleState.paused ||
-            state == AppLifecycleState.detached) &&
-        localFreq == BackupFrequency.onExit &&
-        localPath != null) {
-      _saveLocal(silent: true);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (localFreq == BackupFrequency.onExit && localPath != null) {
+        _saveLocal(silent: true);
+      }
+      if (cloudFreq == BackupFrequency.onExit && _account != null) {
+        _backupFirestoreSilent();
+      }
     }
   }
 
@@ -167,16 +170,25 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   Future<void> _saveLocal({bool silent = false}) async {
     if (localPath == null) {
-      _msg('حدد مكان الحفظ أولًا');
-      return;
+      // لا يوجد مجلد — اطلب الصلاحية واختر مجلداً أولاً
+      final ok = await _requestStoragePermission();
+      if (!ok) return;
+      final picked = await FilePicker.getDirectoryPath();
+      if (picked == null) return;
+      setState(() => localPath = picked);
+      await _savePrefs();
     }
-    final path = '$localPath${Platform.pathSeparator}mezanya_backup.json';
-    final file = File(path);
-    if (!await file.exists()) {
-      await file.create(recursive: true);
+    try {
+      final path = '$localPath${Platform.pathSeparator}mezanya_backup.json';
+      final file = File(path);
+      if (!await file.exists()) {
+        await file.create(recursive: true);
+      }
+      await file.writeAsString(widget.cubit.exportStateJson(), flush: true);
+      if (!silent) _msg('تم حفظ النسخة محليًا ✓');
+    } catch (_) {
+      if (!silent) _msg('فشل حفظ النسخة');
     }
-    await file.writeAsString(widget.cubit.exportStateJson(), flush: true);
-    if (!silent) _msg('تم حفظ النسخة محليًا');
   }
 
   Future<void> _restoreLocal() async {
