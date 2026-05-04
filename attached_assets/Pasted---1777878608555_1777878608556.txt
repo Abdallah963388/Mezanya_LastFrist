@@ -1,0 +1,172 @@
+## خطة نظام الباك آب الشامل
+
+---
+
+### المشكلة الحالية
+
+التطبيق بيرفع نسخة فارغة فوق النسخة القديمة لأنه مفيش logic بيفرق بين:
+1. أول تشغيل للتطبيق (بيانات فارغة)
+2. تشغيل بعد استخدام فعلي
+
+---
+
+### الحل: 3 حالات أساسية
+
+**الحالة 1 — أول تشغيل + سجّل دخول:**
+```
+التطبيق يفتح → يكتشف مفيش بيانات محلية
+→ يتحقق من Firebase
+→ لو لاقى نسخة → يسأل اليوزر "عندك بيانات محفوظة، تحمّلها؟"
+→ لو قبل: ينزل ويحمّل
+→ لو رفض: يبدأ من جديد وما يرفعش حاجة
+```
+
+**الحالة 2 — استخدم التطبيق + عايز يرفع:**
+```
+اليوزر يدوس "رفع نسخة الآن"
+→ التطبيق يتحقق من Firebase
+→ لو لاقى نسخة قديمة → يسأل "تستبدل ولا تدمج؟"
+   - استبدل: يرفع النسخة الجديدة فوق القديمة
+   - دمج: يدمج البيانات ويرفع (merge logic)
+→ لو مفيش نسخة قديمة → يرفع مباشرة
+```
+
+**الحالة 3 — مش مسجّل دخول:**
+```
+لا يرفع على Firebase نهائياً
+→ يحفظ محلياً بس
+→ لما يسجّل دخول → الحالة 1
+```
+
+---
+
+### التفاصيل التقنية
+
+#### `BackupMetadata` — كل نسخة عندها:
+```json
+{
+  "userId": "...",
+  "deviceId": "...",
+  "appVersion": "1.0.0",
+  "createdAt": "2026-05-01T10:00:00",
+  "recordsCount": {
+    "transactions": 142,
+    "wallets": 3,
+    "recurringTransactions": 8
+  },
+  "isEmpty": false,
+  "backupVersion": 2
+}
+```
+
+#### Firebase Structure:
+```
+users/{userId}/
+  backups/
+    metadata.json    ← بيانات خفيفة بس (للمقارنة)
+    data.json        ← البيانات الكاملة
+  backup_history/
+    {timestamp}.json ← آخر 3 نسخ (للـ rollback)
+```
+
+---
+
+### قواعد مهمة للـ Merge
+
+لما اليوزر يختار "دمج":
+- **المحافظ والمخصصات:** اللي على Firebase + اللي محلي (بدون تكرار بالـ ID)
+- **المعاملات:** دمج كامل + remove duplicates بالـ ID
+- **الإعدادات والميزانية:** الأحدث بيتاريخه يكسب
+- **المعاملات المتكررة:** دمج + remove duplicates
+
+---
+
+### الـ Flow الكامل في الكود
+
+```
+AppStartup:
+1. Load local data
+2. Check if user is logged in
+3. If logged in:
+   a. Fetch backup metadata only (light call)
+   b. Compare: local.isEmpty && remote.hasData → show RestorePromptDialog
+   c. Compare: local.hasData && remote.hasData && remote.isNewer → show NewerBackupDialog (optional)
+4. If not logged in: proceed normally
+
+BackupManager.upload():
+1. Build metadata
+2. Check isEmpty → if true, ABORT (never upload empty)
+3. Check Firebase for existing backup
+4. If exists → show OverwriteOrMergeDialog
+5. Execute chosen action
+6. Save last backup timestamp locally
+
+BackupManager.restore():
+1. Show confirmation
+2. Download data.json
+3. Parse + validate
+4. Replace or merge with local
+5. Reload app state
+```
+
+---
+
+### الـ isEmpty Detection
+
+مهم جداً — التطبيق يعتبر البيانات "فارغة" لو:
+```dart
+bool get isEmpty =>
+  wallets.isEmpty &&
+  transactions.isEmpty &&
+  recurringTransactions.isEmpty &&
+  budgetSetup.incomeSources.isEmpty &&
+  budgetSetup.allocations.isEmpty;
+```
+
+---
+
+### الـ UI المطلوب تنفيذه
+
+**1. `RestorePromptDialog`** — بيظهر مرة واحدة عند أول تسجيل دخول:
+```
+┌─────────────────────────────┐
+│  💾 عندك نسخة محفوظة       │
+│  142 معاملة · 3 محافظ      │
+│  آخر تحديث: 1 مايو 2026    │
+│                             │
+│  [تجاهل]    [استعادة الآن] │
+└─────────────────────────────┘
+```
+
+**2. `BackupConflictDialog`** — لما يرفع وفيه بيانات قديمة:
+```
+┌─────────────────────────────┐
+│  ⚠️ عندك نسخة محفوظة بالفعل│
+│                             │
+│  المحفوظة: 142 معاملة      │
+│  الحالية:  89 معاملة       │
+│                             │
+│  [استبدل]  [دمج]  [إلغاء] │
+└─────────────────────────────┘
+```
+
+**3. في صفحة الإعدادات:** شريط حالة الباك آب:
+```
+✅ آخر نسخ: اليوم 10:30 ص
+[رفع الآن] [استعادة]
+```
+
+---
+
+### الأولويات للـ Implementation
+
+1. `BackupMetadata` entity
+2. `isEmpty` check — **الأهم** عشان يمنع رفع نسخة فارغة
+3. `RestorePromptDialog` — يظهر مرة واحدة بس (يتحفظ في SharedPreferences `restorePromptShown`)
+4. `BackupConflictDialog`
+5. Merge logic
+6. Backup history (آخر 3 نسخ)
+
+---
+
+ابعت الخطة دي لـ Replit وهو هينفذها. أهم حاجة تأكد إنه يفهم نقطة الـ `isEmpty` check لأنها اللي بتحل المشكلة الأساسية.
