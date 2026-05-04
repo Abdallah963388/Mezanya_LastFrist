@@ -2248,92 +2248,159 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   Future<void> _openWalletTransferDialog() async {
     final wallets = widget.cubit.state.wallets;
-    if (wallets.length < 2) {
-      return;
-    }
+    if (wallets.length < 2) return;
     var fromId = wallets.first.id;
     var toId = wallets[1].id;
     final amountController = TextEditingController();
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تحويل بين المحافظ'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: fromId,
-                decoration: const InputDecoration(labelText: 'من محفظة'),
-                items: wallets
-                    .map(
-                      (wallet) => DropdownMenuItem<String>(
-                        value: wallet.id,
-                        child: Text(wallet.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setDialogState(() => fromId = value);
-                },
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: toId,
-                decoration: const InputDecoration(labelText: 'إلى محفظة'),
-                items: wallets
-                    .map(
-                      (wallet) => DropdownMenuItem<String>(
-                        value: wallet.id,
-                        child: Text(wallet.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setDialogState(() => toId = value);
-                },
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'المبلغ'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إلغاء'),
+        builder: (context, setDialogState) {
+          final fromWallet = wallets.firstWhere((w) => w.id == fromId);
+          final toWallet = wallets.firstWhere((w) => w.id == toId);
+
+          return Container(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFFBF1),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
             ),
-            FilledButton(
-              onPressed: () async {
-                final amount =
-                    double.tryParse(amountController.text.trim()) ?? 0;
-                if (amount <= 0 || fromId == toId) {
-                  return;
-                }
-                await widget.cubit.addTransaction(
-                  type: 'transfer',
-                  amount: amount,
-                  fromWalletId: fromId,
-                  toWalletId: toId,
-                  transferType: 'wallet-to-wallet',
-                  notes: 'تحويل بين المحافظ',
-                );
-                if (!mounted) {
-                  return;
-                }
-                Navigator.of(context).pop();
-              },
-              child: const Text('تنفيذ'),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const Text('تحويل بين المحافظ', textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 24),
+
+                  // من
+                  _WalletPickerTile(
+                    label: 'من',
+                    wallet: fromWallet,
+                    onTap: () => _showWalletPicker(
+                      title: 'اختر المحفظة المصدر',
+                      wallets: wallets,
+                      excludeId: toId,
+                      onSelected: (id) => setDialogState(() => fromId = id),
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.black26, size: 28),
+                  ),
+
+                  // إلى
+                  _WalletPickerTile(
+                    label: 'إلى',
+                    wallet: toWallet,
+                    onTap: () => _showWalletPicker(
+                      title: 'اختر المحفظة الوجهة',
+                      wallets: wallets,
+                      excludeId: fromId,
+                      onSelected: (id) => setDialogState(() => toId = id),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    decoration: InputDecoration(
+                      labelText: 'المبلغ',
+                      prefixIcon: const Icon(Icons.monetization_on_outlined),
+                      suffixText: 'جنيه',
+                      helperText: 'الرصيد المتاح: ${fromWallet.balance.toStringAsFixed(2)} جنيه',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+
+                  const SizedBox(height: 32),
+                  FilledButton(
+                    onPressed: () async {
+                      final amount = double.tryParse(amountController.text.trim()) ?? 0;
+                      if (amount <= 0 || fromId == toId) return;
+                      Navigator.of(context).pop();
+                      await widget.cubit.addTransaction(
+                        type: 'transfer',
+                        amount: amount,
+                        fromWalletId: fromId,
+                        toWalletId: toId,
+                        transferType: 'wallet-to-wallet',
+                        notes: 'تحويل بين المحافظ',
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: const Color(0xFF165B47),
+                    ),
+                    child: const Text('تأكيد التحويل',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showWalletPicker({
+    required String title,
+    required List<WalletEntity> wallets,
+    required String excludeId,
+    required void Function(String id) onSelected,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        children: [
+          Text(title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          ...wallets
+              .where((w) => w.id != excludeId)
+              .map((w) => ListTile(
+                    leading: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: _parseColor(w.iconColor ?? '#165b47').withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: AppIconPickerDialog.iconWidgetForName(w.icon ?? 'account_balance_wallet',
+                            color: _parseColor(w.iconColor ?? '#165b47'), size: 22),
+                      ),
+                    ),
+                    title: Text(w.name,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text('${w.balance.toStringAsFixed(2)} جنيه'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      onSelected(w.id);
+                    },
+                  )),
+        ],
       ),
     );
   }
@@ -2345,107 +2412,190 @@ class _WalletsScreenState extends State<WalletsScreen> {
     var selectedColor = current?.iconColor ?? '#165b47';
     var selectedIcon = current?.icon ?? 'account_balance_wallet';
 
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(current == null ? 'إضافة محفظة' : 'تعديل المحفظة'),
-          content: SizedBox(
-            width: 540,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'اسم المحفظة'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: balanceController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'الرصيد الفعلي',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await AppIconPickerDialog.show(
-                        context,
-                        initialIconName: selectedIcon,
-                        initialColorHex: selectedColor,
-                        title: 'اختيار أيقونة المحفظة',
-                        name: nameController.text,
-                      );
-                      if (picked == null) {
-                        return;
-                      }
-                      setDialogState(() {
-                        selectedIcon = picked.iconName;
-                        selectedColor = picked.colorHex;
-                      });
-                    },
-                    icon: const Icon(Icons.palette_outlined),
-                    label: const Text('اختيار الأيقونة واللون'),
-                  ),
-                ],
+        builder: (context, setDialogState) {
+          final accent = _parseColor(selectedColor);
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFFBF1),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
-            ),
-          ),
-          actions: [
-            if (current != null)
-              TextButton(
-                onPressed: () async {
-                  await widget.cubit.deleteWallet(current.id);
-                  if (!mounted) {
-                    return;
-                  }
-                  Navigator.of(this.context).pop();
-                },
-                child: const Text(
-                  'حذف',
-                  style: TextStyle(color: Color(0xFFB3261E)),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                            color: Colors.black12,
+                            borderRadius: BorderRadius.circular(2)),
+                      ),
+                    ),
+
+                    // أيقونة + اسم
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () async {
+                            final picked = await AppIconPickerDialog.show(
+                              context,
+                              initialIconName: selectedIcon,
+                              initialColorHex: selectedColor,
+                              title: 'اختيار أيقونة المحفظة',
+                              name: nameController.text.isEmpty
+                                  ? 'محفظة جديدة'
+                                  : nameController.text,
+                            );
+                            if (picked == null) return;
+                            setDialogState(() {
+                              selectedIcon = picked.iconName;
+                              selectedColor = picked.colorHex;
+                            });
+                          },
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: accent.withValues(alpha: 0.3),
+                                  width: 2),
+                            ),
+                            child: Stack(
+                              children: [
+                                Center(
+                                  child: AppIconPickerDialog.iconWidgetForName(
+                                      selectedIcon, color: accent, size: 28),
+                                ),
+                                Positioned(
+                                  bottom: 4, left: 4,
+                                  child: Container(
+                                    width: 18, height: 18,
+                                    decoration: BoxDecoration(
+                                      color: accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.edit_rounded,
+                                        size: 10, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                current == null ? 'محفظة جديدة' : 'تعديل المحفظة',
+                                style: const TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.w900),
+                              ),
+                              const SizedBox(height: 2),
+                              Text('اضغط الأيقونة لتغيير الشكل واللون',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: accent.withValues(alpha: 0.7),
+                                      fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: nameController,
+                      autofocus: current == null,
+                      decoration:
+                          const InputDecoration(labelText: 'اسم المحفظة',
+                              prefixIcon: Icon(Icons.label_outline_rounded)),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: balanceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'الرصيد الفعلي',
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        suffixText: 'جنيه',
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+                    FilledButton(
+                      onPressed: () async {
+                        final name = nameController.text.trim();
+                        final balance =
+                            double.tryParse(balanceController.text.trim()) ?? 0;
+                        if (name.isEmpty) return;
+                        Navigator.of(context).pop();
+                        if (current == null) {
+                          await widget.cubit.addWallet(
+                            name: name,
+                            openingBalance: balance,
+                            icon: selectedIcon,
+                            iconColor: selectedColor,
+                          );
+                        } else {
+                          await widget.cubit.updateWallet(
+                            id: current.id,
+                            name: name,
+                            balance: balance,
+                            icon: selectedIcon,
+                            iconColor: selectedColor,
+                          );
+                        }
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: accent,
+                      ),
+                      child: Text(
+                        current == null ? 'إضافة المحفظة' : 'حفظ التعديلات',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+
+                    if (current != null) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          await widget.cubit.deleteWallet(current.id);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(color: Color(0xFFE53935)),
+                          foregroundColor: const Color(0xFFE53935),
+                        ),
+                        child: const Text('حذف المحفظة',
+                            style: TextStyle(fontWeight: FontWeight.w800)),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إلغاء'),
             ),
-            FilledButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final balance =
-                    double.tryParse(balanceController.text.trim()) ?? 0;
-                if (name.isEmpty) {
-                  return;
-                }
-                if (current == null) {
-                  await widget.cubit.addWallet(
-                    name: name,
-                    openingBalance: balance,
-                    icon: selectedIcon,
-                    iconColor: selectedColor,
-                  );
-                } else {
-                  await widget.cubit.updateWallet(
-                    id: current.id,
-                    name: name,
-                    balance: balance,
-                    icon: selectedIcon,
-                    iconColor: selectedColor,
-                  );
-                }
-                if (!mounted) {
-                  return;
-                }
-                Navigator.of(this.context).pop();
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -3942,6 +4092,111 @@ class _EmptyStateCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WalletPickerTile extends StatelessWidget {
+  const _WalletPickerTile({
+    required this.label,
+    required this.wallet,
+    required this.onTap,
+  });
+
+  final String label;
+  final WalletEntity wallet;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Color(
+      0xFF000000 | int.parse(
+          (wallet.iconColor ?? '#165b47').replaceFirst('#', ''), radix: 16),
+    );
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: AppIconPickerDialog.iconWidgetForName(
+                  wallet.icon ?? 'account_balance_wallet',
+                  color: accent,
+                  size: 22,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: accent.withValues(alpha: 0.7),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    wallet.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text(
+                  'الرصيد',
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black38),
+                ),
+                Text(
+                  wallet.balance.toStringAsFixed(2),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: accent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.edit_note_rounded,
+                color: accent.withValues(alpha: 0.4), size: 20),
+          ],
+        ),
       ),
     );
   }

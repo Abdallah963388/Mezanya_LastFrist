@@ -623,7 +623,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final icons = AppIconPickerDialog.iconsForCategory(_selectedCategoryId);
-    const contentHeight = 340.0;
+    const contentHeight = 460.0;
     final dialogWidth = math.min(520.0, MediaQuery.of(context).size.width - 32.0);
 
     return ClipRRect(
@@ -687,22 +687,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                         ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEEDE6),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: Color(0xFF666660),
-                        ),
-                      ),
-                    ),
+                    const SizedBox(width: 8),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -768,28 +753,35 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                 // ── Action Buttons ──
                 Row(
                   children: [
-                    if (_step == 1) ...[
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => setState(() => _step = 0),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            side: const BorderSide(color: Color(0xFFCCCBC3)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                    // زرار الإلغاء (step 0) أو الرجوع (step 1)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _step == 0
+                            ? () => Navigator.pop(context)
+                            : () => setState(() => _step = 0),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          side: BorderSide(
+                            color: _step == 0
+                                ? const Color(0xFFE53935)
+                                : const Color(0xFFCCCBC3),
+                            width: 1.5,
                           ),
-                          child: const Text(
-                            'رجوع',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF555550),
-                            ),
+                          foregroundColor: _step == 0
+                              ? const Color(0xFFE53935)
+                              : const Color(0xFF555550),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
+                        child: Text(
+                          _step == 0 ? 'إلغاء' : 'رجوع',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                    ],
+                    ),
+                    const SizedBox(width: 10),
+                    // زرار التالي (step 0) أو التأكيد (step 1)
                     Expanded(
                       flex: 2,
                       child: FilledButton(
@@ -810,7 +802,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                           ),
                         ),
                         child: Text(
-                          _step == 0 ? 'التالي — اختيار اللون' : 'تأكيد الاختيار',
+                          _step == 0 ? 'التالي' : 'تأكيد',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
