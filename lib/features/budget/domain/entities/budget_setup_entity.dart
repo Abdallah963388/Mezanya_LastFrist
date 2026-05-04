@@ -1,4 +1,4 @@
-﻿import '../../../categories/domain/entities/category_entity.dart';
+import '../../../categories/domain/entities/category_entity.dart';
 
 class IncomeSourceEntity {
   const IncomeSourceEntity({
@@ -114,35 +114,42 @@ class AllocationEntity {
   const AllocationEntity({
     required this.id,
     required this.name,
+    this.balance = 0,
     required this.icon,
     required this.iconColor,
     required this.rolloverBehavior,
     required this.funding,
     required this.categories,
+    this.walletBalances = const {},
   });
 
   final String id;
   final String name;
+  final double balance;
   final String icon;
   final String iconColor;
   final String rolloverBehavior;
   final List<AllocationFundingEntity> funding;
   final List<CategoryEntity> categories;
+  final Map<String, double> walletBalances;
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
+        'balance': balance,
         'icon': icon,
         'iconColor': iconColor,
         'rolloverBehavior': rolloverBehavior,
         'funding': funding.map((e) => e.toMap()).toList(),
         'categories': categories.map((e) => e.toMap()).toList(),
+        'walletBalances': walletBalances,
       };
 
   factory AllocationEntity.fromMap(Map<String, dynamic> map) =>
       AllocationEntity(
         id: map['id'] as String? ?? '',
         name: map['name'] as String? ?? '',
+        balance: (map['balance'] as num?)?.toDouble() ?? 0,
         icon: map['icon'] as String? ?? 'category',
         iconColor: map['iconColor'] as String? ?? '#165b47',
         rolloverBehavior: map['rolloverBehavior'] as String? ?? 'to-savings',
@@ -154,7 +161,34 @@ class AllocationEntity {
             .whereType<Map<String, dynamic>>()
             .map(CategoryEntity.fromMap)
             .toList(),
+        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)
+                ?.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
+            const {},
       );
+
+  AllocationEntity copyWith({
+    String? id,
+    String? name,
+    double? balance,
+    String? icon,
+    String? iconColor,
+    String? rolloverBehavior,
+    List<AllocationFundingEntity>? funding,
+    List<CategoryEntity>? categories,
+    Map<String, double>? walletBalances,
+  }) {
+    return AllocationEntity(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      balance: balance ?? this.balance,
+      icon: icon ?? this.icon,
+      iconColor: iconColor ?? this.iconColor,
+      rolloverBehavior: rolloverBehavior ?? this.rolloverBehavior,
+      funding: funding ?? this.funding,
+      categories: categories ?? this.categories,
+      walletBalances: walletBalances ?? this.walletBalances,
+    );
+  }
 }
 
 class LinkedWalletEntityFunding {
@@ -186,7 +220,7 @@ class LinkedWalletEntity {
   const LinkedWalletEntity({
     required this.id,
     required this.name,
-    required this.balance,
+    this.balance = 0,
     required this.monthlyAmount,
     required this.executionDay,
     required this.fundingSource,
@@ -195,6 +229,7 @@ class LinkedWalletEntity {
     required this.iconColor,
     required this.automationType,
     required this.categories,
+    this.walletBalances = const {},
   });
 
   final String id;
@@ -208,6 +243,7 @@ class LinkedWalletEntity {
   final String iconColor;
   final String automationType;
   final List<CategoryEntity> categories;
+  final Map<String, double> walletBalances;
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -221,6 +257,7 @@ class LinkedWalletEntity {
         'iconColor': iconColor,
         'automationType': automationType,
         'categories': categories.map((e) => e.toMap()).toList(),
+        'walletBalances': walletBalances,
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -242,7 +279,40 @@ class LinkedWalletEntity {
             .whereType<Map<String, dynamic>>()
             .map(CategoryEntity.fromMap)
             .toList(),
+        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)
+                ?.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
+            const {},
       );
+
+  LinkedWalletEntity copyWith({
+    String? id,
+    String? name,
+    double? balance,
+    double? monthlyAmount,
+    int? executionDay,
+    String? fundingSource,
+    List<LinkedWalletEntityFunding>? funding,
+    String? icon,
+    String? iconColor,
+    String? automationType,
+    List<CategoryEntity>? categories,
+    Map<String, double>? walletBalances,
+  }) {
+    return LinkedWalletEntity(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      balance: balance ?? this.balance,
+      monthlyAmount: monthlyAmount ?? this.monthlyAmount,
+      executionDay: executionDay ?? this.executionDay,
+      fundingSource: fundingSource ?? this.fundingSource,
+      funding: funding ?? this.funding,
+      icon: icon ?? this.icon,
+      iconColor: iconColor ?? this.iconColor,
+      automationType: automationType ?? this.automationType,
+      categories: categories ?? this.categories,
+      walletBalances: walletBalances ?? this.walletBalances,
+    );
+  }
 }
 
 /// kind values:

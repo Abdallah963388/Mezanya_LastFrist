@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -35,11 +35,13 @@ class AppIconPickerDialog extends StatefulWidget {
     required this.initialIconName,
     required this.initialColorHex,
     this.title = 'تخصيص الأيقونة',
+    this.name,
   });
 
   final String initialIconName;
   final String initialColorHex;
   final String title;
+  final String? name;
 
   static const categoryLabels = <String, String>{
     'all': 'عام',
@@ -574,14 +576,18 @@ class AppIconPickerDialog extends StatefulWidget {
     required String initialIconName,
     required String initialColorHex,
     String title = 'تخصيص الأيقونة',
+    String? name,
   }) {
     return showDialog<IconPickerResult>(
       context: context,
       builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
         child: AppIconPickerDialog(
           initialIconName: initialIconName,
           initialColorHex: initialColorHex,
           title: title,
+          name: name,
         ),
       ),
     );
@@ -596,6 +602,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   late String _selectedIconName;
   late Color _selectedColor;
   int _step = 0;
+  bool _useCustomPicker = false;
 
   static const _presetHexColors = [
     '#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB',
@@ -616,7 +623,7 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   @override
   Widget build(BuildContext context) {
     final icons = AppIconPickerDialog.iconsForCategory(_selectedCategoryId);
-    const contentHeight = 300.0;
+    const contentHeight = 340.0;
     final dialogWidth = math.min(520.0, MediaQuery.of(context).size.width - 32.0);
 
     return ClipRRect(
@@ -635,44 +642,46 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                 Row(
                   children: [
                     Container(
-                      width: 54,
-                      height: 54,
+                      width: 58,
+                      height: 58,
                       decoration: BoxDecoration(
-                        color: _selectedColor.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(17),
+                        color: _selectedColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: _selectedColor.withValues(alpha: 0.35),
-                          width: 1.5,
+                          color: _selectedColor.withValues(alpha: 0.25),
+                          width: 2,
                         ),
                       ),
                       child: Center(
                         child: AppIconPickerDialog.iconWidgetForName(
                           _selectedIconName,
                           color: _selectedColor,
-                          size: 25,
+                          size: 28,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.title,
+                            widget.name ?? widget.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
                               color: Color(0xFF1A1A1A),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _step == 0 ? 'اختر أيقونة مناسبة' : 'اختر لوناً مناسباً',
-                            style: const TextStyle(
+                            _step == 0 ? 'اختر الأيقونة' : 'اختر اللون',
+                            style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF888880),
+                              fontWeight: FontWeight.w700,
+                              color: _selectedColor.withValues(alpha: 0.7),
                             ),
                           ),
                         ],
@@ -696,45 +705,63 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 20),
 
                 // ── Step Toggle ──
                 _stepToggle(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
                 // ── Content ──
-                if (_step == 0) ...[
-                  _categoryChips(),
-                  const SizedBox(height: 10),
-                  Container(
-                    height: contentHeight,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0xFFE0DED6)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: _iconGrid(icons),
-                      ),
-                    ),
+                SizedBox(
+                  height: contentHeight,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _step == 0 
+                      ? Column(
+                          key: const ValueKey('step0'),
+                          children: [
+                            _categoryChips(),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE0DED6)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: _iconGrid(icons),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          key: const ValueKey('step1'),
+                          children: [
+                            _colorPickerToggle(),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: const Color(0xFFE0DED6)),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: _colorStep(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                   ),
-                ] else ...[
-                  Container(
-                    height: contentHeight + 60,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0xFFE0DED6)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: _colorStep(),
-                    ),
-                  ),
-                ],
+                ),
 
                 const SizedBox(height: 16),
 
@@ -803,16 +830,16 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
 
   Widget _stepToggle() {
     return Container(
-      height: 46,
-      padding: const EdgeInsets.all(4),
+      height: 52,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: const Color(0xFFEEEDE6),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           _stepTab(0, 'الأيقونة', Icons.grid_view_rounded),
-          const SizedBox(width: 5),
+          const SizedBox(width: 8),
           _stepTab(1, 'اللون', Icons.palette_outlined),
         ],
       ),
@@ -825,16 +852,17 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
       child: GestureDetector(
         onTap: () => setState(() => _step = step),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: active ? _selectedColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: active
                 ? [
                     BoxShadow(
-                      color: _selectedColor.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: _selectedColor.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     )
                   ]
                 : null,
@@ -844,16 +872,66 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
             children: [
               Icon(
                 icon,
-                size: 15,
+                size: 18,
                 color: active ? Colors.white : const Color(0xFF888880),
               ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: active ? Colors.white : const Color(0xFF888880),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _colorPickerToggle() {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEEDE6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _colorToggleTab(false, 'ألوان مقترحة', Icons.auto_awesome_rounded),
+          const SizedBox(width: 4),
+          _colorToggleTab(true, 'لون مخصص', Icons.colorize_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _colorToggleTab(bool custom, String label, IconData icon) {
+    final active = _useCustomPicker == custom;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _useCustomPicker = custom),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: active ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: active ? [const BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))] : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: active ? _selectedColor : const Color(0xFF888880)),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: active ? Colors.white : const Color(0xFF888880),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: active ? Colors.black : const Color(0xFF888880),
                 ),
               ),
             ],
@@ -933,9 +1011,9 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                 childCount: groupIcons.length,
               ),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 6,
-                mainAxisSpacing: 7,
-                crossAxisSpacing: 7,
+                crossAxisCount: 5,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
                 childAspectRatio: 1,
               ),
             ),
@@ -946,9 +1024,9 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
     return GridView.builder(
       itemCount: icons.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        mainAxisSpacing: 7,
-        crossAxisSpacing: 7,
+        crossAxisCount: 5,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
         childAspectRatio: 1,
       ),
       itemBuilder: (context, index) => _iconCell(icons[index]),
@@ -965,16 +1043,16 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
           color: active
               ? _selectedColor.withValues(alpha: 0.12)
               : const Color(0xFFF8F7F0),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: active ? _selectedColor : const Color(0xFFE0DED6),
-            width: active ? 1.8 : 1,
+            width: active ? 2.5 : 1,
           ),
         ),
         child: Center(
           child: AppIconPickerDialog.iconWidgetForName(
             item.name,
-            size: 20,
+            size: 26,
             color: active ? _selectedColor : const Color(0xFF999990),
           ),
         ),
@@ -983,91 +1061,72 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   }
 
   Widget _colorStep() {
+    if (_useCustomPicker) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: _ColorBoxPicker(
+            color: _selectedColor,
+            onChanged: (c) => setState(() => _selectedColor = c),
+          ),
+        ),
+      );
+    }
+
     final colorHex = _colorToHex(_selectedColor);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'ألوان مقترحة',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF555550),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _presetHexColors.map((hex) {
-              final color = _hexToColor(hex);
-              final selected = colorHex.toLowerCase() == hex.toLowerCase();
-              return GestureDetector(
-                onTap: () => setState(() => _selectedColor = color),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(
-                      color: selected ? Colors.white : Colors.transparent,
-                      width: 3,
-                    ),
-                    boxShadow: selected
-                        ? [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.55),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            )
-                          ]
-                        : [
-                            const BoxShadow(
-                              color: Color(0x14000000),
-                              blurRadius: 3,
-                              offset: Offset(0, 1),
-                            )
-                          ],
-                  ),
-                  child: selected
-                      ? const Center(
-                          child: Icon(
-                            Icons.check_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        )
-                      : null,
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'أو اختر لوناً مخصصاً',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF555550),
-            ),
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: SizedBox(
-              height: 120,
-              child: _ColorBoxPicker(
-                color: _selectedColor,
-                onChanged: (c) => setState(() => _selectedColor = c),
-              ),
-            ),
-          ),
-        ],
+    return GridView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: _presetHexColors.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1,
       ),
+      itemBuilder: (context, index) {
+        final hex = _presetHexColors[index];
+        final color = _hexToColor(hex);
+        final selected = colorHex.toLowerCase() == hex.toLowerCase();
+        return GestureDetector(
+          onTap: () => setState(() => _selectedColor = color),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? Colors.white : Colors.transparent,
+                width: 3.5,
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.45),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ]
+                  : [
+                      const BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      )
+                    ],
+            ),
+            child: selected
+                ? const Center(
+                    child: Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  )
+                : null,
+          ),
+        );
+      },
     );
   }
 

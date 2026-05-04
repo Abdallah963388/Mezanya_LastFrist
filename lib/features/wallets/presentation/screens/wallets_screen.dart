@@ -1518,9 +1518,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          final selectedReserved = sourceDistribution[walletId] ?? 0;
+          final distribution = _jarDistribution(widget.cubit.state, jar.id);
+          final unallocatedAmount = _jarUnallocatedAmount(widget.cubit.state, jar);
+          final selectedReserved = distribution[walletId] ?? 0;
           final isAllocate = mode == _JarAdjustmentMode.allocate;
-          final title = isAllocate ? 'تخصيص مبلغ للحصالة' : 'إلغاء تخصيص من الحصالة';
+          final title = isAllocate ? 'تحديد مصدر أموال الحصالة' : 'إلغاء ربط من المحفظة';
 
           return Padding(
             padding: EdgeInsets.only(
@@ -1599,50 +1601,38 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: accent.withValues(alpha: 0.12),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: accent.withValues(alpha: 0.12)),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Wallet picker
                         Text(
-                          'المحفظة',
+                          isAllocate ? 'اختر محفظة لربطها بالرصيد:' : 'اختر محفظة لإلغاء الربط منها:',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: accent.withValues(alpha: 0.70),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 10),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFFBF1),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: accent.withValues(alpha: 0.16),
-                            ),
+                            border: Border.all(color: accent.withValues(alpha: 0.16)),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: walletId,
                               isExpanded: true,
-                              borderRadius: BorderRadius.circular(14),
+                              icon: Icon(Icons.keyboard_arrow_down_rounded, color: accent),
                               items: availableWallets.map((w) {
-                                return DropdownMenuItem<String>(
+                                return DropdownMenuItem(
                                   value: w.id,
                                   child: Text(
                                     w.name,
@@ -1660,32 +1650,32 @@ class _WalletsScreenState extends State<WalletsScreen> {
                             ),
                           ),
                         ),
-                        if (!isAllocate) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.info_outline_rounded,
-                                    size: 14, color: accent),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'المتاح للإلغاء: ${selectedReserved.toStringAsFixed(2)} جنيه',
-                                  style: TextStyle(
-                                    color: accent,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                        ],
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded,
+                                  size: 14, color: accent),
+                              const SizedBox(width: 6),
+                              Text(
+                                isAllocate 
+                                  ? 'المتاح للربط (غير محدد): ${unallocatedAmount.toStringAsFixed(2)} جنيه'
+                                  : 'المتاح للإلغاء: ${selectedReserved.toStringAsFixed(2)} جنيه',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         // Amount field
                         Text(
@@ -1807,7 +1797,22 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     amountController.text.trim()) ??
                                 0;
                             if (amount <= 0) return;
-                            if (!isAllocate && amount > selectedReserved) return;
+                            
+                            if (isAllocate) {
+                              if (amount > unallocatedAmount + 0.01) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('لا يمكن تخصيص مبلغ أكبر من الرصيد غير المحدد في الحصالة.')),
+                                );
+                                return;
+                              }
+                            } else {
+                              if (amount > selectedReserved + 0.01) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('لا يمكن إلغاء تخصيص مبلغ أكبر من المربوط حالياً بهذه المحفظة.')),
+                                );
+                                return;
+                              }
+                            }
 
                             await widget.cubit.addTransaction(
                               type: isAllocate ? 'transfer' : 'expense',
@@ -1820,8 +1825,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   : 'jar-allocation-cancel',
                               notes: notesController.text.trim().isEmpty
                                   ? (isAllocate
-                                      ? 'تخصيص ${amount.toStringAsFixed(2)} إلى ${jar.name}'
-                                      : 'إلغاء تخصيص ${amount.toStringAsFixed(2)} من ${jar.name}')
+                                      ? 'ربط ${amount.toStringAsFixed(2)} من محفظة $walletId لـ ${jar.name}'
+                                      : 'إلغاء ربط ${amount.toStringAsFixed(2)} من ${jar.name}')
                                   : notesController.text.trim(),
                             );
 
@@ -1870,341 +1875,277 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final state = widget.cubit.state;
     final jars = _orderedJars(state.budgetSetup.linkedWallets);
     final allocations = state.budgetSetup.allocations;
-    if (jars.isEmpty) {
-      return;
-    }
 
-    var mode = jars.length > 1
-        ? _InternalTransferMode.jarToJar
-        : allocations.isNotEmpty
-            ? _InternalTransferMode.allocationToJar
-            : _InternalTransferMode.jarToJar;
-    var sourceJarId = sourceJar?.id ?? jars.first.id;
-    var targetJarId = jars
-        .firstWhere(
-          (jar) => jar.id != sourceJarId,
-          orElse: () => jars.first,
-        )
-        .id;
-    var sourceAllocationId = allocations.isEmpty ? '' : allocations.first.id;
-    var targetAllocationId = allocations.isEmpty ? '' : allocations.first.id;
-    var walletId = state.wallets.isEmpty ? '' : state.wallets.first.id;
+    if (jars.isEmpty && allocations.isEmpty) return;
+
+    // Initial state
+    String sourceId = sourceJar?.id ?? (jars.isNotEmpty ? jars.first.id : allocations.first.id);
+    String sourceType = (sourceJar != null || jars.any((j) => j.id == sourceId)) ? 'jar' : 'allocation';
+    
+    String targetId = jars.any((j) => j.id != sourceId) 
+        ? jars.firstWhere((j) => j.id != sourceId).id 
+        : (allocations.isNotEmpty ? allocations.first.id : jars.first.id);
+    String targetType = jars.any((j) => j.id == targetId) ? 'jar' : 'allocation';
+
+    String selectedWalletId = ''; 
     final amountController = TextEditingController();
     final notesController = TextEditingController();
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final selectedSourceJar = jars.firstWhere(
-            (jar) => jar.id == sourceJarId,
-            orElse: () => jars.first,
-          );
-          final sourceDistribution = _jarDistribution(
-            widget.cubit.state,
-            selectedSourceJar.id,
-          );
-          final sourceWallets = widget.cubit.state.wallets
-              .where((wallet) => (sourceDistribution[wallet.id] ?? 0) > 0)
-              .toList();
-          if (sourceWallets.isNotEmpty &&
-              !sourceWallets.any((wallet) => wallet.id == walletId)) {
-            walletId = sourceWallets.first.id;
+          final currentState = widget.cubit.state;
+          
+          // Data Resolvers
+          dynamic sourceItem;
+          if (sourceType == 'jar') {
+            sourceItem = currentState.budgetSetup.linkedWallets.firstWhere((j) => j.id == sourceId);
+          } else {
+            sourceItem = currentState.budgetSetup.allocations.firstWhere((a) => a.id == sourceId);
           }
-          final targetJars =
-              jars.where((jar) => jar.id != sourceJarId).toList();
-          if (targetJars.isNotEmpty &&
-              !targetJars.any((jar) => jar.id == targetJarId)) {
-            targetJarId = targetJars.first.id;
+
+          dynamic targetItem;
+          if (targetType == 'jar') {
+            targetItem = currentState.budgetSetup.linkedWallets.firstWhere((j) => j.id == targetId);
+          } else {
+            targetItem = currentState.budgetSetup.allocations.firstWhere((a) => a.id == targetId);
           }
-          final availableAmount =
-              mode == _InternalTransferMode.jarToAllocation ||
-                      mode == _InternalTransferMode.jarToJar
-                  ? (sourceDistribution[walletId] ?? 0)
-                  : double.infinity;
-          return AlertDialog(
-            title: const Text('تحويل داخلي'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SegmentedButton<_InternalTransferMode>(
-                  segments: [
-                    ButtonSegment(
-                      value: _InternalTransferMode.jarToJar,
-                      label: Text('حصالة لحصالة'),
-                      enabled: jars.length > 1,
+
+          // Wallet selection logic for Source (Jar or Allocation)
+          List<Map<String, dynamic>> walletOptions = [];
+          final distribution = sourceType == 'jar' 
+              ? _jarDistribution(currentState, sourceId) 
+              : _allocationDistribution(currentState, sourceId);
+          final unallocated = _jarUnallocatedAmount(currentState, sourceItem);
+          
+          for (final wallet in currentState.wallets) {
+            final amount = distribution[wallet.id] ?? 0;
+            if (amount > 0.01) {
+              walletOptions.add({
+                'id': wallet.id,
+                'name': wallet.name,
+                'amount': amount,
+              });
+            }
+          }
+          if (unallocated > 0.01) {
+            walletOptions.add({
+              'id': 'unallocated',
+              'name': 'بدون محفظة',
+              'amount': unallocated,
+            });
+          }
+
+          if (selectedWalletId.isEmpty && walletOptions.isNotEmpty) {
+            selectedWalletId = walletOptions.first['id'] as String;
+          } else if (selectedWalletId.isNotEmpty && !walletOptions.any((w) => w['id'] == selectedWalletId)) {
+             selectedWalletId = walletOptions.isNotEmpty ? walletOptions.first['id'] as String : '';
+          }
+
+          final selectedWalletAmount = walletOptions.isNotEmpty
+              ? (walletOptions.firstWhere((w) => w['id'] == selectedWalletId, orElse: () => {'amount': 0.0})['amount'] as double)
+              : double.infinity;
+
+          return Container(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFFBF1),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)),
                     ),
-                    ButtonSegment(
-                      value: _InternalTransferMode.jarToAllocation,
-                      label: Text('حصالة لمخصص'),
-                      enabled: allocations.isNotEmpty,
+                  ),
+                  const Text('تحويل داخلي', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 24),
+
+                  _TransferItemTile(
+                    label: 'من',
+                    title: sourceType == 'jar' ? (sourceItem as LinkedWalletEntity).name : (sourceItem as AllocationEntity).name,
+                    icon: sourceType == 'jar' ? (sourceItem as LinkedWalletEntity).icon : (sourceItem as AllocationEntity).icon,
+                    accent: _parseColor(sourceType == 'jar' ? (sourceItem as LinkedWalletEntity).iconColor : (sourceItem as AllocationEntity).iconColor),
+                    amount: sourceType == 'jar' ? (sourceItem as LinkedWalletEntity).balance : (sourceItem as AllocationEntity).balance,
+                    onTap: () => _showInternalItemPicker(
+                      title: 'اختر المصدر',
+                      onSelected: (id, type) {
+                        setDialogState(() {
+                          sourceId = id;
+                          sourceType = type;
+                          selectedWalletId = '';
+                        });
+                      },
                     ),
-                    ButtonSegment(
-                      value: _InternalTransferMode.allocationToJar,
-                      label: Text('مخصص لحصالة'),
-                      enabled: allocations.isNotEmpty,
+                  ),
+
+                  if (walletOptions.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text('من محفظة فعليّة:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.black54)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: walletOptions.map((opt) {
+                        final isSelected = selectedWalletId == opt['id'];
+                        return GestureDetector(
+                          onTap: () => setDialogState(() => selectedWalletId = opt['id'] as String),
+                          child: Container(
+                            width: (MediaQuery.of(context).size.width - 56) / 3,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSelected ? const Color(0xFF0F766E) : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: isSelected ? const Color(0xFF0F766E) : Colors.black.withValues(alpha: 0.08)),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(opt['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.black87)),
+                                const SizedBox(height: 4),
+                                Text((opt['amount'] as double).toStringAsFixed(0),
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : const Color(0xFF0F766E))),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
-                  selected: {mode},
-                  onSelectionChanged: (value) {
-                    setDialogState(() {
-                      mode = value.first;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (mode == _InternalTransferMode.jarToJar ||
-                    mode == _InternalTransferMode.jarToAllocation) ...[
-                  DropdownButtonFormField<String>(
-                    value: sourceJarId,
-                    decoration: const InputDecoration(labelText: 'من حصالة'),
-                    items: jars
-                        .map(
-                          (jar) => DropdownMenuItem<String>(
-                            value: jar.id,
-                            child: Text(jar.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() => sourceJarId = value);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                if (mode == _InternalTransferMode.allocationToJar) ...[
-                  DropdownButtonFormField<String>(
-                    value:
-                        sourceAllocationId.isEmpty ? null : sourceAllocationId,
-                    decoration: const InputDecoration(labelText: 'من مخصص'),
-                    items: allocations
-                        .map(
-                          (allocation) => DropdownMenuItem<String>(
-                            value: allocation.id,
-                            child: Text(allocation.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: allocations.isEmpty
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            setDialogState(() => sourceAllocationId = value);
-                          },
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                DropdownButtonFormField<String>(
-                  value: walletId.isEmpty ? null : walletId,
-                  decoration: const InputDecoration(
-                    labelText: 'من أي محفظة فعلية؟',
-                  ),
-                  items: (mode == _InternalTransferMode.allocationToJar
-                          ? widget.cubit.state.wallets
-                          : sourceWallets)
-                      .map(
-                        (wallet) => DropdownMenuItem<String>(
-                          value: wallet.id,
-                          child: Text(
-                            mode == _InternalTransferMode.allocationToJar
-                                ? wallet.name
-                                : '${wallet.name} • ${(sourceDistribution[wallet.id] ?? 0).toStringAsFixed(2)}',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setDialogState(() => walletId = value);
-                  },
-                ),
-                const SizedBox(height: 10),
-                if (mode == _InternalTransferMode.jarToAllocation) ...[
-                  DropdownButtonFormField<String>(
-                    value:
-                        targetAllocationId.isEmpty ? null : targetAllocationId,
-                    decoration: const InputDecoration(labelText: 'إلى مخصص'),
-                    items: allocations
-                        .map(
-                          (allocation) => DropdownMenuItem<String>(
-                            value: allocation.id,
-                            child: Text(allocation.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: allocations.isEmpty
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            setDialogState(() => targetAllocationId = value);
-                          },
-                  ),
-                ] else ...[
-                  DropdownButtonFormField<String>(
-                    value: targetJarId,
-                    decoration: const InputDecoration(
-                      labelText: 'إلى أي حصالة؟',
+
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Icon(Icons.keyboard_double_arrow_down_rounded, color: Colors.black26)),
+
+                  _TransferItemTile(
+                    label: 'إلى',
+                    title: targetType == 'jar' ? (targetItem as LinkedWalletEntity).name : (targetItem as AllocationEntity).name,
+                    icon: targetType == 'jar' ? (targetItem as LinkedWalletEntity).icon : (targetItem as AllocationEntity).icon,
+                    accent: _parseColor(targetType == 'jar' ? (targetItem as LinkedWalletEntity).iconColor : (targetItem as AllocationEntity).iconColor),
+                    amount: targetType == 'jar' ? (targetItem as LinkedWalletEntity).balance : (targetItem as AllocationEntity).balance,
+                    onTap: () => _showInternalItemPicker(
+                      title: 'اختر الوجهة',
+                      onSelected: (id, type) {
+                        setDialogState(() {
+                          targetId = id;
+                          targetType = type;
+                        });
+                      },
                     ),
-                    items: (mode == _InternalTransferMode.jarToJar
-                            ? targetJars
-                            : jars)
-                        .map(
-                          (jar) => DropdownMenuItem<String>(
-                            value: jar.id,
-                            child: Text(jar.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() => targetJarId = value);
+                  ),
+
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    decoration: InputDecoration(
+                      labelText: 'المبلغ',
+                      prefixIcon: const Icon(Icons.monetization_on_outlined),
+                      suffixText: 'جنيه',
+                      helperText: walletOptions.isNotEmpty ? 'المتاح من المحفظة: ${selectedWalletAmount.toStringAsFixed(2)}' : null,
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(labelText: 'ملاحظات (اختياري)', prefixIcon: Icon(Icons.notes_rounded)),
+                  ),
+
+                  const SizedBox(height: 32),
+                  FilledButton(
+                    onPressed: () async {
+                      final amount = double.tryParse(amountController.text.trim()) ?? 0;
+                      if (amount <= 0) return;
+                      if (walletOptions.isNotEmpty && amount > selectedWalletAmount + 0.01) return;
+                      if (sourceId == targetId && sourceType == targetType) return;
+
+                      final note = notesController.text.trim().isEmpty
+                          ? 'تحويل داخلي'
+                          : notesController.text.trim();
+
+                      Navigator.of(context).pop();
+
+                      final actualWalletId = (selectedWalletId == 'unallocated' || selectedWalletId.isEmpty) ? null : selectedWalletId;
+
+                      // Perform the transfer
+                      await widget.cubit.addTransaction(
+                        type: 'transfer',
+                        fromWalletId: sourceId,
+                        toWalletId: targetId,
+                        walletId: actualWalletId, // This links the physical reservation
+                        amount: amount,
+                        transferType: 'internal-transfer',
+                        notes: note,
+                      );
+
+                      // Update savings reserve if applicable
+                      if (sourceId == 'linked-savings-default' && actualWalletId != null) {
+                        await widget.cubit.applySavingsReserve(walletId: actualWalletId, amount: amount, action: 'cancel');
+                      }
+                      if (targetId == 'linked-savings-default' && actualWalletId != null) {
+                        await widget.cubit.applySavingsReserve(walletId: actualWalletId, amount: amount, action: 'allocate');
+                      }
                     },
+                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: const Color(0xFF0F766E)),
+                    child: const Text('تأكيد التحويل', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                   ),
                 ],
-                const SizedBox(height: 8),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    mode == _InternalTransferMode.allocationToJar
-                        ? 'اختر المحفظة الفعلية التي سيظهر عليها حجز الحصالة.'
-                        : 'المتاح نقله من هذه المحفظة داخل الحصالة ${availableAmount.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'المبلغ'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: notesController,
-                  decoration: const InputDecoration(labelText: 'ملاحظات'),
-                ),
-              ],
+              ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('إلغاء'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  final amount =
-                      double.tryParse(amountController.text.trim()) ?? 0;
-                  if (amount <= 0 ||
-                      walletId.isEmpty ||
-                      (mode != _InternalTransferMode.allocationToJar &&
-                          amount > availableAmount) ||
-                      (mode == _InternalTransferMode.jarToAllocation &&
-                          targetAllocationId.isEmpty) ||
-                      (mode == _InternalTransferMode.allocationToJar &&
-                          sourceAllocationId.isEmpty)) {
-                    return;
-                  }
-
-                  final currentState = widget.cubit.state;
-                  final transferSourceJar =
-                      currentState.budgetSetup.linkedWallets.firstWhere(
-                    (jar) => jar.id == sourceJarId,
-                  );
-                  final targetJar =
-                      currentState.budgetSetup.linkedWallets.firstWhere(
-                    (jar) => jar.id == targetJarId,
-                  );
-                  final note = notesController.text.trim().isEmpty
-                      ? switch (mode) {
-                          _InternalTransferMode.jarToJar =>
-                            'تحويل داخلي من ${transferSourceJar.name} إلى ${targetJar.name}',
-                          _InternalTransferMode.jarToAllocation =>
-                            'تحويل من ${transferSourceJar.name} إلى مخصص',
-                          _InternalTransferMode.allocationToJar =>
-                            'تحويل من مخصص إلى ${targetJar.name}',
-                        }
-                      : notesController.text.trim();
-
-                  if (mode == _InternalTransferMode.allocationToJar) {
-                    await widget.cubit.addTransaction(
-                      type: 'transfer',
-                      fromWalletId: walletId,
-                      toWalletId: targetJar.id,
-                      allocationId: sourceAllocationId,
-                      amount: amount,
-                      transferType: 'allocation-to-jar',
-                      notes: note,
-                    );
-                    if (targetJar.id == 'linked-savings-default') {
-                      await widget.cubit.applySavingsReserve(
-                        walletId: walletId,
-                        amount: amount,
-                        action: 'allocate',
-                      );
-                    }
-                  } else if (mode == _InternalTransferMode.jarToAllocation) {
-                    await widget.cubit.addTransaction(
-                      type: 'transfer',
-                      walletId: transferSourceJar.id,
-                      fromWalletId: walletId,
-                      allocationId: targetAllocationId,
-                      amount: amount,
-                      transferType: 'jar-to-allocation',
-                      notes: note,
-                    );
-                    if (transferSourceJar.id == 'linked-savings-default') {
-                      await widget.cubit.applySavingsReserve(
-                        walletId: walletId,
-                        amount: amount,
-                        action: 'cancel',
-                      );
-                    }
-                  } else {
-                    await widget.cubit.addTransaction(
-                      type: 'expense',
-                      walletId: transferSourceJar.id,
-                      fromWalletId: walletId,
-                      toWalletId: transferSourceJar.id,
-                      amount: amount,
-                      transferType: 'jar-allocation-cancel',
-                      notes: note,
-                    );
-                    if (transferSourceJar.id == 'linked-savings-default') {
-                      await widget.cubit.applySavingsReserve(
-                        walletId: walletId,
-                        amount: amount,
-                        action: 'cancel',
-                      );
-                    }
-
-                    await widget.cubit.addTransaction(
-                      type: 'transfer',
-                      fromWalletId: walletId,
-                      toWalletId: targetJar.id,
-                      amount: amount,
-                      transferType: 'jar-allocation',
-                      notes: note,
-                    );
-                    if (targetJar.id == 'linked-savings-default') {
-                      await widget.cubit.applySavingsReserve(
-                        walletId: walletId,
-                        amount: amount,
-                        action: 'allocate',
-                      );
-                    }
-                  }
-
-                  if (!mounted) {
-                    return;
-                  }
-                  Navigator.of(context).pop();
-                },
-                child: const Text('تنفيذ التحويل'),
-              ),
-            ],
           );
         },
+      ),
+    );
+  }
+
+  void _showInternalItemPicker({
+    required String title,
+    required void Function(String id, String type) onSelected,
+  }) {
+    final state = widget.cubit.state;
+    final jars = _orderedJars(state.budgetSetup.linkedWallets);
+    final allocations = state.budgetSetup.allocations;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFBF1),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        children: [
+          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 16),
+          if (jars.isNotEmpty) ...[
+            const Row(children: [Icon(Icons.savings_rounded, size: 16), SizedBox(width: 8), Text('الحصالات', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.teal))]),
+            const Divider(),
+            ...jars.map((j) => ListTile(
+              leading: AppIconPickerDialog.iconWidgetForName(j.icon, color: _parseColor(j.iconColor)),
+              title: Text(j.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text('${j.balance.toStringAsFixed(2)} جنيه'),
+              onTap: () { Navigator.pop(context); onSelected(j.id, 'jar'); },
+            )),
+          ],
+          if (allocations.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Row(children: [Icon(Icons.category_rounded, size: 16), SizedBox(width: 8), Text('المخصصات', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.orange))]),
+            const Divider(),
+            ...allocations.map((a) => ListTile(
+              leading: AppIconPickerDialog.iconWidgetForName(a.icon, color: _parseColor(a.iconColor)),
+              title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+              onTap: () { Navigator.pop(context); onSelected(a.id, 'allocation'); },
+            )),
+          ],
+        ],
       ),
     );
   }
@@ -2431,6 +2372,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                         initialIconName: selectedIcon,
                         initialColorHex: selectedColor,
                         title: 'اختيار أيقونة المحفظة',
+                        name: nameController.text,
                       );
                       if (picked == null) {
                         return;
@@ -2576,30 +2518,26 @@ class _WalletsScreenState extends State<WalletsScreen> {
   }
 
   Map<String, double> _jarDistribution(AppStateEntity state, String jarId) {
-    final result = <String, double>{};
-    for (final transaction in state.transactions) {
-      if (transaction.toWalletId != jarId && transaction.walletId != jarId) {
-        continue;
-      }
-      final walletId = transaction.fromWalletId ?? transaction.walletId;
-      if (walletId == null) {
-        continue;
-      }
-      if (transaction.transferType == 'jar-allocation' ||
-          transaction.transferType == 'jar-funding' ||
-          transaction.transferType == 'allocation-to-jar' ||
-          (transaction.type == 'income' &&
-              transaction.budgetScope == 'within-budget' &&
-              transaction.toWalletId == jarId)) {
-        result[walletId] = (result[walletId] ?? 0) + transaction.amount;
-      } else if (transaction.transferType == 'jar-allocation-cancel' ||
-          transaction.transferType == 'jar-allocation-spend' ||
-          transaction.transferType == 'jar-to-allocation') {
-        result[walletId] = (result[walletId] ?? 0) - transaction.amount;
-      }
+    final jar = state.budgetSetup.linkedWallets.where((j) => j.id == jarId).firstOrNull;
+    if (jar == null) return {};
+    return jar.walletBalances;
+  }
+
+  Map<String, double> _allocationDistribution(AppStateEntity state, String allocId) {
+    final alloc = state.budgetSetup.allocations.where((a) => a.id == allocId).firstOrNull;
+    if (alloc == null) return {};
+    return alloc.walletBalances;
+  }
+
+  double _jarUnallocatedAmount(AppStateEntity state, dynamic entity) {
+    if (entity is LinkedWalletEntity) {
+      final sum = entity.walletBalances.values.fold<double>(0, (s, v) => s + v);
+      return (entity.balance - sum).clamp(0, double.infinity);
+    } else if (entity is AllocationEntity) {
+      final sum = entity.walletBalances.values.fold<double>(0, (s, v) => s + v);
+      return (entity.balance - sum).clamp(0, double.infinity);
     }
-    result.removeWhere((key, value) => value <= 0);
-    return result;
+    return 0;
   }
 
   double _walletReservedAmount(AppStateEntity state, String walletId) {
@@ -2828,7 +2766,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
 enum _JarAdjustmentMode { allocate, cancel }
 
-enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar }
+enum _InternalTransferMode { jarToJar, jarToAllocation, allocationToJar, allocationToAllocation }
 
 // ── Summary Badge ───────────────────────────────────────────────────────────
 
@@ -3942,6 +3880,110 @@ class _EmptyStateCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TransferItemTile extends StatelessWidget {
+  const _TransferItemTile({
+    required this.label,
+    required this.title,
+    required this.icon,
+    required this.accent,
+    this.amount,
+    required this.onTap,
+  });
+
+  final String label;
+  final String title;
+  final String icon;
+  final Color accent;
+  final double? amount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withValues(alpha: 0.15)),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: AppIconPickerDialog.iconWidgetForName(
+                  icon,
+                  color: accent,
+                  size: 22,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: accent.withValues(alpha: 0.7),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1A1A1A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (amount != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'الرصيد الحالي',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.black38),
+                  ),
+                  Text(
+                    amount!.toStringAsFixed(2),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(width: 8),
+            Icon(Icons.edit_note_rounded, color: accent.withValues(alpha: 0.4), size: 20),
+          ],
+        ),
       ),
     );
   }

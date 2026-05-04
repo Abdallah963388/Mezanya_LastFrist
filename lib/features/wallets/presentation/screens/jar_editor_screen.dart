@@ -72,6 +72,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
       initialIconName: _selectedIcon,
       initialColorHex: _selectedColor,
       title: 'اختيار أيقونة الحصالة',
+      name: _nameController.text,
     );
     if (picked == null || !mounted) {
       return;

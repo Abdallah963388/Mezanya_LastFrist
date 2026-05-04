@@ -193,6 +193,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     required double amount,
     required String type,
     String? allocationId,
+    String? toAllocationId,
     String? budgetScope,
     String? incomeSourceId,
     String? categoryId,
@@ -228,6 +229,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       fromWalletId: fromWalletId,
       toWalletId: toWalletId,
       allocationId: allocationId,
+      toAllocationId: toAllocationId,
       budgetScope: budgetScope,
       incomeSourceId: incomeSourceId,
       categoryId: categoryId,
@@ -277,110 +279,119 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   Future<void> deleteTransaction(String transactionId) async {
-    final target =
-        state.transactions.where((t) => t.id == transactionId).toList();
-    if (target.isEmpty) {
-      return;
-    }
+    final target = state.transactions.where((t) => t.id == transactionId).toList();
+    if (target.isEmpty) return;
     final transaction = target.first;
-    var wallets = List<WalletEntity>.from(state.wallets);
-    var linked = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
 
-    if (transaction.transferType == 'allocation-to-jar') {
-      linked = linked.map((j) {
-        if (transaction.toWalletId != null && j.id == transaction.toWalletId) {
-          return LinkedWalletEntity(
-            id: j.id,
-            name: j.name,
-            balance: j.balance - transaction.amount,
-            monthlyAmount: j.monthlyAmount,
-            executionDay: j.executionDay,
-            fundingSource: j.fundingSource,
-            funding: j.funding,
-            icon: j.icon,
-            iconColor: j.iconColor,
-            automationType: j.automationType,
-            categories: j.categories,
+    var wallets = List<WalletEntity>.from(state.wallets);
+    var linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    var allocations = List<AllocationEntity>.from(state.budgetSetup.allocations);
+
+    // Helper to reverse virtual update
+    void reverseVirtualBalance({
+      required String id,
+      required double delta, // Original delta that was added
+      String? physicalWalletId,
+    }) {
+      final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
+      if (jarIdx != -1) {
+        final jar = linkedWallets[jarIdx];
+        final nextBalances = Map<String, double>.from(jar.walletBalances);
+        if (physicalWalletId != null) {
+          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) - delta;
+        }
+        linkedWallets[jarIdx] = jar.copyWith(
+          balance: jar.balance - delta,
+          walletBalances: nextBalances,
+        );
+        return;
+      }
+      final allocIdx = allocations.indexWhere((a) => a.id == id);
+      if (allocIdx != -1) {
+        final alloc = allocations[allocIdx];
+        final nextBalances = Map<String, double>.from(alloc.walletBalances);
+        if (physicalWalletId != null) {
+          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) - delta;
+        }
+        allocations[allocIdx] = alloc.copyWith(
+          balance: alloc.balance - delta,
+          walletBalances: nextBalances,
+        );
+      }
+    }
+
+    if (transaction.type == 'transfer') {
+      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
+      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
+
+      if (isPhysicalFrom && isPhysicalTo) {
+        // Reverse physical transfer
+        wallets = wallets.map((w) {
+          if (w.id == transaction.fromWalletId) return w.copyWith(balance: w.balance + transaction.amount);
+          if (w.id == transaction.toWalletId) return w.copyWith(balance: w.balance - transaction.amount);
+          return w;
+        }).toList();
+      } else {
+        // Reverse virtual transfer
+        if (transaction.fromWalletId != null) {
+          reverseVirtualBalance(
+            id: transaction.fromWalletId!,
+            delta: -transaction.amount,
+            physicalWalletId: transaction.walletId,
           );
         }
-        return j;
-      }).toList();
-    } else if (transaction.transferType == 'jar-to-allocation') {
-      linked = linked.map((j) {
-        if (transaction.walletId != null && j.id == transaction.walletId) {
-          return LinkedWalletEntity(
-            id: j.id,
-            name: j.name,
-            balance: j.balance + transaction.amount,
-            monthlyAmount: j.monthlyAmount,
-            executionDay: j.executionDay,
-            fundingSource: j.fundingSource,
-            funding: j.funding,
-            icon: j.icon,
-            iconColor: j.iconColor,
-            automationType: j.automationType,
-            categories: j.categories,
+        if (transaction.toWalletId != null) {
+          reverseVirtualBalance(
+            id: transaction.toWalletId!,
+            delta: transaction.amount,
+            physicalWalletId: transaction.walletId,
           );
         }
-        return j;
-      }).toList();
-    } else if (transaction.type == 'transfer') {
-      wallets = wallets.map((w) {
-        if (transaction.fromWalletId != null &&
-            w.id == transaction.fromWalletId) {
-          return w.copyWith(balance: w.balance + transaction.amount);
-        }
-        if (transaction.toWalletId != null && w.id == transaction.toWalletId) {
-          return w.copyWith(balance: w.balance - transaction.amount);
-        }
-        return w;
-      }).toList();
-      linked = linked.map((j) {
-        if (transaction.toWalletId != null && j.id == transaction.toWalletId) {
-          return LinkedWalletEntity(
-            id: j.id,
-            name: j.name,
-            balance: j.balance - transaction.amount,
-            monthlyAmount: j.monthlyAmount,
-            executionDay: j.executionDay,
-            fundingSource: j.fundingSource,
-            funding: j.funding,
-            icon: j.icon,
-            iconColor: j.iconColor,
-            automationType: j.automationType,
-            categories: j.categories,
-          );
-        }
-        return j;
-      }).toList();
+      }
     } else if (transaction.type == 'income') {
+      // Reverse physical income
       wallets = wallets.map((w) {
-        if (transaction.walletId != null && w.id == transaction.walletId) {
-          return w.copyWith(balance: w.balance - transaction.amount);
-        }
-        return w;
+        if (w.id != transaction.walletId) return w;
+        return w.copyWith(balance: w.balance - transaction.amount);
       }).toList();
+
+      // Automatic distribution reversal is usually handled by deleting the auto-transactions themselves
+      // But if we are deleting the main income, we might want to check linked auto-txns?
+      // Actually, auto-txns are separate TransactionEntity objects. 
+      // Deleting the parent income should probably NOT automatically delete them unless we want that.
+      // In current logic, they remain. If user wants to delete them, they delete them one by one.
     } else if (transaction.type == 'expense') {
+      // Reverse physical expense
       wallets = wallets.map((w) {
-        if (transaction.walletId != null && w.id == transaction.walletId) {
-          return w.copyWith(balance: w.balance + transaction.amount);
-        }
-        return w;
+        if (w.id != transaction.walletId) return w;
+        return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
+
+      // Reverse virtual reservation
+      final virtualTargetId = transaction.allocationId ?? transaction.toWalletId;
+      if (virtualTargetId != null) {
+        reverseVirtualBalance(
+          id: virtualTargetId,
+          delta: -transaction.amount,
+          physicalWalletId: transaction.walletId,
+        );
+      }
     }
 
     final next = state.copyWith(
       wallets: wallets,
-      budgetSetup: state.budgetSetup.copyWith(linkedWallets: linked),
-      transactions:
-          state.transactions.where((t) => t.id != transactionId).toList(),
+      budgetSetup: state.budgetSetup.copyWith(
+        linkedWallets: linkedWallets,
+        allocations: allocations,
+      ),
+      transactions: state.transactions.where((t) => t.id != transactionId).toList(),
     );
+
     await _applyAndLog(
       action: 'delete',
       entityType: 'transaction',
       entityId: transactionId,
-      details:
-          'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
+      details: 'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
       apply: () async => next,
     );
   }
@@ -555,15 +566,7 @@ class AppCubit extends Cubit<AppStateEntity> {
   }) async {
     final allocations = state.budgetSetup.allocations
         .map((item) => item.id == allocationId
-            ? AllocationEntity(
-                id: item.id,
-                name: item.name,
-                icon: item.icon,
-                iconColor: item.iconColor,
-                rolloverBehavior: item.rolloverBehavior,
-                funding: item.funding,
-                categories: categories,
-              )
+            ? item.copyWith(categories: categories)
             : item)
         .toList();
     await updateBudgetSetup(
@@ -576,19 +579,7 @@ class AppCubit extends Cubit<AppStateEntity> {
   }) async {
     final linkedWallets = state.budgetSetup.linkedWallets
         .map((item) => item.id == linkedWalletId
-            ? LinkedWalletEntity(
-                id: item.id,
-                name: item.name,
-                balance: item.balance,
-                monthlyAmount: item.monthlyAmount,
-                executionDay: item.executionDay,
-                fundingSource: item.fundingSource,
-                funding: item.funding,
-                icon: item.icon,
-                iconColor: item.iconColor,
-                automationType: item.automationType,
-                categories: categories,
-              )
+            ? item.copyWith(categories: categories)
             : item)
         .toList();
     await updateBudgetSetup(

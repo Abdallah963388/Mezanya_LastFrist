@@ -2607,6 +2607,7 @@ class _AllocationEditorScreenState extends State<_AllocationEditorScreen> {
       initialIconName: _selectedIcon,
       initialColorHex: _selectedColor,
       title: 'اختيار أيقونة المخصص',
+      name: _nameController.text,
     );
     if (picked == null || !mounted) {
       return;

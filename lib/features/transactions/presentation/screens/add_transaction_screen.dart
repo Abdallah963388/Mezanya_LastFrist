@@ -393,6 +393,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               initialIconName: _recurringIconName,
                               initialColorHex: _recurringIconColor,
                               title: 'اختيار أيقونة المعاملة المتكررة',
+                              name: _recurringNameController.text,
                             );
                             if (picked == null) return;
                             setState(() {
@@ -1777,6 +1778,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             initialIconName: selectedIcon,
                             initialColorHex: selectedColor,
                             title: 'اختيار أيقونة الفئة',
+                            name: _newCategoryController.text,
                           );
                           if (picked == null) return;
                           setDialog(() {

@@ -51,246 +51,155 @@ class SharedPrefsAppRepository implements AppRepository {
     final current = await loadState();
     var wallets = List<WalletEntity>.from(current.wallets);
     var linkedWallets = List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
+    var allocations = List<AllocationEntity>.from(current.budgetSetup.allocations);
     var transactions = <TransactionEntity>[...current.transactions, transaction];
 
-    if (transaction.transferType == 'allocation-to-jar') {
-      linkedWallets = linkedWallets.map((wallet) {
-        if (wallet.id != transaction.toWalletId) return wallet;
-        return LinkedWalletEntity(
-          id: wallet.id,
-          name: wallet.name,
-          balance: wallet.balance + transaction.amount,
-          monthlyAmount: wallet.monthlyAmount,
-          executionDay: wallet.executionDay,
-          fundingSource: wallet.fundingSource,
-          funding: wallet.funding,
-          icon: wallet.icon,
-          iconColor: wallet.iconColor,
-          automationType: wallet.automationType,
-          categories: wallet.categories,
+    // Helper to update virtual entity (Jar or Allocation)
+    void updateVirtualBalance({
+      required String id,
+      required double delta,
+      String? physicalWalletId,
+    }) {
+      // Check Jars
+      final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
+      if (jarIdx != -1) {
+        final jar = linkedWallets[jarIdx];
+        final nextBalances = Map<String, double>.from(jar.walletBalances);
+        if (physicalWalletId != null) {
+          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) + delta;
+        }
+        linkedWallets[jarIdx] = jar.copyWith(
+          balance: jar.balance + delta,
+          walletBalances: nextBalances,
         );
-      }).toList();
-    } else if (transaction.transferType == 'jar-to-allocation') {
-      linkedWallets = linkedWallets.map((wallet) {
-        if (wallet.id != transaction.walletId) return wallet;
-        return LinkedWalletEntity(
-          id: wallet.id,
-          name: wallet.name,
-          balance: wallet.balance - transaction.amount,
-          monthlyAmount: wallet.monthlyAmount,
-          executionDay: wallet.executionDay,
-          fundingSource: wallet.fundingSource,
-          funding: wallet.funding,
-          icon: wallet.icon,
-          iconColor: wallet.iconColor,
-          automationType: wallet.automationType,
-          categories: wallet.categories,
-        );
-      }).toList();
-    } else if (transaction.transferType == 'jar-allocation' ||
-        transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend') {
-      linkedWallets = linkedWallets.map((wallet) {
-        if (wallet.id != transaction.toWalletId && wallet.id != transaction.walletId) {
-          return wallet;
-        }
-        final delta = transaction.transferType == 'jar-allocation'
-            ? transaction.amount
-            : -transaction.amount;
-        return LinkedWalletEntity(
-          id: wallet.id,
-          name: wallet.name,
-          balance: wallet.balance + delta,
-          monthlyAmount: wallet.monthlyAmount,
-          executionDay: wallet.executionDay,
-          fundingSource: wallet.fundingSource,
-          funding: wallet.funding,
-          icon: wallet.icon,
-          iconColor: wallet.iconColor,
-          automationType: wallet.automationType,
-          categories: wallet.categories,
-        );
-      }).toList();
-    } else if (transaction.type == 'transfer' &&
-        transaction.fromWalletId != null &&
-        transaction.toWalletId != null) {
-      wallets = wallets.map((wallet) {
-        if (wallet.id == transaction.fromWalletId) {
-          return wallet.copyWith(balance: wallet.balance - transaction.amount);
-        }
-        if (wallet.id == transaction.toWalletId) {
-          return wallet.copyWith(balance: wallet.balance + transaction.amount);
-        }
-        return wallet;
-      }).toList();
-
-      linkedWallets = linkedWallets.map((wallet) {
-        if (wallet.id == transaction.toWalletId) {
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance + transaction.amount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
-          );
-        }
-        return wallet;
-      }).toList();
-    } else if (transaction.type == 'income' && transaction.incomeSourceId != null) {
-      // Income is first deposited to the selected wallet.
-      wallets = wallets.map((wallet) {
-        if (wallet.id != transaction.walletId) return wallet;
-        final nextBalance = wallet.balance + transaction.amount;
-        return wallet.copyWith(balance: nextBalance);
-      }).toList();
-
-      final sourceId = transaction.incomeSourceId!;
-      var remaining = transaction.amount;
-
-      // Then planned jar transfers are executed from the deposited amount.
-      for (final jar in linkedWallets) {
-        final jarPlan = jar.funding
-            .where((f) => f.incomeSourceId == sourceId)
-            .fold<double>(0, (s, f) => s + f.plannedAmount);
-        if (jarPlan <= 0 || remaining <= 0) {
-          continue;
-        }
-        final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
-        remaining -= transferAmount;
-
-        wallets = wallets.map((wallet) {
-          if (wallet.id != transaction.walletId) {
-            return wallet;
-          }
-          return wallet.copyWith(balance: wallet.balance - transferAmount);
-        }).toList();
-
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != jar.id) {
-            return wallet;
-          }
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance + transferAmount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
-          );
-        }).toList();
-
-        transactions.add(
-          TransactionEntity(
-            id: 'txn-auto-jar-${DateTime.now().microsecondsSinceEpoch}',
-            amount: transferAmount,
-            type: 'transfer',
-            fromWalletId: transaction.walletId,
-            toWalletId: jar.id,
-            transferType: 'jar-funding',
-            notes: 'تحويل تلقائي للحصالة: ${jar.name}',
-            createdAt: transaction.createdAt,
-            incomeSourceId: sourceId,
-          ),
-        );
+        return;
       }
-
-      // Recurring debts and subscriptions are handled by the recurring engine,
-      // so income deposit should not trigger any debt deduction here.
-      remaining = 0;
-
-      // Then planned debt deductions execute from the same deposited amount.
-      for (final debt in current.budgetSetup.debts.where((d) => d.fundingSource == sourceId)) {
-        if (remaining <= 0) {
-          break;
+      // Check Allocations
+      final allocIdx = allocations.indexWhere((a) => a.id == id);
+      if (allocIdx != -1) {
+        final alloc = allocations[allocIdx];
+        final nextBalances = Map<String, double>.from(alloc.walletBalances);
+        if (physicalWalletId != null) {
+          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) + delta;
         }
-        final debtAmount = debt.amount <= remaining ? debt.amount : remaining;
-        remaining -= debtAmount;
-
-        wallets = wallets.map((wallet) {
-          if (wallet.id != transaction.walletId) {
-            return wallet;
-          }
-          return wallet.copyWith(balance: wallet.balance - debtAmount);
-        }).toList();
-
-        transactions.add(
-          TransactionEntity(
-            id: 'txn-auto-debt-${DateTime.now().microsecondsSinceEpoch}',
-            amount: debtAmount,
-            type: 'expense',
-            walletId: transaction.walletId,
-            budgetScope: 'outside-budget',
-            notes: 'سداد تلقائي للدين: ${debt.name}',
-            createdAt: transaction.createdAt,
-            incomeSourceId: sourceId,
-          ),
+        allocations[allocIdx] = alloc.copyWith(
+          balance: alloc.balance + delta,
+          walletBalances: nextBalances,
         );
+        return;
       }
-    } else {
-      // Regular expense/income without linked source behavior.
-      wallets = wallets.map((wallet) {
-        if (wallet.id != transaction.walletId) return wallet;
-        final nextBalance =
-            transaction.type == 'income' ? wallet.balance + transaction.amount : wallet.balance - transaction.amount;
-        return wallet.copyWith(balance: nextBalance);
+    }
+
+    if (transaction.type == 'transfer') {
+      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
+      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
+
+      if (isPhysicalFrom && isPhysicalTo) {
+        // 1. Real money transfer between wallets
+        wallets = wallets.map((w) {
+          if (w.id == transaction.fromWalletId) {
+            return w.copyWith(balance: w.balance - transaction.amount);
+          }
+          if (w.id == transaction.toWalletId) {
+            return w.copyWith(balance: w.balance + transaction.amount);
+          }
+          return w;
+        }).toList();
+      } else {
+        // 2. Virtual transfer (Internal)
+        // Deduct from 'from'
+        if (transaction.fromWalletId != null) {
+          updateVirtualBalance(
+            id: transaction.fromWalletId!,
+            delta: -transaction.amount,
+            physicalWalletId: transaction.walletId, // Optional physical link
+          );
+        }
+        // Add to 'to'
+        if (transaction.toWalletId != null) {
+          updateVirtualBalance(
+            id: transaction.toWalletId!,
+            delta: transaction.amount,
+            physicalWalletId: transaction.walletId, // Optional physical link
+          );
+        }
+      }
+    } else if (transaction.type == 'income') {
+      // 3. Physical Income
+      wallets = wallets.map((w) {
+        if (w.id != transaction.walletId) return w;
+        return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
-      if (transaction.type == 'income' && transaction.toWalletId != null) {
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != transaction.toWalletId) return wallet;
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance + transaction.amount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
+
+      // Handle Automatic Distribution to Jars
+      if (transaction.incomeSourceId != null) {
+        final sourceId = transaction.incomeSourceId!;
+        var remaining = transaction.amount;
+
+        for (var i = 0; i < linkedWallets.length; i++) {
+          final jar = linkedWallets[i];
+          final jarPlan = jar.funding
+              .where((f) => f.incomeSourceId == sourceId)
+              .fold<double>(0, (s, f) => s + f.plannedAmount);
+          
+          if (jarPlan <= 0 || remaining <= 0) continue;
+          
+          final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
+          remaining -= transferAmount;
+
+          // Virtual reservation update (DO NOT deduct from physical wallet balance anymore as per user request)
+          updateVirtualBalance(
+            id: jar.id,
+            delta: transferAmount,
+            physicalWalletId: transaction.walletId,
           );
-        }).toList();
+
+          transactions.add(
+            TransactionEntity(
+              id: 'txn-auto-jar-${DateTime.now().microsecondsSinceEpoch}-${jar.id}',
+              amount: transferAmount,
+              type: 'transfer',
+              fromWalletId: 'unallocated', // Virtual source
+              toWalletId: jar.id,
+              walletId: transaction.walletId,
+              transferType: 'jar-funding',
+              notes: 'توزيع تلقائي للحصالة: ${jar.name}',
+              createdAt: transaction.createdAt,
+              incomeSourceId: sourceId,
+            ),
+          );
+        }
       }
-      if (transaction.type == 'expense' && transaction.toWalletId != null) {
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != transaction.toWalletId) return wallet;
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance - transaction.amount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
-          );
-        }).toList();
+    } else if (transaction.type == 'expense') {
+      // 4. Physical Expense
+      wallets = wallets.map((w) {
+        if (w.id != transaction.walletId) return w;
+        return w.copyWith(balance: w.balance - transaction.amount);
+      }).toList();
+
+      // Deduct from Virtual Reservation if linked
+      final virtualTargetId = transaction.allocationId ?? transaction.toWalletId;
+      if (virtualTargetId != null) {
+        updateVirtualBalance(
+          id: virtualTargetId,
+          delta: -transaction.amount,
+          physicalWalletId: transaction.walletId,
+        );
       }
     }
 
     final next = current.copyWith(
       wallets: wallets,
-      budgetSetup: current.budgetSetup.copyWith(linkedWallets: linkedWallets),
+      budgetSetup: current.budgetSetup.copyWith(
+        linkedWallets: linkedWallets,
+        allocations: allocations,
+      ),
       transactions: transactions,
     );
     await saveState(next);
     return next;
   }
+
 
   @override
   Future<AppStateEntity> updateBudgetSetup(BudgetSetupEntity budgetSetup) async {

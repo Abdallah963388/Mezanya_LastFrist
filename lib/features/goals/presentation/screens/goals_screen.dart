@@ -735,6 +735,7 @@ class _GoalEditorScreenState extends State<_GoalEditorScreen> {
       initialIconName: _selectedIcon,
       initialColorHex: _selectedColor,
       title: 'اختيار أيقونة الهدف',
+      name: _nameController.text,
     );
     if (picked == null || !mounted) return;
     setState(() {

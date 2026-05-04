@@ -136,15 +136,7 @@ class AppController extends ChangeNotifier {
     final budget = _state.budgetSetup;
     final allocations = budget.allocations
         .map((item) => item.id == allocationId
-            ? AllocationEntity(
-                id: item.id,
-                name: item.name,
-                icon: item.icon,
-                iconColor: item.iconColor,
-                rolloverBehavior: item.rolloverBehavior,
-                funding: item.funding,
-                categories: categories,
-              )
+            ? item.copyWith(categories: categories)
             : item)
         .toList();
     await updateBudgetSetup(budget.copyWith(allocations: allocations));
@@ -157,19 +149,7 @@ class AppController extends ChangeNotifier {
     final budget = _state.budgetSetup;
     final linkedWallets = budget.linkedWallets
         .map((item) => item.id == linkedWalletId
-            ? LinkedWalletEntity(
-                id: item.id,
-                name: item.name,
-                balance: item.balance,
-                monthlyAmount: item.monthlyAmount,
-                executionDay: item.executionDay,
-                fundingSource: item.fundingSource,
-                funding: item.funding,
-                icon: item.icon,
-                iconColor: item.iconColor,
-                automationType: item.automationType,
-                categories: categories,
-              )
+            ? item.copyWith(categories: categories)
             : item)
         .toList();
     await updateBudgetSetup(budget.copyWith(linkedWallets: linkedWallets));

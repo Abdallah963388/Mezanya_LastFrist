@@ -8,6 +8,7 @@ class TransactionEntity {
     this.fromWalletId,
     this.toWalletId,
     this.allocationId,
+    this.toAllocationId,
     this.budgetScope,
     this.incomeSourceId,
     this.categoryId,
@@ -20,6 +21,7 @@ class TransactionEntity {
   final String? fromWalletId;
   final String? toWalletId;
   final String? allocationId;
+  final String? toAllocationId;
   final String? budgetScope;
   final String? incomeSourceId;
   final String? categoryId;
@@ -36,6 +38,7 @@ class TransactionEntity {
       'fromWalletId': fromWalletId,
       'toWalletId': toWalletId,
       'allocationId': allocationId,
+      'toAllocationId': toAllocationId,
       'budgetScope': budgetScope,
       'incomeSourceId': incomeSourceId,
       'categoryId': categoryId,
@@ -54,6 +57,7 @@ class TransactionEntity {
       fromWalletId: map['fromWalletId'] as String?,
       toWalletId: map['toWalletId'] as String?,
       allocationId: map['allocationId'] as String?,
+      toAllocationId: map['toAllocationId'] as String?,
       budgetScope: map['budgetScope'] as String?,
       incomeSourceId: map['incomeSourceId'] as String?,
       categoryId: map['categoryId'] as String?,

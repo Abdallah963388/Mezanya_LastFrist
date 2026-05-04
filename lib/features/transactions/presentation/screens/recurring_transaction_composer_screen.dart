@@ -1294,6 +1294,7 @@ class _RecurringTransactionComposerScreenState
                     initialIconName: iconName,
                     initialColorHex: iconColor,
                     title: 'اختر أيقونة الفئة',
+                    name: nameCtrl.text,
                   );
                   if (picked == null) return;
                   setDialog(() {
@@ -1539,6 +1540,7 @@ class _RecurringTransactionComposerScreenState
       initialIconName: _iconName,
       initialColorHex: _iconColor,
       title: 'اختيار أيقونة المعاملة',
+      name: _nameController.text,
     );
     if (picked == null) return;
     setState(() {

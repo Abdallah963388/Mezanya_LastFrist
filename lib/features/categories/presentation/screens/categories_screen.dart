@@ -641,6 +641,7 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
       initialIconName: _selectedIcon,
       initialColorHex: _selectedColor,
       title: 'اختيار أيقونة الفئة',
+      name: _nameController.text,
     );
     if (picked == null || !mounted) return;
     setState(() {
