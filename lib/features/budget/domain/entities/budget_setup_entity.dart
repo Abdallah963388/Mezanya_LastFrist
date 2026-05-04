@@ -255,6 +255,7 @@ class LinkedWalletEntity {
     required this.categories,
     this.walletBalances = const {},
     this.walletSources = const [],
+    this.isHighlighted = false,
   });
 
   final String id;
@@ -274,6 +275,9 @@ class LinkedWalletEntity {
 
   /// مصادر الحصالة — label فقط، بدون transactions فعلية
   final List<JarWalletSource> walletSources;
+
+  /// هل الكارت مُلوَّن (شفايفه)
+  final bool isHighlighted;
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -307,6 +311,7 @@ class LinkedWalletEntity {
         'categories': categories.map((e) => e.toMap()).toList(),
         'walletBalances': walletBalances,
         'walletSources': walletSources.map((s) => s.toMap()).toList(),
+        'isHighlighted': isHighlighted,
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -335,6 +340,7 @@ class LinkedWalletEntity {
             .whereType<Map<String, dynamic>>()
             .map(JarWalletSource.fromMap)
             .toList(),
+        isHighlighted: map['isHighlighted'] as bool? ?? false,
       );
 
   LinkedWalletEntity copyWith({
@@ -351,6 +357,7 @@ class LinkedWalletEntity {
     List<CategoryEntity>? categories,
     Map<String, double>? walletBalances,
     List<JarWalletSource>? walletSources,
+    bool? isHighlighted,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -366,6 +373,7 @@ class LinkedWalletEntity {
       categories: categories ?? this.categories,
       walletBalances: walletBalances ?? this.walletBalances,
       walletSources: walletSources ?? this.walletSources,
+      isHighlighted: isHighlighted ?? this.isHighlighted,
     );
   }
 }

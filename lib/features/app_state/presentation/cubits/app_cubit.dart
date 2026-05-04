@@ -449,6 +449,31 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> toggleWalletHighlight(String walletId) async {
+    final wallets = state.wallets.map((w) {
+      if (w.id != walletId) return w;
+      return w.copyWith(isHighlighted: !w.isHighlighted);
+    }).toList();
+    final next = state.copyWith(wallets: wallets);
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'wallet',
+      entityId: walletId,
+      details: 'تبديل تلوين المحفظة',
+      apply: () async => next,
+    );
+  }
+
+  Future<void> toggleJarHighlight(String jarId) async {
+    final jars = state.budgetSetup.linkedWallets.map((j) {
+      if (j.id != jarId) return j;
+      return j.copyWith(isHighlighted: !j.isHighlighted);
+    }).toList();
+    await updateBudgetSetup(
+      state.budgetSetup.copyWith(linkedWallets: jars),
+    );
+  }
+
   Future<void> deleteWallet(String id) async {
     final next = state.copyWith(
         wallets: state.wallets.where((wallet) => wallet.id != id).toList());

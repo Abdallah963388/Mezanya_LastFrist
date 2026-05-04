@@ -271,32 +271,56 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   Widget _monthBar(BuildContext context) {
     final budget = widget.cubit.state.budgetSetup;
     final cycleEnd = _cycleEnd;
-    // عرض نطاق الدورة: "5 أبريل — 4 مايو 2025"
     final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
     final endLabel = DateFormat('d MMM yyyy', 'ar').format(cycleEnd);
     final rangeLabel = '$startLabel — $endLabel';
+    final isCurrent = _isCurrentCycle(budget);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: () => _goToPreviousCycle(budget),
-              icon: const Icon(Icons.chevron_left),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF165B47).withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF165B47).withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => _goToPreviousCycle(budget),
+            icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFF165B47)),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  rangeLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF165B47),
+                  ),
+                ),
+                if (isCurrent)
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF165B47).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'الدورة الحالية',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF165B47)),
+                    ),
+                  ),
+              ],
             ),
-            Expanded(
-              child: Center(
-                child: Text(rangeLabel,
-                    style: Theme.of(context).textTheme.titleMedium),
-              ),
-            ),
-            IconButton(
-              onPressed: () => _goToNextCycle(budget),
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            onPressed: () => _goToNextCycle(budget),
+            icon: const Icon(Icons.chevron_left_rounded, color: Color(0xFF165B47)),
+          ),
+        ],
       ),
     );
   }
@@ -667,25 +691,35 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Widget _sectionTitle(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+    const accent = Color(0xFF165B47);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: accent,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Divider(
-          color: Theme.of(context).colorScheme.outlineVariant,
-          thickness: 1,
-          height: 1,
-        ),
-      ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: accent.withValues(alpha: 0.10),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1033,8 +1067,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const SizedBox(height: 6),
-                        const Icon(Icons.chevron_right_rounded),
+                        Text(
+                          amountText,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF165B47),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF9E9E9E)),
                       ],
                     ),
                   ],

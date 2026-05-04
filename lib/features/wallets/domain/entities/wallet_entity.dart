@@ -6,6 +6,7 @@ class WalletEntity {
     this.reservedForSavings = 0,
     this.icon,
     this.iconColor,
+    this.isHighlighted = false,
   });
 
   final String id;
@@ -14,6 +15,7 @@ class WalletEntity {
   final double reservedForSavings;
   final String? icon;
   final String? iconColor;
+  final bool isHighlighted;
 
   WalletEntity copyWith({
     String? id,
@@ -22,6 +24,7 @@ class WalletEntity {
     double? reservedForSavings,
     String? icon,
     String? iconColor,
+    bool? isHighlighted,
   }) {
     return WalletEntity(
       id: id ?? this.id,
@@ -30,6 +33,7 @@ class WalletEntity {
       reservedForSavings: reservedForSavings ?? this.reservedForSavings,
       icon: icon ?? this.icon,
       iconColor: iconColor ?? this.iconColor,
+      isHighlighted: isHighlighted ?? this.isHighlighted,
     );
   }
 
@@ -41,6 +45,7 @@ class WalletEntity {
       'reservedForSavings': reservedForSavings,
       'icon': icon,
       'iconColor': iconColor,
+      'isHighlighted': isHighlighted,
     };
   }
 
@@ -52,6 +57,7 @@ class WalletEntity {
       reservedForSavings: (map['reservedForSavings'] as num?)?.toDouble() ?? 0,
       icon: map['icon'] as String?,
       iconColor: map['iconColor'] as String?,
+      isHighlighted: map['isHighlighted'] as bool? ?? false,
     );
   }
 }
