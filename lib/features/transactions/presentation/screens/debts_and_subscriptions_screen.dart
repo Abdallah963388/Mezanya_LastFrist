@@ -40,12 +40,6 @@ class _DebtsAndSubscriptionsScreenState
             if (nameCompare != 0) return nameCompare;
             return a.dayOfMonth.compareTo(b.dayOfMonth);
           });
-        final inBudget = records
-            .where((item) => item.budgetScope == 'within-budget')
-            .toList();
-        final outBudget = records
-            .where((item) => item.budgetScope != 'within-budget')
-            .toList();
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -57,29 +51,19 @@ class _DebtsAndSubscriptionsScreenState
             children: [
               _typeSwitcher(),
               const SizedBox(height: 14),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: FilledButton.icon(
-                  onPressed: _handleAddPressed,
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text(_addButtonLabel()),
-                ),
-              ),
+              _addButtons(),
               const SizedBox(height: 16),
               if (_tab == 'subscriptions') ...[
-                if (inBudget.isEmpty)
+                if (records.isEmpty)
                   _emptyCard(_emptyScopeLabel())
                 else
-                  ...inBudget.map((record) => _recurringCard(state, record)),
-              ] else
-                _scopeSection(
-                  state: state,
-                  title: 'داخل الميزانية',
-                  subtitle: _scopeSubtitle(),
-                  records: inBudget,
-                  emptyLabel: _emptyScopeLabel(),
-                  accent: _currentAccent,
-                ),
+                  ...records.map((record) => _recurringCard(state, record)),
+              ] else ...[
+                if (records.isEmpty)
+                  _emptyCard(_emptyScopeLabel())
+                else
+                  ...records.map((record) => _recurringCard(state, record)),
+              ],
             ],
           ),
         );
@@ -104,17 +88,6 @@ class _DebtsAndSubscriptionsScreenState
     return 'الديون والأقساط';
   }
 
-  String _addButtonLabel() {
-    if (_tab == 'subscriptions') return 'إضافة اشتراك';
-    return 'إضافة دين';
-  }
-
-  String _scopeSubtitle() {
-    if (_tab == 'subscriptions') {
-      return 'اشتراكاتك المرتبطة بالميزانية مثل خدمات البث والأدوات الدورية.';
-    }
-    return 'الديون والأقساط المرتبطة بخطة الميزانية.';
-  }
 
   String _emptyScopeLabel() {
     if (_tab == 'subscriptions') {
@@ -123,23 +96,86 @@ class _DebtsAndSubscriptionsScreenState
     return 'لا توجد ديون أو أقساط مسجلة حالياً.';
   }
 
-  void _handleAddPressed() {
+  Widget _addButtons() {
     if (_tab == 'subscriptions') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SubscriptionPresetSelectionScreen(
-            cubit: widget.cubit,
-          ),
-          fullscreenDialog: true,
-        ),
+      return _actionButton(
+        label: 'إضافة اشتراك جديد',
+        icon: Icons.subscriptions_rounded,
+        color: _subscriptionAccent,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SubscriptionPresetSelectionScreen(
+                cubit: widget.cubit,
+              ),
+              fullscreenDialog: true,
+            ),
+          );
+        },
       );
-      return;
     }
-    _openRecurringComposer(
-      mode: 'expense',
-      initialExpensePlanKind: 'installment',
-      debtOnlyMode: true,
+
+    return _actionButton(
+      label: 'إضافة دين أو قسط جديد',
+      icon: Icons.account_balance_outlined,
+      color: _debtAccent,
+      onTap: () {
+        _openRecurringComposer(
+          mode: 'expense',
+          initialExpensePlanKind: 'installment',
+          debtOnlyMode: true,
+        );
+      },
+    );
+  }
+
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -217,81 +253,6 @@ class _DebtsAndSubscriptionsScreenState
     );
   }
 
-  Widget _scopeSection({
-    required AppStateEntity state,
-    required String title,
-    required String subtitle,
-    required List<RecurringTransactionEntity> records,
-    required String emptyLabel,
-    required Color accent,
-  }) {
-    final theme = Theme.of(context);
-    final total = records
-        .where((item) => !item.isVariableIncome)
-        .fold<double>(0, (sum, item) => sum + item.amount);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(Icons.layers_rounded, color: accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                total.toStringAsFixed(2),
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: theme.colorScheme.outlineVariant),
-          const SizedBox(height: 8),
-          if (records.isEmpty)
-            _emptyCard(emptyLabel)
-          else
-            ...records.map((record) => _recurringCard(state, record)),
-        ],
-      ),
-    );
-  }
 
   Widget _emptyCard(String text) {
     return Container(

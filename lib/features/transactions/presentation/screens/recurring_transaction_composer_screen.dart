@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -315,9 +315,11 @@ class _RecurringTransactionComposerScreenState
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             // ── وضع القسط المبسّط ──────────────────────────────────────
-            if (_isExpenseInstallment && (widget.debtOnlyMode || _expensePlanKind == 'installment'))
-              ..._installmentFormChildren(theme, wallets)
-            else ...[
+            if (_isExpenseInstallment && (widget.debtOnlyMode || _expensePlanKind == 'installment')) ...[
+              _installmentHeroHeader(theme),
+              const SizedBox(height: 18),
+              ..._installmentFormChildren(theme, wallets),
+            ] else ...[
               // ── النموذج العادي ────────────────────────────────────────
               if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
                 _typeSwitcher(theme),
@@ -528,6 +530,86 @@ class _RecurringTransactionComposerScreenState
 
   // ── نموذج القسط الجديد ────────────────────────────────────────────────────
 
+  Widget _installmentHeroHeader(ThemeData theme) {
+    final accent = _parseColor(_iconColor);
+    final isNew = widget.initialRecurring == null;
+    final calcInstallment = _calculatedInstallment;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: LinearGradient(
+          colors: [
+            accent.withValues(alpha: 0.95),
+            accent.withValues(alpha: 0.72),
+          ],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Center(
+              child: AppIconPickerDialog.iconWidgetForName(
+                _iconName,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _nameController.text.trim().isEmpty
+                      ? (isNew ? 'قسط جديد' : 'تعديل القسط')
+                      : _nameController.text.trim(),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'عدد الأقساط: ${_installmentCountController.text.isEmpty ? '0' : _installmentCountController.text}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'قيمة القسط: ${calcInstallment.toStringAsFixed(2)}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _installmentFormChildren(
       ThemeData theme, List<dynamic> wallets) {
     final calcInstallment = _calculatedInstallment;
@@ -536,211 +618,227 @@ class _RecurringTransactionComposerScreenState
     final hasRiba = riba > 0.005;
 
     return [
-      // ١. اسم القسط
-      TextField(
-        controller: _nameController,
-        decoration: const InputDecoration(
-          labelText: 'اسم القسط أو المنتج',
-          prefixIcon: Icon(Icons.title_rounded),
-        ),
-      ),
-      const SizedBox(height: 14),
-
-      // ٢. المبلغ الإجمالي
-      TextField(
-        controller: _debtPrincipalController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'المبلغ الإجمالي',
-          helperText: 'السعر الأصلي للمنتج أو قيمة الدين الكامل',
-          prefixIcon: Icon(Icons.account_balance_outlined),
-        ),
-      ),
-      const SizedBox(height: 14),
-
-      // ٣. عدد الأقساط
-      TextField(
-        controller: _installmentCountController,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          labelText: 'عدد الأقساط',
-          helperText: 'كم قسط إجمالي ستدفع؟',
-          prefixIcon: Icon(Icons.format_list_numbered_rounded),
-        ),
-      ),
-      const SizedBox(height: 14),
-
-      // ٤. المقدم (اختياري)
-      TextField(
-        controller: _downPaymentController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'المقدم (اختياري)',
-          helperText: 'المبلغ الذي دفعته مقدمًا، إن وجد',
-          prefixIcon: Icon(Icons.monetization_on_outlined),
-        ),
-      ),
-      const SizedBox(height: 14),
-
-      // ٥. القسط الشهري (auto-calc + ربا)
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _amountController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'القسط الشهري',
-              helperText: hasCalc
-                  ? 'المحسوب: ${calcInstallment.toStringAsFixed(2)}'
-                  : 'أدخل المبلغ الإجمالي والعدد أولاً',
-              prefixIcon: const Icon(Icons.payments_rounded),
-              suffixIcon: hasCalc
-                  ? IconButton(
-                      icon: const Icon(Icons.calculate_rounded, size: 18),
-                      tooltip: 'تطبيق المبلغ المحسوب',
-                      onPressed: () {
-                        _amountController.text =
-                            calcInstallment.toStringAsFixed(2);
-                      },
-                    )
-                  : null,
-            ),
-          ),
-          if (hasRiba) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFC65D2E).withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFC65D2E).withValues(alpha: 0.35),
-                ),
+      // القسم الأول: البيانات الأساسية
+      _EditorSection(
+        title: 'البيانات الأساسية',
+        subtitle: 'حدد اسم القسط واختر له أيقونة تميزه في الميزانية.',
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'اسم القسط أو المنتج',
+                prefixIcon: Icon(Icons.title_rounded),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Color(0xFFC65D2E), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'ربا / فائدة زيادة: ${riba.toStringAsFixed(2)} لكل قسط'
-                      ' (${(riba * _installmentCount).toStringAsFixed(2)} إجمالي)',
-                      style: const TextStyle(
-                        color: Color(0xFFC65D2E),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 14),
+            _surfaceSection(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('الأيقونة واللون'),
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _parseColor(_iconColor).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                ],
+                  child: AppIconPickerDialog.iconWidgetForName(
+                    _iconName,
+                    color: _parseColor(_iconColor),
+                    size: 22,
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _pickIcon,
               ),
             ),
           ],
-        ],
-      ),
-      const SizedBox(height: 14),
-
-      // ٦. تاريخ أول دفعة
-      _surfaceSection(
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.event_rounded),
-          title: const Text('تاريخ أول دفعة'),
-          subtitle: Text(
-            '${_firstPaymentDate.day}/${_firstPaymentDate.month}/${_firstPaymentDate.year}',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          trailing: const Icon(Icons.chevron_left_rounded),
-          onTap: _pickFirstPaymentDate,
         ),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 16),
 
-      // ٧. المحفظة
-      DropdownButtonFormField<String>(
-        value: _walletId.isEmpty ? null : _walletId,
-        decoration: const InputDecoration(
-          labelText: 'المحفظة',
-          prefixIcon: Icon(Icons.account_balance_wallet_rounded),
-        ),
-        items: (widget.cubit.state.wallets)
-            .map(
-              (wallet) => DropdownMenuItem<String>(
-                value: wallet.id,
-                child: Text(wallet.name),
+      // القسم الثاني: تفاصيل المبلغ والجدولة
+      _EditorSection(
+        title: 'تفاصيل القسط',
+        subtitle: 'أدخل المبالغ وتاريخ أول دفعة لنقوم بجدولة الأقساط تلقائياً.',
+        child: Column(
+          children: [
+            TextField(
+              controller: _debtPrincipalController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'المبلغ الإجمالي',
+                helperText: 'السعر الأصلي للمنتج أو قيمة الدين الكامل',
+                prefixIcon: Icon(Icons.account_balance_outlined),
               ),
-            )
-            .toList(),
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _walletId = value);
-          }
-        },
-      ),
-      const SizedBox(height: 14),
-
-      // ٨. الأيقونة
-      _surfaceSection(
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('الأيقونة واللون'),
-          leading: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _parseColor(_iconColor).withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
+              onChanged: (_) => setState(() {}),
             ),
-            child: AppIconPickerDialog.iconWidgetForName(
-              _iconName,
-              color: _parseColor(_iconColor),
-              size: 22,
+            const SizedBox(height: 14),
+            TextField(
+              controller: _installmentCountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'عدد الأقساط',
+                prefixIcon: Icon(Icons.format_list_numbered_rounded),
+              ),
+              onChanged: (_) => setState(() {}),
             ),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: _pickIcon,
+            const SizedBox(height: 14),
+            TextField(
+              controller: _downPaymentController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'المقدم',
+                prefixIcon: Icon(Icons.monetization_on_outlined),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _amountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'القسط الشهري',
+                    helperText: hasCalc
+                        ? 'المحسوب: ${calcInstallment.toStringAsFixed(2)}'
+                        : 'أدخل المبلغ الإجمالي والعدد أولاً',
+                    prefixIcon: const Icon(Icons.payments_rounded),
+                    suffixIcon: hasCalc
+                        ? IconButton(
+                            icon: const Icon(Icons.calculate_rounded, size: 18),
+                            tooltip: 'تطبيق المبلغ المحسوب',
+                            onPressed: () {
+                              _amountController.text =
+                                  calcInstallment.toStringAsFixed(2);
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                  ),
+                ),
+                if (hasRiba) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC65D2E).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFC65D2E).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded,
+                            color: Color(0xFFC65D2E), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'ربا / فائدة زيادة: ${riba.toStringAsFixed(2)} لكل قسط'
+                            ' (${(riba * _installmentCount).toStringAsFixed(2)} إجمالي)',
+                            style: const TextStyle(
+                              color: Color(0xFFC65D2E),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+            _surfaceSection(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_rounded),
+                title: const Text('تاريخ أول دفعة'),
+                subtitle: Text(
+                  '${_firstPaymentDate.day}/${_firstPaymentDate.month}/${_firstPaymentDate.year}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: _pickFirstPaymentDate,
+              ),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 16),
 
-      // ٩. طريقة التنفيذ
-      DropdownButtonFormField<String>(
-        value: _executionType,
-        decoration: const InputDecoration(
-          labelText: 'طريقة التنفيذ',
-          prefixIcon: Icon(Icons.bolt_rounded),
+      // القسم الثالث: الإعدادات والمحفظة
+      _EditorSection(
+        title: 'الإعدادات والمحفظة',
+        subtitle: 'حدد المحفظة التي سيتم الخصم منها وطريقة تنفيذ العملية.',
+        child: Column(
+          children: [
+            DropdownButtonFormField<String>(
+              value: _walletId.isEmpty ? null : _walletId,
+              decoration: const InputDecoration(
+                labelText: 'المحفظة',
+                prefixIcon: Icon(Icons.account_balance_wallet_rounded),
+              ),
+              items: (widget.cubit.state.wallets)
+                  .map(
+                    (wallet) => DropdownMenuItem<String>(
+                      value: wallet.id,
+                      child: Text(wallet.name),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _walletId = value);
+                }
+              },
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: _executionType,
+              decoration: const InputDecoration(
+                labelText: 'طريقة التنفيذ',
+                prefixIcon: Icon(Icons.bolt_rounded),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
+                DropdownMenuItem(value: 'confirm', child: Text('يحتاج تأكيد')),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _executionType = value);
+                }
+              },
+            ),
+            if (_executionType == 'confirm') ...[
+              const SizedBox(height: 12),
+              _reminderDropdown(),
+            ],
+            const SizedBox(height: 14),
+            TextField(
+              controller: _notesController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات',
+                alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.notes_rounded),
+              ),
+            ),
+          ],
         ),
-        items: const [
-          DropdownMenuItem(value: 'auto', child: Text('تلقائي')),
-          DropdownMenuItem(value: 'confirm', child: Text('يحتاج تأكيد')),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _executionType = value);
-          }
-        },
       ),
-      if (_executionType == 'confirm') ...[
-        const SizedBox(height: 12),
-        _reminderDropdown(),
-      ],
-      const SizedBox(height: 14),
-
-      // ١٠. ملاحظات
-      TextField(
-        controller: _notesController,
-        minLines: 2,
-        maxLines: 4,
-        decoration: const InputDecoration(
-          labelText: 'ملاحظات',
-          alignLabelWithHint: true,
-          prefixIcon: Icon(Icons.notes_rounded),
-        ),
-      ),
-      const SizedBox(height: 18),
+      const SizedBox(height: 24),
 
       _saveButton(),
       if (widget.allowDelete && widget.initialRecurring != null) ...[
@@ -1280,23 +1378,11 @@ class _RecurringTransactionComposerScreenState
     if (_isMonthPattern) {
       return Column(
         children: [
-          DropdownButtonFormField<int>(
-            value: _monthlyDay,
-            decoration: const InputDecoration(
-              labelText: 'اليوم الشهري',
-              prefixIcon: Icon(Icons.calendar_today_rounded),
-            ),
-            items: List.generate(
-              28,
-              (index) => DropdownMenuItem(
-                value: index + 1,
-                child: Text('${index + 1}'),
-              ),
-            ),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _monthlyDay = value);
-              }
+          _DayPickerTile(
+            label: 'اليوم الشهري',
+            selectedDay: _monthlyDay,
+            onDaySelected: (day) {
+              setState(() => _monthlyDay = day);
             },
           ),
           const SizedBox(height: 12),
@@ -1332,23 +1418,11 @@ class _RecurringTransactionComposerScreenState
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: DropdownButtonFormField<int>(
-                  value: _yearlyDay,
-                  decoration: const InputDecoration(
-                    labelText: 'اليوم',
-                    prefixIcon: Icon(Icons.calendar_month_rounded),
-                  ),
-                  items: List.generate(
-                    28,
-                    (index) => DropdownMenuItem(
-                      value: index + 1,
-                      child: Text('${index + 1}'),
-                    ),
-                  ),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _yearlyDay = value);
-                    }
+                child: _DayPickerTile(
+                  label: 'اليوم',
+                  selectedDay: _yearlyDay,
+                  onDaySelected: (day) {
+                    setState(() => _yearlyDay = day);
                   },
                 ),
               ),
@@ -1877,3 +1951,224 @@ class _ScopeDivider extends StatelessWidget {
     );
   }
 }
+
+class _DayPickerTile extends StatelessWidget {
+  const _DayPickerTile({
+    this.label,
+    required this.selectedDay,
+    required this.onDaySelected,
+  });
+
+  final String? label;
+  final int selectedDay;
+  final ValueChanged<int> onDaySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label != null) ...[
+          Text(
+            label!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+        GestureDetector(
+          onTap: () => _showDaySheet(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_today_rounded,
+                    size: 20, color: colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'اليوم $selectedDay من كل شهر',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                Icon(Icons.unfold_more_rounded,
+                    size: 20, color: colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDaySheet(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'اختر اليوم الشهري',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 20),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemCount: 28,
+                itemBuilder: (_, index) {
+                  final day = index + 1;
+                  final isSelected = day == selectedDay;
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      onDaySelected(day);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primary
+                            : colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant
+                                  .withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$day',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: isSelected
+                                ? colorScheme.onPrimary
+                                : colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EditorSection extends StatelessWidget {
+  const _EditorSection({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+

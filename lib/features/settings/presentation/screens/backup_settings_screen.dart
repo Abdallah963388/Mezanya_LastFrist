@@ -268,6 +268,28 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     }
   }
 
+  /// رفع صامت عند غلق التطبيق — لا يُظهر dialogs أو loading.
+  Future<void> _backupFirestoreSilent() async {
+    if (_account == null) return;
+    final appState = widget.cubit.state;
+    if (appState.isEmpty) return;
+    try {
+      await BackupService.upload(
+        email: _account!.email!,
+        displayName: _account!.displayName ?? '',
+        jsonData: widget.cubit.exportStateJson(),
+        txCount: appState.transactions.length,
+        walletCount: appState.wallets.length,
+        recurringCount: appState.recurringTransactions.length,
+      );
+      final now = DateTime.now().toIso8601String();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_cloud_backup_at', now);
+    } catch (_) {
+      // صامت — لا نُظهر أي خطأ
+    }
+  }
+
   Future<void> _restoreFirestore() async {
     if (!_guardAuth()) return;
     try {
@@ -308,17 +330,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
             children: [
-              // ── شريط حالة النسخ السحابي ───────────────────
-              _BackupStatusBar(
-                lastBackupLabel: _formatBackupTime(_lastBackupAt),
-                txCount: widget.cubit.state.transactions.length,
-                isLoggedIn: _account != null,
-                isLoading: loading,
-                onUpload: _backupFirestore,
-              ),
-              const SizedBox(height: 18),
-
-              // ── النسخ المحلي ────────────────────────────────
+              // ── النسخ المحلي (أولاً) ────────────────────────────────
               _sectionHeader('النسخ المحلي', Icons.phone_android_rounded),
               _BackupCard(
                 children: [
@@ -326,7 +338,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
                   _pathTile(
                     icon: Icons.folder_rounded,
                     label: 'مكان الحفظ',
-                    value: localPath ?? 'لم يتم الاختيار',
+                    value: localPath ?? 'لم يتم الاختيار بعد',
                     onTap: _pickFolder,
                   ),
                   const SizedBox(height: 14),
@@ -342,9 +354,15 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
                       _savePrefs();
                     },
                   ),
+                  if (localFreq == BackupFrequency.onExit) ...[
+                    const SizedBox(height: 10),
+                    _InfoBanner(
+                      text: 'سيتم تحديث النسخة تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   _PrimaryButton(
-                    label: 'حفظ الآن',
+                    label: 'إنشاء نسخة الآن',
                     icon: Icons.save_rounded,
                     onTap: () => _saveLocal(),
                   ),
@@ -359,40 +377,22 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
               const SizedBox(height: 18),
 
-              // ── النسخ السحابي ────────────────────────────────
-              _sectionHeader(
-                  'النسخ السحابي', Icons.cloud_rounded),
-              if (_account != null)
-                _googleAccountBadge()
-              else
-                _googleNotConnectedBadge(),
-              const SizedBox(height: 10),
-              _BackupCard(
-                children: [
-                  _FrequencySelector(
-                    label: 'تكرار النسخ السحابي',
-                    value: cloudFreq,
-                    options: BackupFrequency.values,
-                    labelOf: _freqLabel,
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setState(() => cloudFreq = v);
-                      _savePrefs();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _PrimaryButton(
-                    label: 'رفع نسخة الآن',
-                    icon: Icons.cloud_upload_rounded,
-                    onTap: _backupFirestore,
-                  ),
-                  const SizedBox(height: 8),
-                  _SecondaryButton(
-                    label: 'استرجاع من السحابة',
-                    icon: Icons.cloud_download_rounded,
-                    onTap: _restoreFirestore,
-                  ),
-                ],
+              // ── النسخ السحابي ─────────────────────────────────────
+              _sectionHeader('النسخ السحابي', Icons.cloud_rounded),
+              _CloudBackupCard(
+                account: _account,
+                lastBackupLabel: _formatBackupTime(_lastBackupAt),
+                txCount: widget.cubit.state.transactions.length,
+                isLoading: loading,
+                cloudFreq: cloudFreq,
+                freqLabel: _freqLabel,
+                onFreqChanged: (v) {
+                  if (v == null) return;
+                  setState(() => cloudFreq = v);
+                  _savePrefs();
+                },
+                onUpload: _backupFirestore,
+                onRestore: _restoreFirestore,
               ),
             ],
           ),
@@ -523,113 +523,38 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     );
   }
 
-  Widget _googleAccountBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: _green.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _green.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 4,
-                  color: Colors.black.withValues(alpha: 0.07),
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Text('G',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Arial',
-                    color: Color(0xFF4285F4),
-                  )),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'متصل بجوجل',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: _green,
-                  ),
-                ),
-                Text(
-                  _account?.email ?? '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _green.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.circle, size: 7, color: Color(0xFF22C55E)),
-                SizedBox(width: 4),
-                Text(
-                  'متصل',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF22C55E),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+}
 
-  Widget _googleNotConnectedBadge() {
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable Widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.text});
+  final String text;
+
+  static const _green = Color(0xFF2F6F5E);
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E0),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFB74D).withValues(alpha: 0.4)),
+        color: _green.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _green.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              size: 20, color: Color(0xFFF57C00)),
-          const SizedBox(width: 10),
+          Icon(Icons.info_outline_rounded, size: 16, color: _green.withValues(alpha: 0.8)),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'سجّل دخولك بجوجل من إعدادات الحساب أولاً لتفعيل النسخ السحابي',
+              text,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFFF57C00).withValues(alpha: 0.85),
+                fontWeight: FontWeight.w600,
+                color: _green.withValues(alpha: 0.85),
               ),
             ),
           ),
@@ -638,6 +563,228 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     );
   }
 }
+
+class _CloudBackupCard extends StatelessWidget {
+  const _CloudBackupCard({
+    required this.account,
+    required this.lastBackupLabel,
+    required this.txCount,
+    required this.isLoading,
+    required this.cloudFreq,
+    required this.freqLabel,
+    required this.onFreqChanged,
+    required this.onUpload,
+    required this.onRestore,
+  });
+
+  final dynamic account; // GoogleSignInAccount?
+  final String lastBackupLabel;
+  final int txCount;
+  final bool isLoading;
+  final BackupFrequency cloudFreq;
+  final String Function(BackupFrequency) freqLabel;
+  final ValueChanged<BackupFrequency?> onFreqChanged;
+  final VoidCallback onUpload;
+  final VoidCallback onRestore;
+
+  static const _green = Color(0xFF2F6F5E);
+  static const _orange = Color(0xFFC65D2E);
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoggedIn = account != null;
+    final hasBackup = lastBackupLabel != 'لم يتم النسخ بعد';
+    final statusColor = isLoggedIn
+        ? (hasBackup ? _green : _orange)
+        : const Color(0xFF888888);
+
+    return _BackupCard(
+      children: [
+        // ── بادج الحساب + حالة النسخ في كارت واحد ──
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: statusColor.withValues(alpha: 0.22)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // أيقونة G
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 4,
+                          color: Colors.black.withValues(alpha: 0.07),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: isLoggedIn
+                          ? const Text('G',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                fontFamily: 'Arial',
+                                color: Color(0xFF4285F4),
+                              ))
+                          : Icon(Icons.cloud_off_rounded,
+                              size: 20,
+                              color: Colors.grey.shade400),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isLoggedIn ? 'متصل بجوجل' : 'غير مرتبط بحساب جوجل',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: statusColor,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isLoggedIn
+                              ? (account!.email as String? ?? '')
+                              : 'سجل دخول من إعدادات الحساب',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor.withValues(alpha: 0.7),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // مؤشر الاتصال
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, size: 7, color: statusColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          isLoggedIn ? 'متصل' : 'غير متصل',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (isLoggedIn) ...[
+                const SizedBox(height: 10),
+                const Divider(height: 1),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      hasBackup
+                          ? Icons.cloud_done_rounded
+                          : Icons.cloud_off_rounded,
+                      size: 16,
+                      color: statusColor.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        hasBackup
+                            ? 'آخر نسخة: $lastBackupLabel · $txCount معاملة'
+                            : 'لم يتم رفع أي نسخة بعد',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
+                    // زر رفع سريع
+                    isLoading
+                        ? SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: _green,
+                            ),
+                          )
+                        : GestureDetector(
+                            onTap: onUpload,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: _green,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.cloud_upload_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // ── تكرار النسخ ──
+        _FrequencySelector(
+          label: 'تكرار النسخ السحابي',
+          value: cloudFreq,
+          options: BackupFrequency.values,
+          labelOf: freqLabel,
+          onChanged: onFreqChanged,
+        ),
+        if (cloudFreq == BackupFrequency.onExit) ...[
+          const SizedBox(height: 10),
+          _InfoBanner(
+            text: 'سيتم رفع النسخة السحابية تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
+          ),
+        ],
+        const SizedBox(height: 16),
+        _PrimaryButton(
+          label: 'رفع نسخة الآن',
+          icon: Icons.cloud_upload_rounded,
+          onTap: isLoggedIn ? onUpload : () {},
+        ),
+        const SizedBox(height: 8),
+        _SecondaryButton(
+          label: 'استرجاع من السحابة',
+          icon: Icons.cloud_download_rounded,
+          onTap: isLoggedIn ? onRestore : () {},
+        ),
+      ],
+    );
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable Widgets

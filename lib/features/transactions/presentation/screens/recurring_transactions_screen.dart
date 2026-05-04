@@ -50,18 +50,9 @@ class _RecurringTransactionsScreenState
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
-            _heroHeader(records),
-            const SizedBox(height: 14),
             _typeSwitcher(),
             const SizedBox(height: 14),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FilledButton.icon(
-                onPressed: _handleAddPressed,
-                icon: const Icon(Icons.add_rounded),
-                label: Text(_addButtonLabel()),
-              ),
-            ),
+            _addButtons(),
             const SizedBox(height: 16),
             _scopeSection(
               state: state,
@@ -133,84 +124,59 @@ class _RecurringTransactionsScreenState
   }
 
   void _handleAddPressed() {
-    if (_tab == 'expense') {
-      _openExpenseEntryChooser();
-      return;
-    }
     _openRecurringComposer(mode: _tab);
   }
 
-  Widget _heroHeader(List<RecurringTransactionEntity> records) {
-    final theme = Theme.of(context);
-    final total = records
-        .where((item) => !item.isVariableIncome)
-        .fold<double>(0, (sum, item) => sum + item.amount);
-    final accent = _currentAccent;
+  Widget _addButtons() {
+    final isExpense = _tab == 'expense';
+    final color = isExpense ? _expenseAccent : _incomeAccent;
+    final icon = isExpense ? Icons.north_east_rounded : Icons.south_west_rounded;
+    final label = isExpense ? 'إضافة مصروف متكرر' : 'إضافة دخل متكرر';
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            accent.withValues(alpha: 0.95),
-            accent.withValues(alpha: 0.72),
+    return GestureDetector(
+      onTap: _handleAddPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
           ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(20),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
             ),
-            child: Icon(
-              _tab == 'income'
-                  ? Icons.event_available_rounded
-                  : Icons.receipt_long_rounded,
-              color: Colors.white,
-              size: 30,
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tabTitle(),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${records.length} عملية · الإجمالي ${total.toStringAsFixed(2)}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _typeSwitcher() {
     final theme = Theme.of(context);
@@ -933,133 +899,6 @@ class _RecurringTransactionsScreenState
     );
   }
 
-  Future<void> _openExpenseEntryChooser() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  'اختر نوع العملية المتكررة',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: Text(
-                  'اختر بين المصروف العادي أو القسط أو الاشتراك حتى تفتح لك الفورمة المناسبة مباشرة.',
-                  textAlign: TextAlign.right,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _entryChoiceTile(
-                title: 'مصروف متكرر عادي',
-                subtitle: 'لأي مصروف يتكرر بشكل طبيعي داخل أو خارج الميزانية',
-                icon: Icons.repeat_rounded,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(mode: 'expense');
-                },
-              ),
-              const SizedBox(height: 10),
-              _entryChoiceTile(
-                title: 'إضافة قسط',
-                subtitle: 'عند وجود أصل دين أو خدمة مقسطة على دفعات',
-                icon: Icons.account_balance_outlined,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(
-                    mode: 'expense',
-                    initialExpensePlanKind: 'installment',
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              _entryChoiceTile(
-                title: 'إضافة اشتراك',
-                subtitle: 'مثل نتفلكس أو شاهد أو أي خدمة دورية',
-                icon: Icons.subscriptions_rounded,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRecurringComposer(
-                    mode: 'expense',
-                    initialExpensePlanKind: 'subscription',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _entryChoiceTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Ink(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFE1D9CA)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.chevron_left_rounded),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9F3E7),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(icon, color: _currentAccent),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _DetailsTable extends StatelessWidget {
