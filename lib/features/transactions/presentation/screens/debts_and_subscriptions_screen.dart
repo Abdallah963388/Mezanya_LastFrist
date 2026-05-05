@@ -87,44 +87,17 @@ class _DebtsAndSubscriptionsScreenState
                   ...subscriptionRecords
                       .map((r) => _recurringCard(state, r)),
               ] else ...[
-                // ── أزرار الإضافة ────────────────────────────────────────
-                Row(children: [
-                  Expanded(
-                    child: _actionButton(
-                      label: 'سجّل دين/قسط',
-                      icon: Icons.account_balance_outlined,
-                      color: _debtAccent,
-                      onTap: () => _openRecurringComposer(
-                        mode: 'expense',
-                        initialExpensePlanKind: 'installment',
-                        debtOnlyMode: true,
-                      ),
-                    ),
+                // ── زرار الإضافة ─────────────────────────────────────────
+                _actionButton(
+                  label: 'دين أو قسط',
+                  icon: Icons.account_balance_outlined,
+                  color: _debtAccent,
+                  onTap: () => _openRecurringComposer(
+                    mode: 'expense',
+                    initialExpensePlanKind: 'installment',
+                    debtOnlyMode: true,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _actionButton(
-                      label: 'سلّفت حد',
-                      icon: Icons.handshake_outlined,
-                      color: _lentAccent,
-                      onTap: () => _openLentForm(state),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 20),
-
-                // ── سكشن: سلّفت للناس ────────────────────────────────────
-                _sectionHeader(
-                  label: 'سلّفت للناس',
-                  color: _lentAccent,
-                  icon: Icons.handshake_outlined,
                 ),
-                const SizedBox(height: 10),
-                if (lentRecords.isEmpty)
-                  _emptyCard('ما سلّفتش حد حالياً.')
-                else
-                  ...lentRecords.map((r) => _lentCard(state, r)),
-
                 const SizedBox(height: 20),
 
                 // ── سكشن: ديون عليّ ──────────────────────────────────────
@@ -138,6 +111,20 @@ class _DebtsAndSubscriptionsScreenState
                   _emptyCard('لا توجد ديون أو أقساط مسجلة حالياً.')
                 else
                   ...borrowedRecords.map((r) => _recurringCard(state, r)),
+
+                const SizedBox(height: 20),
+
+                // ── سكشن: سلّفت للناس ────────────────────────────────────
+                _sectionHeader(
+                  label: 'سلّفت للناس',
+                  color: _lentAccent,
+                  icon: Icons.handshake_outlined,
+                ),
+                const SizedBox(height: 10),
+                if (lentRecords.isEmpty)
+                  _emptyCard('ما سلّفتش حد حالياً.')
+                else
+                  ...lentRecords.map((r) => _lentCard(state, r)),
               ],
             ],
           ),

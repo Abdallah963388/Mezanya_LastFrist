@@ -79,6 +79,16 @@ class _RecurringTransactionComposerScreenState
   bool _isVariableIncome = false;
   bool _isDebtOrSubscription = true;
   bool _isSaving = false;
+  bool _isLentMode = false;
+
+  // ── حقول فورم السلفة ──────────────────────────────────────────────────────
+  final _lentNameController = TextEditingController();
+  final _lentAmountController = TextEditingController();
+  final _lentNotesController = TextEditingController();
+  String _lentWalletId = '';
+  DateTime _lentReturnDate =
+      DateTime.now().add(const Duration(days: 30));
+  bool _lentIsMonthly = false;
   int _monthlyDay = 1;
   int _yearlyMonth = 1;
   int _yearlyDay = 1;
@@ -98,6 +108,8 @@ class _RecurringTransactionComposerScreenState
     _type = recurring?.type ?? widget.initialType;
     _walletId = recurring?.walletId ??
         (state.wallets.isNotEmpty ? state.wallets.first.id : '');
+    _lentWalletId =
+        state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _withinBudget = recurring != null
         ? recurring.budgetScope == 'within-budget'
         : widget.initialWithinBudget;
@@ -197,6 +209,9 @@ class _RecurringTransactionComposerScreenState
     _installmentCountController.dispose();
     _downPaymentController.dispose();
     _notesController.dispose();
+    _lentNameController.dispose();
+    _lentAmountController.dispose();
+    _lentNotesController.dispose();
     super.dispose();
   }
 
@@ -292,6 +307,7 @@ class _RecurringTransactionComposerScreenState
       return isNew ? 'إضافة اشتراك' : 'تعديل اشتراك';
     }
     if (widget.debtOnlyMode || _expensePlanKind == 'installment') {
+      if (_isLentMode) return 'سلّفت حد';
       return isNew ? 'إضافة قسط' : 'تعديل قسط';
     }
     if (_type == 'income') {
@@ -323,9 +339,15 @@ class _RecurringTransactionComposerScreenState
             // ── وضع القسط المبسّط ──────────────────────────────────────
             if (_isExpenseInstallment &&
                 (widget.debtOnlyMode || _expensePlanKind == 'installment')) ...[
-              _installmentHeroHeader(theme),
+              _debtLentToggle(theme),
               const SizedBox(height: 18),
-              ..._installmentFormChildren(theme, wallets),
+              if (_isLentMode) ...[
+                ..._lentFormContent(theme, state.wallets),
+              ] else ...[
+                _installmentHeroHeader(theme),
+                const SizedBox(height: 18),
+                ..._installmentFormChildren(theme, wallets),
+              ],
             ] else ...[
               // ── النموذج العادي ────────────────────────────────────────
               if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
@@ -533,6 +555,306 @@ class _RecurringTransactionComposerScreenState
         ),
       ),
     );
+  }
+
+  // ── توجل دين / سلّفت ─────────────────────────────────────────────────────
+
+  Widget _debtLentToggle(ThemeData theme) {
+    const debtColor = Color(0xFFC65D2E);
+    const lentColor = Color(0xFF1A7A4A);
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _toggleTile(
+              selected: !_isLentMode,
+              label: 'دين',
+              icon: Icons.account_balance_outlined,
+              color: debtColor,
+              onTap: () => setState(() => _isLentMode = false),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _toggleTile(
+              selected: _isLentMode,
+              label: 'سلّفت حد',
+              icon: Icons.handshake_outlined,
+              color: lentColor,
+              onTap: () => setState(() => _isLentMode = true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleTile({
+    required bool selected,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(
+          color: selected ? theme.colorScheme.surface : null,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? color : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                color: selected ? color : theme.colorScheme.onSurfaceVariant,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── فورم السلفة المدمج ────────────────────────────────────────────────────
+
+  List<Widget> _lentFormContent(ThemeData theme, List<dynamic> wallets) {
+    const accent = Color(0xFF1A7A4A);
+    return [
+      // Hero banner
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1A7A4A).withValues(alpha: 0.22),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: Icon(Icons.handshake_outlined,
+                  color: Colors.white, size: 28),
+            ),
+          ),
+          const SizedBox(width: 14),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'تسجيل سلفة',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'المبلغ يُخصم من المحفظة فوراً',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ]),
+      ),
+      const SizedBox(height: 20),
+
+      // اسم الشخص
+      TextField(
+        controller: _lentNameController,
+        decoration: const InputDecoration(
+          labelText: 'اسم الشخص',
+          prefixIcon: Icon(Icons.person_outline_rounded),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 12),
+
+      // المبلغ
+      TextField(
+        controller: _lentAmountController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'المبلغ المسلَّف',
+          prefixIcon: Icon(Icons.payments_outlined),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 12),
+
+      // المحفظة
+      if (wallets.isNotEmpty) ...[
+        DropdownButtonFormField<String>(
+          value: _lentWalletId.isEmpty ? null : _lentWalletId,
+          decoration: const InputDecoration(
+            labelText: 'المحفظة',
+            prefixIcon: Icon(Icons.account_balance_wallet_rounded),
+          ),
+          items: wallets
+              .map(
+                (w) => DropdownMenuItem<String>(
+                  value: w.id as String,
+                  child: Text(w.name as String),
+                ),
+              )
+              .toList(),
+          onChanged: (v) {
+            if (v != null) setState(() => _lentWalletId = v);
+          },
+        ),
+        const SizedBox(height: 12),
+      ],
+
+      // تاريخ الاسترداد
+      InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () async {
+          final d = await showDatePicker(
+            context: context,
+            initialDate: _lentReturnDate,
+            firstDate: DateTime.now(),
+            lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+          );
+          if (d != null) setState(() => _lentReturnDate = d);
+        },
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(children: [
+            Icon(
+              Icons.calendar_month_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'تاريخ الاسترداد المتوقع: ${_lentReturnDate.day}/${_lentReturnDate.month}/${_lentReturnDate.year}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 4),
+
+      // أقساط شهرية
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        value: _lentIsMonthly,
+        title: const Text('يردها أقساط شهرية',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: const Text('سيظهر تذكير شهري',
+            style: TextStyle(fontSize: 12)),
+        onChanged: (v) => setState(() => _lentIsMonthly = v),
+      ),
+
+      // ملاحظة
+      TextField(
+        controller: _lentNotesController,
+        maxLines: 2,
+        decoration: const InputDecoration(
+          labelText: 'ملاحظة (اختياري)',
+          prefixIcon: Icon(Icons.notes_outlined),
+        ),
+      ),
+      const SizedBox(height: 20),
+
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: accent,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          onPressed: () => _saveLent(),
+          icon: const Icon(Icons.check_rounded),
+          label: const Text(
+            'تسجيل السلفة',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _saveLent() async {
+    final name = _lentNameController.text.trim();
+    final amount = double.tryParse(_lentAmountController.text.trim()) ?? 0;
+    if (name.isEmpty || amount <= 0 || _lentWalletId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('من فضلك أدخل اسم الشخص والمبلغ والمحفظة'),
+        ),
+      );
+      return;
+    }
+    setState(() => _isSaving = true);
+    await widget.cubit.addLentRecord(
+      personName: name,
+      amount: amount,
+      walletId: _lentWalletId,
+      expectedReturnDate: _lentReturnDate,
+      isMonthlyInstallments: _lentIsMonthly,
+      notes: _lentNotesController.text.trim().isEmpty
+          ? null
+          : _lentNotesController.text.trim(),
+    );
+    if (mounted) Navigator.pop(context);
   }
 
   // ── نموذج القسط الجديد ────────────────────────────────────────────────────
