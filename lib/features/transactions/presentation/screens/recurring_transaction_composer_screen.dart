@@ -39,6 +39,7 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
     this.subscriptionOnlyMode = false,
     this.debtOnlyMode = false,
     this.initialSubscriptionPresetId,
+    this.initialLentMode = false,
   });
 
   final AppCubit cubit;
@@ -51,6 +52,7 @@ class RecurringTransactionComposerScreen extends StatefulWidget {
   final bool subscriptionOnlyMode;
   final bool debtOnlyMode;
   final String? initialSubscriptionPresetId;
+  final bool initialLentMode;
 
   @override
   State<RecurringTransactionComposerScreen> createState() =>
@@ -79,7 +81,7 @@ class _RecurringTransactionComposerScreenState
   bool _isVariableIncome = false;
   bool _isDebtOrSubscription = true;
   bool _isSaving = false;
-  bool _isLentMode = false;
+  late bool _isLentMode;
 
   // ── حقول فورم السلفة ──────────────────────────────────────────────────────
   final _lentNameController = TextEditingController();
@@ -173,6 +175,8 @@ class _RecurringTransactionComposerScreenState
       final now = DateTime.now();
       _firstPaymentDate = DateTime(now.year, now.month, now.day + 1);
     }
+
+    _isLentMode = widget.initialLentMode;
 
     if (widget.subscriptionOnlyMode &&
         widget.initialSubscriptionPresetId != null) {

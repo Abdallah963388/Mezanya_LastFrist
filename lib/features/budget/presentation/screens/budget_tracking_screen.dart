@@ -2726,25 +2726,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         amountText: record.amount.toStringAsFixed(2),
         metaText: '$dateLabel$statusLabel',
         tint: isOverdue ? const Color(0xFFC65D2E) : null,
-        onTap: () {},
+        onTap: () => _openBudgetLentDetailsSheet(
+            record, state, monthTx),
         embeddedInIncomeCard: true,
-        actions: [
-          _compactActionButton(
-            label: 'تم الاسترداد',
-            onPressed: () => _confirmBudgetSettleLent(record.id, personName),
-          ),
-          _compactActionButton(
-            label: 'تأجيل',
-            filled: false,
-            onPressed: () => _openBudgetLentPostpone(record.id, returnDate),
-          ),
-          _compactActionButton(
-            label: 'تنازل',
-            filled: false,
-            color: const Color(0xFF7B4FBF),
-            onPressed: () => _confirmBudgetWriteOff(record.id, personName, record.amount),
-          ),
-        ],
+        actions: const [],
       );
     }).toList();
 
@@ -2836,6 +2821,278 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         ),
       ),
     ];
+  }
+
+  Future<void> _openBudgetLentDetailsSheet(
+    RecurringTransactionEntity record,
+    AppStateEntity state,
+    List<TransactionEntity> monthTx,
+  ) async {
+    final personName = record.lentPersonName ?? record.name;
+    final returnDate = record.anchorDate != null
+        ? DateTime.tryParse(record.anchorDate!)
+        : null;
+    final today = DateTime.now();
+    final todayMid = DateTime(today.year, today.month, today.day);
+    final isOverdue = returnDate != null &&
+        DateTime(returnDate.year, returnDate.month, returnDate.day)
+            .isBefore(todayMid);
+
+    // الـ transactions المرتبطة بهذه السلفة
+    final lentTx = state.transactions.where((t) {
+      return t.type == 'expense' &&
+          t.walletId == record.walletId &&
+          (t.notes?.contains('سلفة لـ $personName') ?? false);
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) {
+        final maxH = MediaQuery.of(sheetCtx).size.height * 0.78;
+        return SizedBox(
+          height: maxH.clamp(420.0, 700.0),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color:
+                            const Color(0xFF1a7a4a).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.handshake_rounded,
+                          color: Color(0xFF1a7a4a)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            personName,
+                            style: Theme.of(sheetCtx)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '${record.amount.toStringAsFixed(2)}'
+                            '${returnDate != null ? ' • ${returnDate.day}/${returnDate.month}/${returnDate.year}' : ''}'
+                            '${isOverdue ? ' ⚠️ متأخر' : ''}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isOverdue
+                                  ? const Color(0xFFC65D2E)
+                                  : Theme.of(sheetCtx)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (lentTx.isNotEmpty) ...[
+                  Text(
+                    'معاملات السلفة',
+                    style: Theme.of(sheetCtx).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  Flexible(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(sheetCtx)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Theme.of(sheetCtx)
+                              .colorScheme
+                              .outlineVariant
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(10),
+                        shrinkWrap: true,
+                        itemCount: lentTx.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, indent: 8),
+                        itemBuilder: (_, i) {
+                          final tx = lentTx[i];
+                          final d = tx.createdAt;
+                          return ListTile(
+                            dense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1a7a4a)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.handshake_outlined,
+                                  color: Color(0xFF1a7a4a), size: 18),
+                            ),
+                            title: Text(
+                              tx.notes?.isNotEmpty == true
+                                  ? tx.notes!
+                                  : personName,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  tx.amount.toStringAsFixed(2),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    color: Color(0xFFC65D2E),
+                                  ),
+                                ),
+                                Text(
+                                  '${d.day}/${d.month}/${d.year}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Theme.of(sheetCtx)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.of(sheetCtx).pop();
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          fullscreenDialog: true,
+                          builder: (_) => RecurringTransactionComposerScreen(
+                            cubit: widget.cubit,
+                            initialType: 'expense',
+                            initialWithinBudget: true,
+                            debtOnlyMode: true,
+                            initialLentMode: true,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_rounded,
+                        color: Color(0xFF1a7a4a)),
+                    label: const Text('إضافة سلفة جديدة لنفس الشخص',
+                        style: TextStyle(color: Color(0xFF1a7a4a))),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                      side: const BorderSide(
+                          color: Color(0xFF1a7a4a), width: 1),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.of(sheetCtx).pop();
+                          _confirmBudgetSettleLent(record.id, personName);
+                        },
+                        icon: const Icon(Icons.check_rounded, size: 18),
+                        label: const Text('تم الاسترداد',
+                            style: TextStyle(fontSize: 13)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF1a7a4a),
+                          minimumSize: const Size.fromHeight(44),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(sheetCtx).pop();
+                          _openBudgetLentPostpone(record.id, returnDate);
+                        },
+                        icon: const Icon(Icons.schedule_rounded, size: 18),
+                        label: const Text('تأجيل',
+                            style: TextStyle(fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(sheetCtx).pop();
+                          _confirmBudgetWriteOff(
+                              record.id, personName, record.amount);
+                        },
+                        icon: const Icon(
+                            Icons.remove_circle_outline_rounded,
+                            size: 18,
+                            color: Color(0xFF7B4FBF)),
+                        label: const Text('تنازل',
+                            style: TextStyle(
+                                color: Color(0xFF7B4FBF), fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          side: const BorderSide(
+                              color: Color(0xFF7B4FBF)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _confirmBudgetSettleLent(
