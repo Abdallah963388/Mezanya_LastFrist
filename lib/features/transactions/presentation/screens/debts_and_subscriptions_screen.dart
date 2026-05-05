@@ -622,6 +622,21 @@ class _DebtsAndSubscriptionsScreenState
             const SizedBox(height: 10),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF7B4FBF),
+                side: const BorderSide(color: Color(0xFF7B4FBF)),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              onPressed: () async {
+                Navigator.pop(sheetCtx);
+                await _confirmWriteOffLent(record);
+              },
+              icon: const Icon(Icons.handshake_outlined),
+              label: const Text('تنازل (لن يُردّ)',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.red,
                 side: const BorderSide(color: Colors.red),
                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -638,6 +653,32 @@ class _DebtsAndSubscriptionsScreenState
         ),
       ),
     );
+  }
+
+  Future<void> _confirmWriteOffLent(RecurringTransactionEntity record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تنازل عن السلفة'),
+        content: Text(
+          'هل متأكد إنك هتتنازل عن مبلغ ${record.amount.toStringAsFixed(2)} من ${record.lentPersonName ?? record.name}؟\n\nلن يُضاف المبلغ لمحفظتك — يُستخدم لما تعرف إن الفلوس مش هترجع.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF7B4FBF)),
+            child: const Text('تنازل'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.cubit.writeOffLentRecord(record.id);
+    }
   }
 
   Future<void> _confirmSettleLent(RecurringTransactionEntity record) async {

@@ -1077,6 +1077,31 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  // ── سلفة: تنازل (شطب السلفة بدون استرداد) ─────────────────────────────
+  Future<void> writeOffLentRecord(String recurringId) async {
+    final target = state.recurringTransactions
+        .where((r) => r.id == recurringId)
+        .toList();
+    if (target.isEmpty) return;
+    final record = target.first;
+
+    final next = state.copyWith(
+      recurringTransactions: state.recurringTransactions
+          .where((r) => r.id != recurringId)
+          .toList(),
+    );
+
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'recurring-transaction',
+      entityId: recurringId,
+      details:
+          'تنازل عن سلفة ${record.lentPersonName ?? record.name} بمبلغ ${record.amount} — لن يُرجع المبلغ',
+      titleOverride: 'تنازل عن سلفة ${record.lentPersonName ?? record.name}',
+      apply: () async => next,
+    );
+  }
+
   // ── سلفة: تأجيل تاريخ الاسترداد ──────────────────────────────────────
   Future<void> postponeLentRecord(
       String recurringId, DateTime newDate) async {

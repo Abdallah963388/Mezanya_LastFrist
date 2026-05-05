@@ -1648,11 +1648,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required String label,
     required VoidCallback onPressed,
     bool filled = true,
+    Color? color,
   }) {
     return filled
         ? FilledButton(
             onPressed: onPressed,
             style: FilledButton.styleFrom(
+              backgroundColor: color,
               minimumSize: const Size.fromHeight(36),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               textStyle: const TextStyle(
@@ -1665,6 +1667,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         : OutlinedButton(
             onPressed: onPressed,
             style: OutlinedButton.styleFrom(
+              foregroundColor: color,
+              side: color != null ? BorderSide(color: color) : null,
               minimumSize: const Size.fromHeight(36),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               textStyle: const TextStyle(
@@ -2734,21 +2738,102 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             filled: false,
             onPressed: () => _openBudgetLentPostpone(record.id, returnDate),
           ),
+          _compactActionButton(
+            label: 'تنازل',
+            filled: false,
+            color: const Color(0xFF7B4FBF),
+            onPressed: () => _confirmBudgetWriteOff(record.id, personName, record.amount),
+          ),
         ],
       );
     }).toList();
 
+    final theme = Theme.of(context);
     return [
-      _inlineSectionCard(
-        title: 'سلف للناس',
-        subtitle: '${cycleCreatedLent.length} سلفة'
-            '${hasOverdue ? ' · يوجد متأخرات' : ''}',
-        amount: total,
-        isExpanded: _isLentExpanded,
-        accentColor: hasOverdue ? const Color(0xFFC65D2E) : lentAccent,
-        incomeTotalLayout: true,
-        onTap: () => setState(() => _isLentExpanded = !_isLentExpanded),
-        expandedChildren: childTiles,
+      Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () => setState(() => _isLentExpanded = !_isLentExpanded),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _iconBadge('handshake', '#1a7a4a', size: 54),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'سلف للناس',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${cycleCreatedLent.length} سلفة'
+                              '${hasOverdue ? ' · يوجد متأخرات ⚠️' : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: hasOverdue
+                                    ? const Color(0xFFC65D2E)
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            total.toStringAsFixed(2),
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF165B47),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Icon(
+                            _isLentExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (_isLentExpanded) ...[
+                    const SizedBox(height: 12),
+                    Divider(
+                      height: 1,
+                      color: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.6),
+                    ),
+                    const SizedBox(height: 8),
+                    ...childTiles,
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     ];
   }
@@ -2788,6 +2873,34 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
     if (picked != null && mounted) {
       await widget.cubit.postponeLentRecord(recurringId, picked);
+    }
+  }
+
+  Future<void> _confirmBudgetWriteOff(
+      String recurringId, String personName, double amount) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تنازل عن السلفة'),
+        content: Text(
+          'هل متأكد إنك هتتنازل عن ${amount.toStringAsFixed(2)} من $personName؟\n\nلن يُضاف المبلغ لمحفظتك.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF7B4FBF)),
+            child: const Text('تنازل'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.cubit.writeOffLentRecord(recurringId);
     }
   }
 
