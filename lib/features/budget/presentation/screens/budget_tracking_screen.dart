@@ -60,6 +60,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   /// [_cycleStart] = أول يوم في الدورة المعروضة حالياً
   late DateTime _cycleStart;
   bool _isIncomeExpanded = false;
+  bool _isLentExpanded = false;
   bool _processingAutomaticDebts = false;
   String? _dismissedAutoIncomeMonthKey;
   String _id(String prefix) =>
@@ -1395,11 +1396,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required VoidCallback onTap,
     List<Widget> expandedChildren = const <Widget>[],
     bool incomeTotalLayout = false,
+    Color? accentColor,
   }) {
     final theme = Theme.of(context);
-    final accent = title == 'الدخل الكلي'
-        ? const Color(0xFF0F9D7A)
-        : const Color(0xFFC65D2E);
+    final accent = accentColor ??
+        (title == 'الدخل الكلي'
+            ? const Color(0xFF0F9D7A)
+            : const Color(0xFFC65D2E));
     final shellColor = incomeTotalLayout
         ? accent.withValues(alpha: isExpanded ? 0.12 : 0.08)
         : accent.withValues(alpha: 0.10);
@@ -2670,7 +2673,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     final cycleEnd = _cycleEnd;
 
-    // فلتر: فقط السلف اللي أُنشئت في هذه الدورة
     final cycleCreatedLent = allLent.where((r) {
       final name = r.lentPersonName ?? r.name;
       return state.transactions.any((t) =>
@@ -2683,59 +2685,45 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     if (cycleCreatedLent.isEmpty) return [];
 
+    final total = cycleCreatedLent.fold<double>(0, (s, r) => s + r.amount);
+    final hasOverdue = cycleCreatedLent.any((r) {
+      if (r.anchorDate == null) return false;
+      final d = DateTime.tryParse(r.anchorDate!);
+      if (d == null) return false;
+      final today = DateTime.now();
+      return DateTime(d.year, d.month, d.day)
+          .isBefore(DateTime(today.year, today.month, today.day));
+    });
+
+    const lentAccent = Color(0xFF1a7a4a);
     final today = DateTime.now();
     final todayMidnight = DateTime(today.year, today.month, today.day);
-    final widgets = <Widget>[];
 
-    // عنوان فرعي لتمييز السلف عن الأقساط
-    widgets.add(Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 10, right: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.handshake_outlined,
-              size: 15, color: Color(0xFF1a7a4a)),
-          const SizedBox(width: 6),
-          Text(
-            'سلف للناس',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1a7a4a).withValues(alpha: 0.85),
-            ),
-          ),
-        ],
-      ),
-    ));
-
-    for (final record in cycleCreatedLent) {
+    final childTiles = cycleCreatedLent.map((record) {
       final personName = record.lentPersonName ?? record.name;
       final returnDate = record.anchorDate != null
           ? DateTime.tryParse(record.anchorDate!)
           : null;
-
       final isOverdue = returnDate != null &&
           DateTime(returnDate.year, returnDate.month, returnDate.day)
               .isBefore(todayMidnight);
-
       final dateLabel = returnDate != null
           ? 'الاسترداد ${returnDate.day}/${returnDate.month}/${returnDate.year}'
           : 'بدون تاريخ استرداد';
-
       final statusLabel = isOverdue ? ' · متأخر ⚠️' : '';
-      final tintColor =
-          isOverdue ? const Color(0xFFC65D2E) : null;
 
-      widgets.add(_entityTile(
+      return _entityTile(
         title: personName,
         leading: _iconBadge(
           record.icon.isEmpty ? 'handshake' : record.icon,
           record.iconColor.isEmpty ? '#1a7a4a' : record.iconColor,
-          size: 54,
+          size: 48,
         ),
         amountText: record.amount.toStringAsFixed(2),
         metaText: '$dateLabel$statusLabel',
-        tint: tintColor,
+        tint: isOverdue ? const Color(0xFFC65D2E) : null,
         onTap: () {},
+        embeddedInIncomeCard: true,
         actions: [
           _compactActionButton(
             label: 'تم الاسترداد',
@@ -2747,10 +2735,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             onPressed: () => _openBudgetLentPostpone(record.id, returnDate),
           ),
         ],
-      ));
-    }
+      );
+    }).toList();
 
-    return widgets;
+    return [
+      _inlineSectionCard(
+        title: 'سلف للناس',
+        subtitle: '${cycleCreatedLent.length} سلفة'
+            '${hasOverdue ? ' · يوجد متأخرات' : ''}',
+        amount: total,
+        isExpanded: _isLentExpanded,
+        accentColor: hasOverdue ? const Color(0xFFC65D2E) : lentAccent,
+        incomeTotalLayout: true,
+        onTap: () => setState(() => _isLentExpanded = !_isLentExpanded),
+        expandedChildren: childTiles,
+      ),
+    ];
   }
 
   Future<void> _confirmBudgetSettleLent(
