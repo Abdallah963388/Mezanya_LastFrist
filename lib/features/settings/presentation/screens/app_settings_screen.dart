@@ -30,8 +30,9 @@ class AppSettingsScreen extends StatefulWidget {
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   late TextEditingController _nameController;
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  late TextEditingController _emailController;
+  late TextEditingController _passwordController;
+  User? _emailUser;
 
   static const _bg = Color(0xFFFFFBF1);
   static const _green = Color(0xFF2F6F5E);
@@ -40,7 +41,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
   GoogleSignInAccount? _account;
 
-  User? _emailUser;
   bool _uploadingImage = false;
 
   @override
@@ -49,11 +49,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     _nameController = TextEditingController(
       text: widget.cubit.state.userName,
     );
-    _initGoogle();
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
     _emailUser = FirebaseAuth.instance.currentUser;
-    FirebaseAuth.instance.authStateChanges().listen((u) {
-      if (mounted) setState(() => _emailUser = u);
-    });
+    _initGoogle();
   }
 
   Future<void> _initGoogle() async {
@@ -95,8 +94,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     final ext = result.files.single.extension ?? 'jpg';
     setState(() => _uploadingImage = true);
     try {
-      final uid = _emailUser?.uid ??
-          _account?.id ??
+      final uid = _account?.id ??
           widget.cubit.state.userName.hashCode.toString();
       final ref =
           FirebaseStorage.instance.ref().child('profile_images/$uid.$ext');
@@ -127,7 +125,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             : (_account?.displayName ?? 'مستخدم');
         final initials = displayName.isNotEmpty ? displayName[0] : 'م';
         final isGoogleConnected = _account != null;
-        final isEmailConnected = _emailUser != null;
 
         return Scaffold(
           backgroundColor: _bg,
@@ -144,7 +141,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 initials: initials,
                 nameController: _nameController,
                 isGoogleConnected: isGoogleConnected,
-                isEmailConnected: isEmailConnected,
+                isEmailConnected: _emailUser != null,
                 emailUser: _emailUser,
                 googleAccount: _account,
                 uploadingImage: _uploadingImage,
@@ -716,9 +713,9 @@ class _ProfileCard extends StatelessWidget {
   String? get _effectivePhoto =>
       profileImageUrl.isNotEmpty ? profileImageUrl : googlePhotoUrl;
 
-  String get _connectedEmail => emailUser?.email ?? googleAccount?.email ?? '';
+  String get _connectedEmail => googleAccount?.email ?? '';
 
-  bool get _anyConnected => isGoogleConnected || isEmailConnected;
+  bool get _anyConnected => isGoogleConnected;
 
   @override
   Widget build(BuildContext context) {
