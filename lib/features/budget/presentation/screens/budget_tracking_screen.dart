@@ -236,6 +236,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               _sectionTitle('الديون والأقساط'),
               const SizedBox(height: 12),
               ..._installmentCards(state, budget, monthTx),
+              ..._lentCards(state, monthTx),
               const SizedBox(height: 18),
               _sectionTitle('الاشتراكات'),
               const SizedBox(height: 12),
@@ -2658,6 +2659,136 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       ));
     }
     return widgets;
+  }
+
+  List<Widget> _lentCards(
+    AppStateEntity state,
+    List<TransactionEntity> monthTx,
+  ) {
+    final allLent = state.recurringTransactions.where((r) => r.isLent).toList();
+    if (allLent.isEmpty) return [];
+
+    final cycleEnd = _cycleEnd;
+
+    // فلتر: فقط السلف اللي أُنشئت في هذه الدورة
+    final cycleCreatedLent = allLent.where((r) {
+      final name = r.lentPersonName ?? r.name;
+      return state.transactions.any((t) =>
+          t.type == 'expense' &&
+          t.walletId == r.walletId &&
+          (t.notes?.contains('سلفة لـ $name') ?? false) &&
+          !t.createdAt.isBefore(_cycleStart) &&
+          !t.createdAt.isAfter(cycleEnd));
+    }).toList();
+
+    if (cycleCreatedLent.isEmpty) return [];
+
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    final widgets = <Widget>[];
+
+    // عنوان فرعي لتمييز السلف عن الأقساط
+    widgets.add(Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 10, right: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.handshake_outlined,
+              size: 15, color: Color(0xFF1a7a4a)),
+          const SizedBox(width: 6),
+          Text(
+            'سلف للناس',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1a7a4a).withValues(alpha: 0.85),
+            ),
+          ),
+        ],
+      ),
+    ));
+
+    for (final record in cycleCreatedLent) {
+      final personName = record.lentPersonName ?? record.name;
+      final returnDate = record.anchorDate != null
+          ? DateTime.tryParse(record.anchorDate!)
+          : null;
+
+      final isOverdue = returnDate != null &&
+          DateTime(returnDate.year, returnDate.month, returnDate.day)
+              .isBefore(todayMidnight);
+
+      final dateLabel = returnDate != null
+          ? 'الاسترداد ${returnDate.day}/${returnDate.month}/${returnDate.year}'
+          : 'بدون تاريخ استرداد';
+
+      final statusLabel = isOverdue ? ' · متأخر ⚠️' : '';
+      final tintColor =
+          isOverdue ? const Color(0xFFC65D2E) : null;
+
+      widgets.add(_entityTile(
+        title: personName,
+        leading: _iconBadge(
+          record.icon.isEmpty ? 'handshake' : record.icon,
+          record.iconColor.isEmpty ? '#1a7a4a' : record.iconColor,
+          size: 54,
+        ),
+        amountText: record.amount.toStringAsFixed(2),
+        metaText: '$dateLabel$statusLabel',
+        tint: tintColor,
+        onTap: () {},
+        actions: [
+          _compactActionButton(
+            label: 'تم الاسترداد',
+            onPressed: () => _confirmBudgetSettleLent(record.id, personName),
+          ),
+          _compactActionButton(
+            label: 'تأجيل',
+            filled: false,
+            onPressed: () => _openBudgetLentPostpone(record.id, returnDate),
+          ),
+        ],
+      ));
+    }
+
+    return widgets;
+  }
+
+  Future<void> _confirmBudgetSettleLent(
+      String recurringId, String personName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد الاسترداد'),
+        content: Text('هل استردّيت السلفة من $personName؟\nسيتم إضافة المبلغ لمحفظتك.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تم الاسترداد'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.cubit.settleLentRecord(recurringId);
+    }
+  }
+
+  Future<void> _openBudgetLentPostpone(
+      String recurringId, DateTime? currentDate) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: currentDate ?? DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+      helpText: 'اختر تاريخ الاسترداد الجديد',
+    );
+    if (picked != null && mounted) {
+      await widget.cubit.postponeLentRecord(recurringId, picked);
+    }
   }
 
   List<Widget> _subscriptionCards(
