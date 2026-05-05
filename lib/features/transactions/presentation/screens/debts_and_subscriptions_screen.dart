@@ -328,144 +328,312 @@ class _DebtsAndSubscriptionsScreenState
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF0FAF4),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: accent.withValues(alpha: isOverdue ? 0.55 : 0.22),
-            width: isOverdue ? 1.5 : 1,
+      child: InkWell(
+        onTap: () => _openLentDetailsSheet(state, record),
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FAF4),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: accent.withValues(alpha: isOverdue ? 0.55 : 0.22),
+              width: isOverdue ? 1.5 : 1,
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.handshake_outlined,
+                        color: accent, size: 26),
+                  ),
                 ),
-                child: const Center(
-                  child: Icon(Icons.handshake_outlined,
-                      color: accent, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record.lentPersonName ?? record.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'محفظة: $walletName',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      record.lentPersonName ?? record.name,
+                      record.amount.toStringAsFixed(2),
                       style: const TextStyle(
+                        color: accent,
                         fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'محفظة: $walletName',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isOverdue
+                            ? const Color(0xFFFFEDED)
+                            : const Color(0xFFE8F5ED),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isOverdue ? '⚠ $returnLabel' : returnLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isOverdue
+                              ? const Color(0xFFC0392B)
+                              : const Color(0xFF1A7A4A),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    record.amount.toStringAsFixed(2),
-                    style: const TextStyle(
-                      color: accent,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                    ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.chevron_left_rounded,
+                  size: 20,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.5),
+                ),
+              ]),
+              if (record.notes?.isNotEmpty == true) ...[
+                const SizedBox(height: 8),
+                Text(
+                  record.notes!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 2),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isOverdue
-                          ? const Color(0xFFFFEDED)
-                          : const Color(0xFFE8F5ED),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      isOverdue ? '⚠ $returnLabel' : returnLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: isOverdue
-                            ? const Color(0xFFC0392B)
-                            : const Color(0xFF1A7A4A),
-                      ),
-                    ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── شيت تفاصيل السلفة ────────────────────────────────────────────────────
+  Future<void> _openLentDetailsSheet(
+    AppStateEntity state,
+    RecurringTransactionEntity record,
+  ) async {
+    const accent = _lentAccent;
+    final walletName = _walletName(state, record.walletId);
+    final returnDate = record.anchorDate != null
+        ? DateTime.tryParse(record.anchorDate!)
+        : null;
+    final returnLabel = returnDate != null
+        ? '${returnDate.day}/${returnDate.month}/${returnDate.year}'
+        : 'غير محدد';
+    final isOverdue =
+        returnDate != null && returnDate.isBefore(DateTime.now());
+    final isMonthly = record.recurrencePattern == 'monthly';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetCtx) => SizedBox(
+        height: MediaQuery.of(sheetCtx).size.height * 0.82,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(
+              child: Container(
+                width: 46,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── هيدر البطاقة ─────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.22),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
-            ]),
-            if (record.notes?.isNotEmpty == true) ...[
-              const SizedBox(height: 8),
-              Text(
-                record.notes!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accent,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  onPressed: () => _confirmSettleLent(record),
-                  icon: const Icon(Icons.check_circle_outline, size: 16),
-                  label: const Text('تم الاسترداد',
-                      style: TextStyle(fontSize: 13)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: accent,
-                    side: const BorderSide(color: accent),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: const Center(
+                    child: Icon(Icons.handshake_outlined,
+                        color: Colors.white, size: 32),
                   ),
-                  onPressed: () => _openPostponeSheet(record),
-                  icon: const Icon(Icons.calendar_month_outlined, size: 16),
-                  label: const Text('تأجيل', style: TextStyle(fontSize: 13)),
                 ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        record.lentPersonName ?? record.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'سلفة',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                onPressed: () async {
-                  await widget.cubit
-                      .deleteRecurringTransaction(record.id);
-                },
-                child: const Icon(Icons.delete_outline, size: 18),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      record.amount.toStringAsFixed(2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isOverdue
+                            ? const Color(0xFFFFEDED)
+                            : Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isOverdue ? '⚠ $returnLabel' : returnLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: isOverdue
+                              ? const Color(0xFFC0392B)
+                              : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ]),
+            ),
+            const SizedBox(height: 16),
+
+            // ── جدول التفاصيل ─────────────────────────────────────────
+            _DetailsTable(rows: {
+              'الشخص': record.lentPersonName ?? record.name,
+              'المبلغ': record.amount.toStringAsFixed(2),
+              'المحفظة': walletName,
+              'تاريخ الاسترداد': returnLabel,
+              'الحالة': isOverdue ? 'متأخر' : 'في المعاد',
+              'نوع السداد': isMonthly ? 'أقساط شهرية' : 'مرة واحدة',
+              'الميزانية': 'داخل الميزانية الشهرية',
+              if (record.notes?.trim().isNotEmpty == true)
+                'ملاحظات': record.notes!.trim(),
+            }),
+            const SizedBox(height: 16),
+
+            // ── أزرار الإجراءات ────────────────────────────────────────
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: accent,
+                padding: const EdgeInsets.symmetric(vertical: 13),
               ),
-            ]),
+              onPressed: () async {
+                Navigator.pop(sheetCtx);
+                await _confirmSettleLent(record);
+              },
+              icon: const Icon(Icons.check_circle_outline),
+              label: const Text('تم الاسترداد',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accent,
+                side: const BorderSide(color: accent),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              onPressed: () {
+                Navigator.pop(sheetCtx);
+                _openPostponeSheet(record);
+              },
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: const Text('تأجيل تاريخ الاسترداد',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+              onPressed: () async {
+                Navigator.pop(sheetCtx);
+                await widget.cubit.deleteRecurringTransaction(record.id);
+              },
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('حذف السلفة',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+            ),
           ],
         ),
       ),
