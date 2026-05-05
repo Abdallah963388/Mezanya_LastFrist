@@ -122,6 +122,24 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     );
   }
 
+  double get _installmentsTotal =>
+      _budget.debts.where((debt) => debt.isInstallment).fold<double>(
+            0,
+            (sum, debt) =>
+                sum +
+                _debtAmountForCycle(
+                    _budget, debt, _displayCycleStart, _displayCycleEnd),
+          );
+
+  double get _subscriptionsTotal =>
+      _budget.debts.where((debt) => debt.isSubscription).fold<double>(
+            0,
+            (sum, debt) =>
+                sum +
+                _debtAmountForCycle(
+                    _budget, debt, _displayCycleStart, _displayCycleEnd),
+          );
+
   double get _committed => _allocationsTotal + _linkedTotal + _debtsTotal;
 
   double get _unallocated => _totalIncome - _committed;
@@ -853,7 +871,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           initialType: 'expense',
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
-          initialExpensePlanKind: draftRecurring.expensePlanKind ?? 'installment',
+          initialExpensePlanKind:
+              draftRecurring.expensePlanKind ?? 'installment',
           debtOnlyMode: true,
           returnOnSave: true,
         ),
@@ -937,7 +956,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     }
   }
 
-  Future<void> _showAddRecurringOrDebtComposer({bool subscriptionOnly = false}) async {
+  Future<void> _showAddRecurringOrDebtComposer(
+      {bool subscriptionOnly = false}) async {
     if (subscriptionOnly) {
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -1105,8 +1125,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       }
                       await _saveBudget(
                         _budget.copyWith(
-                          debts:
-                              _budget.debts.where((e) => e.id != debt.id).toList(),
+                          debts: _budget.debts
+                              .where((e) => e.id != debt.id)
+                              .toList(),
                         ),
                       );
                     },
@@ -1460,7 +1481,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           showHeaderAction: false,
           footerAction: _thinAddButton(
             label: 'إضافة دين',
-            onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: false),
+            onPressed: () =>
+                _showAddRecurringOrDebtComposer(subscriptionOnly: false),
             tint: const Color(0xFFC65D2E),
           ),
           children: () {
@@ -1468,7 +1490,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                 .where((d) => d.isInstallment)
                 .toList();
             if (installments.isEmpty) {
-              return [_emptyState('لا توجد ديون أو أقساط مستحقة في هذه الدورة.')];
+              return [
+                _emptyState('لا توجد ديون أو أقساط مستحقة في هذه الدورة.')
+              ];
             }
             return installments.map((debt) {
               final recurring = _linkedRecurringDebt(debt);
@@ -1500,7 +1524,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
           showHeaderAction: false,
           footerAction: _thinAddButton(
             label: 'إضافة اشتراك',
-            onPressed: () => _showAddRecurringOrDebtComposer(subscriptionOnly: true),
+            onPressed: () =>
+                _showAddRecurringOrDebtComposer(subscriptionOnly: true),
             tint: const Color(0xFF4A7C59),
           ),
           children: () {
@@ -1593,8 +1618,28 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             light: true,
           ),
           _summaryRow(
-            label: 'إجمالي المخصصات (المخطط)',
+            label: 'إجمالي المخصص',
+            value: _committed,
+            light: true,
+          ),
+          _summaryRow(
+            label: 'المخصصات',
             value: _allocationsTotal,
+            light: true,
+          ),
+          _summaryRow(
+            label: 'الحصالات',
+            value: _linkedTotal,
+            light: true,
+          ),
+          _summaryRow(
+            label: 'الديون والأقساط',
+            value: _installmentsTotal,
+            light: true,
+          ),
+          _summaryRow(
+            label: 'الاشتراكات',
+            value: _subscriptionsTotal,
             light: true,
           ),
           _summaryRow(
@@ -3348,8 +3393,7 @@ class _StartDayPickerTile extends StatelessWidget {
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 7,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,

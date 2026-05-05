@@ -478,108 +478,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     // ── INCOME fields ──
                     if (_type == 'income') ...[
                       const SizedBox(height: 4),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF165b47).withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: const Color(0xFF165b47).withValues(alpha: 0.15),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // ── Income target row (inline, no card) ──
-                              InkWell(
-                                onTap: () => _openIncomeTargetPicker(
-                                    budget, selectedWalletName),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF165b47)
-                                              .withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(11),
-                                        ),
-                                        child: const Icon(
-                                          Icons.download_for_offline_rounded,
-                                          color: Color(0xFF165b47),
-                                          size: 20,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'هدف الدخل',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              incomeTargetLabel,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w800),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.chevron_left_rounded,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              // ── Divider ──
-                              Divider(
-                                height: 1,
-                                color: const Color(0xFF165b47).withValues(alpha: 0.12),
-                                indent: 14,
-                                endIndent: 14,
-                              ),
-                              // ── Categories section ──
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                                child: _categoriesBlock(
-                                  title: 'الفئات',
-                                  categories: state.categories
-                                      .where((c) => c.scope == 'income')
-                                      .toList(),
-                                  onAdd: () => _openAddCategoryDialog(
-                                    budgetScope: 'outside-budget',
-                                    allocationId: '',
-                                    linkedWalletId: '',
-                                    existing: state.categories
-                                        .where((c) => c.scope == 'income')
-                                        .toList(),
-                                    scope: 'income',
-                                  ),
-                                  selectedId: _selectedIncomeCategoryId,
-                                  onSelectChange: (id) => setState(
-                                      () => _selectedIncomeCategoryId = id),
-                                ),
-                              ),
-                            ],
-                          ),
+                      _RowCard(
+                        label: 'هدف الدخل',
+                        value: incomeTargetLabel,
+                        icon: Icons.download_for_offline_rounded,
+                        onTap: () =>
+                            _openIncomeTargetPicker(budget, selectedWalletName),
+                      ),
+                      const SizedBox(height: 10),
+                      _categoriesBlock(
+                        title: 'الفئات',
+                        categories: state.categories
+                            .where((c) => c.scope == 'income')
+                            .toList(),
+                        onAdd: () => _openAddCategoryDialog(
+                          budgetScope: 'outside-budget',
+                          allocationId: '',
+                          linkedWalletId: '',
+                          existing: state.categories
+                              .where((c) => c.scope == 'income')
+                              .toList(),
+                          scope: 'income',
                         ),
+                        selectedId: _selectedIncomeCategoryId,
+                        onSelectChange: (id) =>
+                            setState(() => _selectedIncomeCategoryId = id),
                       ),
                     ],
 
@@ -747,7 +670,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             'alloc:', '')
                                         : null,
                                     targetJarId: _type == 'income' &&
-                                            _incomeBudgetScope == 'within-budget' &&
+                                            _incomeBudgetScope ==
+                                                'within-budget' &&
                                             _incomeJarId.isNotEmpty
                                         ? _incomeJarId
                                         : (_type == 'expense' &&
@@ -802,7 +726,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         ? null
                                         : _walletId,
                                     toWalletId: _type == 'income' &&
-                                            _incomeBudgetScope == 'within-budget' &&
+                                            _incomeBudgetScope ==
+                                                'within-budget' &&
                                             _incomeJarId.isNotEmpty
                                         ? _incomeJarId
                                         : selectedJarId,
@@ -1018,7 +943,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   boxShadow: _walletId == 'no-wallet'
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF165b47).withValues(alpha: 0.12),
+                            color:
+                                const Color(0xFF165b47).withValues(alpha: 0.12),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           )
@@ -1343,9 +1269,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 ),
                                 child: Center(
                                   child: AppIconPickerDialog.iconWidgetForName(
-                                    jar.icon.isNotEmpty
-                                        ? jar.icon
-                                        : 'savings',
+                                    jar.icon.isNotEmpty ? jar.icon : 'savings',
                                     color: jarAccent,
                                     size: 24,
                                   ),
@@ -1368,7 +1292,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
-                                        color: jarAccent.withValues(alpha: 0.78),
+                                        color:
+                                            jarAccent.withValues(alpha: 0.78),
                                       ),
                                     ),
                                   ],
@@ -1411,8 +1336,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           padding: const EdgeInsets.all(14),
           children: [
             _AllocationOption(
-              isSelected:
-                  _incomeBudgetScope == 'outside-budget' &&
+              isSelected: _incomeBudgetScope == 'outside-budget' &&
                   _incomeSourceId == 'wallet-only' &&
                   _incomeJarId.isEmpty,
               onTap: () {
@@ -1477,8 +1401,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               const _SheetSectionLabel(label: 'مصادر الدخل'),
               const SizedBox(height: 10),
               ...budget.incomeSources.map((source) {
-                final selected =
-                    _incomeBudgetScope == 'within-budget' &&
+                final selected = _incomeBudgetScope == 'within-budget' &&
                     _incomeJarId.isEmpty &&
                     _incomeSourceId == source.id;
                 return Padding(
@@ -1551,8 +1474,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               const _SheetSectionLabel(label: 'الحصالات'),
               const SizedBox(height: 10),
               ...jars.map((jar) {
-                final selected =
-                    _incomeBudgetScope == 'within-budget' &&
+                final selected = _incomeBudgetScope == 'within-budget' &&
                     _incomeJarId == jar.id;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -1674,7 +1596,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   if (onSelectChange != null) {
                     onSelectChange(selected ? null : c.id);
                   } else {
-                    setState(() => _selectedCategoryId = selected ? null : c.id);
+                    setState(
+                        () => _selectedCategoryId = selected ? null : c.id);
                   }
                 },
                 child: AnimatedContainer(

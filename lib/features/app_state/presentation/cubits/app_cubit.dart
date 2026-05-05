@@ -61,7 +61,9 @@ class AppCubit extends Cubit<AppStateEntity> {
           type: r.executionType,
           fundingSource: fallbackFundingSource,
           recurringTransactionId: r.id,
-          kind: r.expensePlanKind == 'installment' ? 'installment' : 'subscription',
+          kind: r.expensePlanKind == 'installment'
+              ? 'installment'
+              : 'subscription',
           principalTotal: r.debtPrincipalTotal,
           recurrencePattern: r.recurrencePattern,
           monthOfYear: r.monthOfYear,
@@ -279,13 +281,16 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   Future<void> deleteTransaction(String transactionId) async {
-    final target = state.transactions.where((t) => t.id == transactionId).toList();
+    final target =
+        state.transactions.where((t) => t.id == transactionId).toList();
     if (target.isEmpty) return;
     final transaction = target.first;
 
     var wallets = List<WalletEntity>.from(state.wallets);
-    var linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-    var allocations = List<AllocationEntity>.from(state.budgetSetup.allocations);
+    var linkedWallets =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    var allocations =
+        List<AllocationEntity>.from(state.budgetSetup.allocations);
 
     // Helper to reverse virtual update
     void reverseVirtualBalance({
@@ -298,7 +303,8 @@ class AppCubit extends Cubit<AppStateEntity> {
         final jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
         if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) - delta;
+          nextBalances[physicalWalletId] =
+              (nextBalances[physicalWalletId] ?? 0) - delta;
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance - delta,
@@ -311,7 +317,8 @@ class AppCubit extends Cubit<AppStateEntity> {
         final alloc = allocations[allocIdx];
         final nextBalances = Map<String, double>.from(alloc.walletBalances);
         if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) - delta;
+          nextBalances[physicalWalletId] =
+              (nextBalances[physicalWalletId] ?? 0) - delta;
         }
         allocations[allocIdx] = alloc.copyWith(
           balance: alloc.balance - delta,
@@ -321,14 +328,17 @@ class AppCubit extends Cubit<AppStateEntity> {
     }
 
     if (transaction.type == 'transfer') {
-      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
+      final isPhysicalFrom =
+          wallets.any((w) => w.id == transaction.fromWalletId);
       final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
 
       if (isPhysicalFrom && isPhysicalTo) {
         // Reverse physical transfer
         wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId) return w.copyWith(balance: w.balance + transaction.amount);
-          if (w.id == transaction.toWalletId) return w.copyWith(balance: w.balance - transaction.amount);
+          if (w.id == transaction.fromWalletId)
+            return w.copyWith(balance: w.balance + transaction.amount);
+          if (w.id == transaction.toWalletId)
+            return w.copyWith(balance: w.balance - transaction.amount);
           return w;
         }).toList();
       } else {
@@ -357,7 +367,7 @@ class AppCubit extends Cubit<AppStateEntity> {
 
       // Automatic distribution reversal is usually handled by deleting the auto-transactions themselves
       // But if we are deleting the main income, we might want to check linked auto-txns?
-      // Actually, auto-txns are separate TransactionEntity objects. 
+      // Actually, auto-txns are separate TransactionEntity objects.
       // Deleting the parent income should probably NOT automatically delete them unless we want that.
       // In current logic, they remain. If user wants to delete them, they delete them one by one.
     } else if (transaction.type == 'expense') {
@@ -368,7 +378,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       }).toList();
 
       // Reverse virtual reservation
-      final virtualTargetId = transaction.allocationId ?? transaction.toWalletId;
+      final virtualTargetId =
+          transaction.allocationId ?? transaction.toWalletId;
       if (virtualTargetId != null) {
         reverseVirtualBalance(
           id: virtualTargetId,
@@ -384,24 +395,29 @@ class AppCubit extends Cubit<AppStateEntity> {
         linkedWallets: linkedWallets,
         allocations: allocations,
       ),
-      transactions: state.transactions.where((t) => t.id != transactionId).toList(),
+      transactions:
+          state.transactions.where((t) => t.id != transactionId).toList(),
     );
 
     await _applyAndLog(
       action: 'delete',
       entityType: 'transaction',
       entityId: transactionId,
-      details: 'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
+      details:
+          'تم حذف معاملة ${_transactionTypeLabel(transaction.type)} بقيمة ${transaction.amount.toStringAsFixed(2)}',
       apply: () async => next,
     );
   }
 
-  Future<void> updateBudgetSetup(BudgetSetupEntity setup) async {
+  Future<void> updateBudgetSetup(
+    BudgetSetupEntity setup, {
+    String? detailsOverride,
+  }) async {
     await _applyAndLog(
       action: 'edit',
       entityType: 'budget',
       entityId: 'budget-setup',
-      details: 'تم تعديل إعدادات الميزانية',
+      details: detailsOverride ?? 'تم تعديل إعدادات الميزانية',
       apply: () async {
         final raw = await _repository.updateBudgetSetup(setup);
         return _withMonthlySnapshot(raw, setup);
@@ -589,7 +605,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     required double amount,
     String? physicalWalletId,
   }) async {
-    var linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    var linkedWallets =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
 
     final srcIdx = linkedWallets.indexWhere((j) => j.id == sourceJarId);
     final tgtIdx = linkedWallets.indexWhere((j) => j.id == targetJarId);
@@ -608,7 +625,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       final newAmt = (existing.amount - amount).clamp(0.0, double.infinity);
       srcSources = [
         ...srcSources.where((s) => s.walletId != physicalWalletId),
-        if (newAmt > 0) JarWalletSource(walletId: physicalWalletId, amount: newAmt),
+        if (newAmt > 0)
+          JarWalletSource(walletId: physicalWalletId, amount: newAmt),
       ];
     }
     linkedWallets[srcIdx] = src.copyWith(
@@ -643,7 +661,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'transfer',
       entityType: 'jar',
       entityId: sourceJarId,
-      details: 'تحويل داخلي ${amount.toStringAsFixed(2)} من $srcName إلى $tgtName',
+      details:
+          'تحويل داخلي ${amount.toStringAsFixed(2)} من $srcName إلى $tgtName',
       apply: () async => next,
     );
   }
@@ -834,7 +853,9 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   Future<void> updateRecurringTransaction(
-      RecurringTransactionEntity recurring) async {
+    RecurringTransactionEntity recurring, {
+    String? detailsOverride,
+  }) async {
     // زامن DebtEntity المرتبط لو كان دين/اشتراك
     BudgetSetupEntity nextBudget = state.budgetSetup;
     if (recurring.isDebtOrSubscription) {
@@ -871,7 +892,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'recurring-transaction',
       entityId: recurring.id,
-      details: _recurringTransactionDetails('تعديل معاملة متكررة', recurring),
+      details: detailsOverride ??
+          _recurringTransactionDetails('تعديل معاملة متكررة', recurring),
       apply: () async => next,
     );
   }
@@ -1159,8 +1181,7 @@ class AppCubit extends Cubit<AppStateEntity> {
           remote.lastAutoBackupAt,
         ) >=
         0;
-    final budget =
-        localBudgetNewer ? local.budgetSetup : remote.budgetSetup;
+    final budget = localBudgetNewer ? local.budgetSetup : remote.budgetSetup;
 
     final next = local.copyWith(
       wallets: mergedWallets,

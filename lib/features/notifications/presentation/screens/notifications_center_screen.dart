@@ -23,8 +23,6 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   String _selectedTab = 'new';
-  bool _showingRecurringDecisionDialog = false;
-  final Set<String> _dismissedRecurringPromptKeys = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +31,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        _scheduleRecurringDecisionPrompt(state);
         final pendingCards = _pendingNotificationCards(state);
         final historyItems = _historyNotifications(state);
 
@@ -70,32 +67,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         );
       },
     );
-  }
-
-  void _scheduleRecurringDecisionPrompt(AppStateEntity state) {
-    if (_showingRecurringDecisionDialog || !mounted) return;
-    final decision = _nextRecurringDecision(state);
-    if (decision == null) return;
-    final key = _promptKey(decision.recurring, decision.prompt.occurrence);
-    if (_dismissedRecurringPromptKeys.contains(key)) return;
-    _showingRecurringDecisionDialog = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) {
-        _showingRecurringDecisionDialog = false;
-        return;
-      }
-      final action = await _showRecurringDecisionDialog(decision);
-      if (!mounted) {
-        _showingRecurringDecisionDialog = false;
-        return;
-      }
-      if (action == null) {
-        _dismissedRecurringPromptKeys.add(key);
-      } else {
-        await _handleRecurringDecisionAction(action, decision);
-      }
-      _showingRecurringDecisionDialog = false;
-    });
   }
 
   List<Widget> _pendingNotificationCards(AppStateEntity state) {
@@ -193,7 +164,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           icon: Icons.credit_card_rounded,
           actions: [
             PendingNotificationAction(
-              label: 'نزول',
+              label: 'سدد الآن',
               onPressed: recurring == null
                   ? () {}
                   : () => _recordDebt(
@@ -203,13 +174,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
             ),
             PendingNotificationAction(
-              label: 'تخطي المرة',
+              label: 'تأجيل',
               filled: false,
               onPressed: recurring == null
                   ? () {}
-                  : () => _skipRecurringExpenseOccurrence(
-                        recurring,
-                        pendingMeta.occurrence,
+                  : () => _openRecurringPostponeDialog(
+                        debt: debt,
+                        recurring: recurring,
+                        occurrence: pendingMeta.occurrence,
+                        amount: decisionAmount,
                       ),
             ),
           ],
@@ -311,6 +284,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () async {
+                  final approved = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: Text(
+                        log.isReverted ? 'إلغاء التراجع؟' : 'تأكيد التراجع',
+                      ),
+                      content: Text(
+                        log.isReverted
+                            ? 'سيتم إلغاء التراجع وإعادة تطبيق الإجراء السابق.'
+                            : 'سيتم التراجع عن هذا الإجراء وتحديث البيانات بناءً على السجل.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(false),
+                          child: const Text('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(true),
+                          child: const Text('تأكيد'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (approved != true) return;
                   await widget.cubit.toggleLogRevert(log.id);
                   if (context.mounted) Navigator.pop(context);
                 },
@@ -383,7 +382,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   RecurringTransactionEntity? _linkedRecurringDebt(
     AppStateEntity state,
     DebtEntity debt,
-  ) => BudgetRecurringPlanService.linkedRecurring(
+  ) =>
+      BudgetRecurringPlanService.linkedRecurring(
         state.recurringTransactions,
         debt,
       );
@@ -470,11 +470,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime month,
   ) async {
     final dueDate = _incomeDueDateForMonth(source, month);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: dueDate.add(const Duration(days: 1)),
-      firstDate: dueDate.add(const Duration(days: 1)),
-      lastDate: DateTime(month.year, month.month + 1, 28),
+    final picked = await _showPostponeDialog(
+      title: 'تأجيل معاملة متكررة',
+      name: source.name,
+      amount: source.amount,
+      kindLabel: 'راتب / دخل',
+      occurrence: dueDate,
+      allowSkip: false,
     );
     if (picked == null) return;
 
@@ -482,21 +484,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final incomes = setup.incomeSources
         .map(
           (income) => income.id == source.id
-              ? IncomeSourceEntity(
-                  id: income.id,
-                  name: income.name,
-                  amount: income.amount,
-                  date: picked.day,
-                  type: income.type,
-                  targetWalletId: income.targetWalletId,
-                  isVariable: income.isVariable,
-                  isDefault: income.isDefault,
-                )
+              ? income.copyWith(snoozedUntil: picked.toIso8601String())
               : income,
         )
         .toList();
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: incomes),
+      detailsOverride:
+          'تأجيل دخل: ${source.name} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
     );
   }
 
@@ -518,163 +513,254 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         lastHandledOccurrenceAt: occurrence.toIso8601String(),
         snoozedUntil: '',
       ),
-    );
-  }
-
-  Future<void> _snoozeRecurringExpense(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) async {
-    final now = DateTime.now();
-    final nextSnooze = now.add(const Duration(hours: 1));
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: nextSnooze.toIso8601String()),
+      detailsOverride:
+          'سدد الآن: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
   }
 
   Future<void> _skipRecurringExpenseOccurrence(
     RecurringTransactionEntity recurring,
     DateTime occurrence,
+    String name,
+    double amount,
   ) async {
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(
         lastHandledOccurrenceAt: occurrence.toIso8601String(),
         snoozedUntil: '',
       ),
+      detailsOverride:
+          'تخطي هذه المرة: $name بقيمة ${amount.toStringAsFixed(2)}',
     );
   }
 
-  _RecurringDecisionCandidate? _nextRecurringDecision(AppStateEntity state) {
+  Future<void> _postponeRecurringExpenseUntil({
+    required RecurringTransactionEntity recurring,
+    required String name,
+    required double amount,
+    required DateTime until,
+  }) async {
+    await widget.cubit.updateRecurringTransaction(
+      recurring.copyWith(snoozedUntil: until.toIso8601String()),
+      detailsOverride:
+          'تأجيل معاملة متكررة: $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d/M/yyyy', 'ar').format(until)}',
+    );
+  }
+
+  Future<void> _openRecurringPostponeDialog({
+    required DebtEntity debt,
+    required RecurringTransactionEntity recurring,
+    required DateTime occurrence,
+    required double amount,
+  }) async {
+    final picked = await _showPostponeDialog(
+      title: 'تأجيل معاملة متكررة',
+      name: debt.name,
+      amount: amount,
+      kindLabel: debt.isSubscription ? 'اشتراك' : 'دفعة دين',
+      occurrence: occurrence,
+      allowSkip: true,
+    );
+    if (picked == null) return;
+    if (picked == _PostponeChoice.skip) {
+      await _skipRecurringExpenseOccurrence(
+        recurring,
+        occurrence,
+        debt.name,
+        amount,
+      );
+      return;
+    }
+    await _postponeRecurringExpenseUntil(
+      recurring: recurring,
+      name: debt.name,
+      amount: amount,
+      until: picked,
+    );
+  }
+
+  Future<DateTime?> _showPostponeDialog({
+    required String title,
+    required String name,
+    required double amount,
+    required String kindLabel,
+    required DateTime occurrence,
+    required bool allowSkip,
+  }) {
     final now = DateTime.now();
-    final cycleStart = state.budgetSetup.cycleStartFor(now);
-    final cycleEnd = state.budgetSetup.cycleEndFor(now);
-    final cycleTransactions = state.transactions.where((transaction) {
-      return !transaction.createdAt.isBefore(cycleStart) &&
-          !transaction.createdAt.isAfter(cycleEnd);
-    }).toList();
+    DateTime atMorning(DateTime date) =>
+        DateTime(date.year, date.month, date.day, 9);
 
-    for (final debt in state.budgetSetup.debts) {
-      final recurring = _linkedRecurringDebt(state, debt);
-      if (recurring == null) continue;
-      final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
-      if (prompt == null ||
-          prompt.state == RecurringExpensePromptState.upcoming) {
-        continue;
-      }
-      final paidAmount = cycleTransactions
-          .where(
-              (transaction) => transaction.notes?.contains(debt.name) == true)
-          .fold<double>(0, (sum, transaction) => sum + transaction.amount);
-      final remaining = BudgetRecurringPlanService.pendingDecisionAmount(
-        debt: debt,
-        recurring: recurring,
-        cyclePaid: paidAmount,
-      );
-      if (remaining <= 0) continue;
-      return _RecurringDecisionCandidate(
-        debt: debt,
-        recurring: recurring,
-        prompt: prompt,
-        remaining: remaining,
-      );
-    }
-    return null;
-  }
-
-  String _promptKey(
-    RecurringTransactionEntity recurring,
-    DateTime occurrence,
-  ) {
-    return '${recurring.id}-${occurrence.toIso8601String()}';
-  }
-
-  Future<_RecurringDecisionAction?> _showRecurringDecisionDialog(
-    _RecurringDecisionCandidate candidate,
-  ) {
-    final dueLabel = DateFormat('d/M/yyyy - HH:mm', 'ar')
-        .format(candidate.prompt.occurrence);
-    final title = candidate.prompt.catchUpFromAuto
-        ? 'معاملة فائتة تحتاج قرارًا'
-        : 'معاملة متكررة مستحقة';
-    final body = candidate.prompt.catchUpFromAuto
-        ? 'هذه الدورة فات موعدها ولم يتم تنفيذها تلقائيًا. يمكنك تنفيذها الآن، أو تأجيلها قليلًا، أو تخطي هذه الدورة والانتقال للي بعدها.'
-        : 'المعاملة ${candidate.debt.name} مستحقة الآن. يمكنك تنفيذها الآن، أو تأجيلها قليلًا، أو تخطي الدورة الحالية.';
-
-    return showDialog<_RecurringDecisionAction>(
+    return showDialog<DateTime>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              candidate.debt.name,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(body),
-            const SizedBox(height: 12),
-            Text('المبلغ: ${candidate.remaining.toStringAsFixed(2)}'),
-            const SizedBox(height: 4),
-            Text('موعد الاستحقاق: $dueLabel'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(_RecurringDecisionAction.skip);
-            },
-            child: const Text('تخطي هذه المرة'),
-          ),
-          OutlinedButton(
-            onPressed: () {
-              Navigator.of(context).pop(_RecurringDecisionAction.snooze);
-            },
-            child: const Text('تأجيل ساعة'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop(_RecurringDecisionAction.executeNow);
-            },
-            child: const Text('تنفيذ الآن'),
-          ),
-        ],
-      ),
-    );
-  }
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final accent = const Color(0xFF9B6B2F);
+        final amountLabel = amount <= 0 ? 'مجاني' : amount.toStringAsFixed(2);
 
-  Future<void> _handleRecurringDecisionAction(
-    _RecurringDecisionAction action,
-    _RecurringDecisionCandidate candidate,
-  ) async {
-    final key = _promptKey(candidate.recurring, candidate.prompt.occurrence);
-    switch (action) {
-      case _RecurringDecisionAction.executeNow:
-        _dismissedRecurringPromptKeys.remove(key);
-        await _recordDebt(
-          candidate.debt,
-          candidate.recurring,
-          candidate.prompt.occurrence,
+        Widget option({
+          required IconData icon,
+          required String label,
+          required String subtitle,
+          required VoidCallback onTap,
+        }) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color:
+                        theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: accent, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_left_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AlertDialog(
+          title: Text(title),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        kindLabel,
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$amountLabel · استحقاق ${DateFormat('d/M/yyyy', 'ar').format(occurrence)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (allowSkip)
+                  option(
+                    icon: Icons.skip_next_rounded,
+                    label: 'تخطي هذه المرة',
+                    subtitle: 'اعتبر هذه المرة منتهية وانتقل للاستحقاق القادم',
+                    onTap: () =>
+                        Navigator.of(dialogContext).pop(_PostponeChoice.skip),
+                  ),
+                option(
+                  icon: Icons.today_rounded,
+                  label: 'تأجيل يوم',
+                  subtitle: 'إظهارها مرة أخرى غدًا',
+                  onTap: () => Navigator.of(dialogContext).pop(
+                    atMorning(now.add(const Duration(days: 1))),
+                  ),
+                ),
+                option(
+                  icon: Icons.event_repeat_rounded,
+                  label: 'تأجيل 3 أيام',
+                  subtitle: 'إظهارها بعد ثلاثة أيام',
+                  onTap: () => Navigator.of(dialogContext).pop(
+                    atMorning(now.add(const Duration(days: 3))),
+                  ),
+                ),
+                option(
+                  icon: Icons.edit_calendar_rounded,
+                  label: 'تحديد تاريخ',
+                  subtitle: 'اختار تاريخ مناسب يدويًا',
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: now.add(const Duration(days: 1)),
+                      firstDate: now.add(const Duration(days: 1)),
+                      lastDate: DateTime(now.year + 1, now.month, now.day),
+                    );
+                    if (picked == null || !dialogContext.mounted) return;
+                    Navigator.of(dialogContext).pop(atMorning(picked));
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('إلغاء'),
+            ),
+          ],
         );
-        break;
-      case _RecurringDecisionAction.snooze:
-        _dismissedRecurringPromptKeys.remove(key);
-        await _snoozeRecurringExpense(
-          candidate.recurring,
-          candidate.prompt.occurrence,
-        );
-        break;
-      case _RecurringDecisionAction.skip:
-        _dismissedRecurringPromptKeys.remove(key);
-        await _skipRecurringExpenseOccurrence(
-          candidate.recurring,
-          candidate.prompt.occurrence,
-        );
-        break;
-    }
+      },
+    );
   }
 
   String _walletName(String walletId) {
@@ -769,22 +855,6 @@ class _ExpensePendingMeta {
   final DateTime occurrence;
 }
 
-enum _RecurringDecisionAction {
-  executeNow,
-  snooze,
-  skip,
-}
-
-class _RecurringDecisionCandidate {
-  const _RecurringDecisionCandidate({
-    required this.debt,
-    required this.recurring,
-    required this.prompt,
-    required this.remaining,
-  });
-
-  final DebtEntity debt;
-  final RecurringTransactionEntity recurring;
-  final RecurringExpensePrompt prompt;
-  final double remaining;
+class _PostponeChoice {
+  static final DateTime skip = DateTime(1);
 }

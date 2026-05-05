@@ -131,8 +131,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         final showSetupPromptOnly = futureMonth || !hasBudgetPlan;
         final budgetJars = budget.linkedWallets.where((jar) {
           if (jar.id == 'linked-savings-default') return true;
-          return jar.funding.any((f) =>
-              f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
+          return jar.funding
+              .any((f) => f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
         }).toList();
         final monthTx = _monthTransactions(state.transactions);
         final incomeTx = monthTx.where((t) => t.type == 'income').toList();
@@ -281,13 +281,15 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF165B47).withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF165B47).withValues(alpha: 0.12)),
+        border:
+            Border.all(color: const Color(0xFF165B47).withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
           IconButton(
             onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFF165B47)),
+            icon: const Icon(Icons.chevron_right_rounded,
+                color: Color(0xFF165B47)),
           ),
           Expanded(
             child: Column(
@@ -304,14 +306,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 if (isCurrent)
                   Container(
                     margin: const EdgeInsets.only(top: 2),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFF165B47).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
                       'الدورة الحالية',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF165B47)),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF165B47)),
                     ),
                   ),
               ],
@@ -319,7 +325,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
           IconButton(
             onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.chevron_left_rounded, color: Color(0xFF165B47)),
+            icon: const Icon(Icons.chevron_left_rounded,
+                color: Color(0xFF165B47)),
           ),
         ],
       ),
@@ -436,7 +443,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     Color g1, g2, g3, shadow;
     if (healthRatio <= 0.0) {
-      g1 = cRed1; g2 = cRed2; g3 = cRed3; shadow = cRed1;
+      g1 = cRed1;
+      g2 = cRed2;
+      g3 = cRed3;
+      shadow = cRed1;
     } else if (healthRatio < 0.35) {
       final t = healthRatio / 0.35;
       g1 = Color.lerp(cRed1, cYellow1, t)!;
@@ -450,7 +460,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       g3 = Color.lerp(cYellow3, cGreen3, t)!;
       shadow = g1;
     } else {
-      g1 = cGreen1; g2 = cGreen2; g3 = cGreen3; shadow = cGreen1;
+      g1 = cGreen1;
+      g2 = cGreen2;
+      g3 = cGreen3;
+      shadow = cGreen1;
     }
 
     return Container(
@@ -1077,7 +1090,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF9E9E9E)),
+                        const Icon(Icons.chevron_right_rounded,
+                            size: 18, color: Color(0xFF9E9E9E)),
                       ],
                     ),
                   ],
@@ -2158,7 +2172,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
     final state = widget.cubit.state;
-    final distribution = {for (final s in jar.walletSources) s.walletId: s.amount};
+    final distribution = {
+      for (final s in jar.walletSources) s.walletId: s.amount
+    };
     final relevantTransactions = state.transactions
         .where((t) =>
             t.toWalletId == jar.id ||
@@ -2196,282 +2212,324 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             builder: (ctx, scrollCtrl) {
               final theme = Theme.of(ctx);
               return ListView(
-              controller: scrollCtrl,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-              children: [
-                // ── Hero Card ────────────────────────────────────────────
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        accent.withValues(alpha: 0.95),
-                        accent.withValues(alpha: 0.72),
-                      ],
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                    ),
-                    borderRadius: BorderRadius.circular(26),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withValues(alpha: 0.30),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 64, height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Center(
-                                child: AppIconPickerDialog.iconWidgetForName(
-                                  jar.icon, color: Colors.white, size: 32),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(jar.name,
-                                      style: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w900,
-                                          color: Colors.white)),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${jar.balance.toStringAsFixed(2)} جنيه',
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white.withValues(alpha: 0.85)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            _jarIconAction(Icons.settings_outlined,
-                                onTap: () {
-                                  Navigator.of(ctx).pop();
-                                  Future.microtask(() {
-                                    if (!mounted) return;
-                                    _openBudgetSetupScreen();
-                                  });
-                                },
-                                tooltip: 'تعديل'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: Row(
-                          children: [
-                            Expanded(child: _jarGlassMetric(
-                                label: 'الرصيد الكلي',
-                                value: jar.balance.toStringAsFixed(2),
-                                accent: accent)),
-                            const SizedBox(width: 8),
-                            Expanded(child: _jarGlassMetric(
-                                label: 'شهري مخطط',
-                                value: jar.monthlyAmount.toStringAsFixed(2),
-                                accent: accent)),
-                            const SizedBox(width: 8),
-                            Expanded(child: _jarGlassMetric(
-                                label: 'المحافظ',
-                                value: distribution.length.toString(),
-                                accent: accent)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: () => setSheet(() => showWallets = !showWallets),
-                        child: Container(
-                          margin: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              AnimatedRotation(
-                                turns: showWallets ? 0.5 : 0,
-                                duration: const Duration(milliseconds: 260),
-                                child: const Icon(Icons.keyboard_arrow_down_rounded,
-                                    color: Colors.white, size: 20),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                showWallets ? 'إخفاء التخصيصات' : 'عرض التخصيصات من المحافظ',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── Wallet distribution ────────────────────────────────
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  child: showWallets
-                      ? Container(
-                          margin: const EdgeInsets.only(top: 10),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.07),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(color: accent.withValues(alpha: 0.12)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(children: [
-                                Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    color: accent.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(Icons.account_balance_wallet_rounded,
-                                      color: accent, size: 17),
-                                ),
-                                const SizedBox(width: 10),
-                                Text('التخصيصات من المحافظ',
-                                    style: TextStyle(
-                                        color: accent,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15)),
-                              ]),
-                              const SizedBox(height: 14),
-                              if (distribution.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFFBF1),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: accent.withValues(alpha: 0.10)),
-                                  ),
-                                  child: const Text(
-                                    'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Color(0xFF8A7F72),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13),
-                                  ),
-                                )
-                              else
-                                ...distribution.entries.map((e) {
-                                  final currentState = widget.cubit.state;
-                                  final matchedWallets = currentState.wallets
-                                      .where((w) => w.id == e.key).toList();
-                                  final walletName = matchedWallets.isEmpty
-                                      ? 'محفظة'
-                                      : matchedWallets.first.name;
-                                  final walletIcon = matchedWallets.isEmpty
-                                      ? 'account_balance_wallet'
-                                      : (matchedWallets.first.icon ?? 'account_balance_wallet');
-                                  final ratio = jar.balance <= 0
-                                      ? 0.0
-                                      : (e.value / jar.balance).clamp(0.0, 1.0);
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFFBF1),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(color: accent.withValues(alpha: 0.14)),
-                                      ),
-                                      child: Column(children: [
-                                        Row(children: [
-                                          Container(
-                                            width: 36, height: 36,
-                                            decoration: BoxDecoration(
-                                              color: accent.withValues(alpha: 0.10),
-                                              borderRadius: BorderRadius.circular(11),
-                                            ),
-                                            child: Center(
-                                              child: AppIconPickerDialog.iconWidgetForName(
-                                                  walletIcon, color: accent, size: 18),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(child: Text(walletName,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w800, fontSize: 14))),
-                                          Text(e.value.toStringAsFixed(2),
-                                              style: TextStyle(
-                                                  color: accent,
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 15)),
-                                        ]),
-                                        const SizedBox(height: 10),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(999),
-                                          child: LinearProgressIndicator(
-                                            value: ratio,
-                                            minHeight: 5,
-                                            backgroundColor: accent.withValues(alpha: 0.12),
-                                            valueColor: AlwaysStoppedAnimation(accent),
-                                          ),
-                                        ),
-                                      ]),
-                                    ),
-                                  );
-                                }),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-
-                const SizedBox(height: 20),
-                // ── Transactions ─────────────────────────────────────────
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: const Text('المعاملات',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                ),
-                const SizedBox(height: 10),
-                if (relevantTransactions.isEmpty)
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                children: [
+                  // ── Hero Card ────────────────────────────────────────────
                   Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        colors: [
+                          accent.withValues(alpha: 0.95),
+                          accent.withValues(alpha: 0.72),
+                        ],
+                        begin: Alignment.topRight,
+                        end: Alignment.bottomLeft,
+                      ),
+                      borderRadius: BorderRadius.circular(26),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withValues(alpha: 0.30),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    child: const Text(
-                      'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF8A7F72), fontWeight: FontWeight.w600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Center(
+                                  child: AppIconPickerDialog.iconWidgetForName(
+                                      jar.icon,
+                                      color: Colors.white,
+                                      size: 32),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(jar.name,
+                                        style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.white)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${jar.balance.toStringAsFixed(2)} جنيه',
+                                      style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.85)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _jarIconAction(Icons.settings_outlined,
+                                  onTap: () {
+                                Navigator.of(ctx).pop();
+                                Future.microtask(() {
+                                  if (!mounted) return;
+                                  _openBudgetSetupScreen();
+                                });
+                              }, tooltip: 'تعديل'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  child: _jarGlassMetric(
+                                      label: 'الرصيد الكلي',
+                                      value: jar.balance.toStringAsFixed(2),
+                                      accent: accent)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                  child: _jarGlassMetric(
+                                      label: 'شهري مخطط',
+                                      value:
+                                          jar.monthlyAmount.toStringAsFixed(2),
+                                      accent: accent)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                  child: _jarGlassMetric(
+                                      label: 'المحافظ',
+                                      value: distribution.length.toString(),
+                                      accent: accent)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () =>
+                              setSheet(() => showWallets = !showWallets),
+                          child: Container(
+                            margin: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.28)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                AnimatedRotation(
+                                  turns: showWallets ? 0.5 : 0,
+                                  duration: const Duration(milliseconds: 260),
+                                  child: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.white,
+                                      size: 20),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  showWallets
+                                      ? 'إخفاء التخصيصات'
+                                      : 'عرض التخصيصات من المحافظ',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                else
-                  ...relevantTransactions.map(
-                    (t) => _trackingMonthTransactionTile(ctx, theme, t)),
-              ],
-            );
+                  ),
+
+                  // ── Wallet distribution ────────────────────────────────
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    child: showWallets
+                        ? Container(
+                            margin: const EdgeInsets.only(top: 10),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.07),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                  color: accent.withValues(alpha: 0.12)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                        Icons.account_balance_wallet_rounded,
+                                        color: accent,
+                                        size: 17),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text('التخصيصات من المحافظ',
+                                      style: TextStyle(
+                                          color: accent,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 15)),
+                                ]),
+                                const SizedBox(height: 14),
+                                if (distribution.isEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFFBF1),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color:
+                                              accent.withValues(alpha: 0.10)),
+                                    ),
+                                    child: const Text(
+                                      'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          color: Color(0xFF8A7F72),
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13),
+                                    ),
+                                  )
+                                else
+                                  ...distribution.entries.map((e) {
+                                    final currentState = widget.cubit.state;
+                                    final matchedWallets = currentState.wallets
+                                        .where((w) => w.id == e.key)
+                                        .toList();
+                                    final walletName = matchedWallets.isEmpty
+                                        ? 'محفظة'
+                                        : matchedWallets.first.name;
+                                    final walletIcon = matchedWallets.isEmpty
+                                        ? 'account_balance_wallet'
+                                        : (matchedWallets.first.icon ??
+                                            'account_balance_wallet');
+                                    final ratio = jar.balance <= 0
+                                        ? 0.0
+                                        : (e.value / jar.balance)
+                                            .clamp(0.0, 1.0);
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFFBF1),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                              color: accent.withValues(
+                                                  alpha: 0.14)),
+                                        ),
+                                        child: Column(children: [
+                                          Row(children: [
+                                            Container(
+                                              width: 36,
+                                              height: 36,
+                                              decoration: BoxDecoration(
+                                                color: accent.withValues(
+                                                    alpha: 0.10),
+                                                borderRadius:
+                                                    BorderRadius.circular(11),
+                                              ),
+                                              child: Center(
+                                                child: AppIconPickerDialog
+                                                    .iconWidgetForName(
+                                                        walletIcon,
+                                                        color: accent,
+                                                        size: 18),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                                child: Text(walletName,
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        fontSize: 14))),
+                                            Text(e.value.toStringAsFixed(2),
+                                                style: TextStyle(
+                                                    color: accent,
+                                                    fontWeight: FontWeight.w900,
+                                                    fontSize: 15)),
+                                          ]),
+                                          const SizedBox(height: 10),
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            child: LinearProgressIndicator(
+                                              value: ratio,
+                                              minHeight: 5,
+                                              backgroundColor: accent
+                                                  .withValues(alpha: 0.12),
+                                              valueColor:
+                                                  AlwaysStoppedAnimation(
+                                                      accent),
+                                            ),
+                                          ),
+                                        ]),
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+
+                  const SizedBox(height: 20),
+                  // ── Transactions ─────────────────────────────────────────
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: const Text('المعاملات',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w900)),
+                  ),
+                  const SizedBox(height: 10),
+                  if (relevantTransactions.isEmpty)
+                    Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Text(
+                        'لا توجد حركات مسجلة على هذه الحصالة حتى الآن.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Color(0xFF8A7F72),
+                            fontWeight: FontWeight.w600),
+                      ),
+                    )
+                  else
+                    ...relevantTransactions.map(
+                        (t) => _trackingMonthTransactionTile(ctx, theme, t)),
+                ],
+              );
             },
           );
         });
@@ -2496,7 +2554,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         children: [
           Text(value,
               style: const TextStyle(
-                  fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white)),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: Colors.white)),
           const SizedBox(height: 2),
           Text(label,
               style: TextStyle(
@@ -2515,7 +2575,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       child: Tooltip(
         message: tooltip,
         child: Container(
-          width: 36, height: 36,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.20),
             borderRadius: BorderRadius.circular(11),
@@ -2549,6 +2610,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           .where((t) => _transactionCountsTowardDebt(t, debt))
           .fold<double>(0, (s, t) => s + t.amount);
       final pendingMeta = _expensePendingMeta(recurring);
+      final isSnoozed = pendingMeta?['snoozed'] == true;
       final isPending =
           pendingMeta?['pending'] == true && monthPaid < debt.amount;
       final remainingInstallments =
@@ -2568,16 +2630,31 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         progressColor: Colors.green,
         tint: isPending ? const Color(0xFFC65D2E) : null,
         onTap: () => _openDebtDetailsSheet(debt, allDebtTx, remaining),
-        actions: isPending && recurring != null
-            ? <Widget>[
-                _compactActionButton(
-                  label: 'تأكيد الخصم',
-                  onPressed: () {
-                    _confirmDebtPayment(state, budget, debt, recurring);
-                  },
-                ),
-              ]
-            : <Widget>[],
+        actions: recurring == null
+            ? <Widget>[]
+            : isSnoozed
+                ? <Widget>[
+                    _compactActionButton(
+                      label: 'إلغاء التأجيل',
+                      filled: false,
+                      onPressed: () => _clearDebtPostpone(recurring),
+                    ),
+                  ]
+                : isPending
+                    ? <Widget>[
+                        _compactActionButton(
+                          label: 'تسديد الآن',
+                          onPressed: () {
+                            _confirmDebtPayment(state, budget, debt, recurring);
+                          },
+                        ),
+                        _compactActionButton(
+                          label: 'تأجيل',
+                          filled: false,
+                          onPressed: () => _postponeDebt(recurring),
+                        ),
+                      ]
+                    : <Widget>[],
       ));
     }
     return widgets;
@@ -2604,7 +2681,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       final isDueThisCycle = cycleDates.isNotEmpty;
       if (!isDueThisCycle) continue;
 
-      final amountPerOccurrence = BudgetRecurringPlanService.amountPerOccurrence(
+      final amountPerOccurrence =
+          BudgetRecurringPlanService.amountPerOccurrence(
         debt: debt,
         recurring: recurring,
       );
@@ -2624,6 +2702,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
       final today = DateTime.now();
       final todayMidnight = DateTime(today.year, today.month, today.day);
+      final pendingMeta = _expensePendingMeta(recurring);
+      final isSnoozed = pendingMeta?['snoozed'] == true;
 
       bool isDueOrLate = false;
       if (nextDate != null) {
@@ -2631,16 +2711,21 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             DateTime(nextDate.year, nextDate.month, nextDate.day);
         isDueOrLate = !todayMidnight.isBefore(nextMidnight);
       }
+      final shouldShowDecision =
+          pendingMeta?['pending'] == true && !isFullyPaid;
 
       String metaText;
+      final amountLabel = amountPerOccurrence <= 0
+          ? 'مجاني'
+          : amountPerOccurrence.toStringAsFixed(2);
       if (isFullyPaid) {
         metaText = 'تم السداد ✓';
       } else {
         final nextStr = '${nextDate!.day}/${nextDate.month}';
         if (cycleDates.length > 1) {
-          metaText = 'استحقاق يوم $nextStr · ${amountPerOccurrence.toStringAsFixed(2)} لكل مرة';
+          metaText = 'استحقاق يوم $nextStr · $amountLabel لكل مرة';
         } else {
-          metaText = 'استحقاق يوم $nextStr · ${amountPerOccurrence.toStringAsFixed(2)}';
+          metaText = 'استحقاق يوم $nextStr · $amountLabel';
         }
       }
 
@@ -2651,7 +2736,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           recurring?.iconColor ?? '#4a7c59',
           size: 54,
         ),
-        amountText: cycleDue.toStringAsFixed(2),
+        amountText: cycleDue <= 0 ? 'مجاني' : cycleDue.toStringAsFixed(2),
         metaText: metaText,
         supportingText: _recurrenceLabel(
             recurring?.recurrencePattern ?? debt.recurrencePattern),
@@ -2659,7 +2744,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ? null
             : (cyclePaid / cycleDue).clamp(0.0, 1.0).toDouble(),
         progressColor: Colors.teal,
-        tint: isDueOrLate ? const Color(0xFFC65D2E) : null,
+        tint: (isDueOrLate || shouldShowDecision)
+            ? const Color(0xFFC65D2E)
+            : null,
         onTap: () => _openSubscriptionDetailsSheet(
           debt: debt,
           recurring: recurring,
@@ -2668,19 +2755,36 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           amountPerOccurrence: amountPerOccurrence,
           monthTx: monthTx,
         ),
-        actions: isDueOrLate && recurring != null
-            ? <Widget>[
-                _compactActionButton(
-                  label: 'تسديد الآن',
-                  onPressed: () =>
-                      _confirmDebtPayment(state, budget, debt, recurring),
-                ),
-              ]
-            : const <Widget>[],
+        actions: recurring == null
+            ? const <Widget>[]
+            : isSnoozed
+                ? <Widget>[
+                    _compactActionButton(
+                      label: 'إلغاء التأجيل',
+                      filled: false,
+                      onPressed: () => _clearDebtPostpone(recurring),
+                    ),
+                  ]
+                : shouldShowDecision
+                    ? <Widget>[
+                        _compactActionButton(
+                          label: 'تسديد الآن',
+                          onPressed: () => _confirmDebtPayment(
+                              state, budget, debt, recurring),
+                        ),
+                        _compactActionButton(
+                          label: 'تأجيل',
+                          filled: false,
+                          onPressed: () => _postponeDebt(recurring),
+                        ),
+                      ]
+                    : const <Widget>[],
       ));
     }
     if (widgets.isEmpty) {
-      return [const _StaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')];
+      return [
+        const _StaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')
+      ];
     }
     return widgets;
   }
@@ -2701,9 +2805,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    int paidCount = amountPerOccurrence > 0
-        ? (cyclePaid / amountPerOccurrence).floor()
-        : 0;
+    int paidCount =
+        amountPerOccurrence > 0 ? (cyclePaid / amountPerOccurrence).floor() : 0;
     if (paidCount > cycleDates.length) paidCount = cycleDates.length;
 
     await showModalBottomSheet<void>(
@@ -2769,9 +2872,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     DateTime(date.year, date.month, date.day);
                 final isDueOrLate = !todayMidnight.isBefore(occurrenceMidnight);
 
-                final statusText = isPaid
-                    ? 'مسدد ✓'
-                    : (isDueOrLate ? 'مستحق الآن' : 'قادم');
+                final statusText =
+                    isPaid ? 'مسدد ✓' : (isDueOrLate ? 'مستحق الآن' : 'قادم');
                 final statusColor = isPaid
                     ? Colors.green
                     : (isDueOrLate
@@ -3326,7 +3428,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final monthPaid = monthTx.fold<double>(0, (s, t) => s + t.amount);
     final installmentAmt = debt.amount;
     final currentPaid = monthPaid >= installmentAmt;
-    final nextPaid = monthPaid >= installmentAmt * 2;
+    final isSinglePaymentInstallment =
+        debt.installmentCount == 1 || principal <= installmentAmt;
+    final nextPaid =
+        isSinglePaymentInstallment || monthPaid >= installmentAmt * 2;
 
     final sortedTx = [...tx]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -3436,6 +3541,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   installmentAmt: installmentAmt,
                   currentPaid: currentPaid,
                   nextPaid: nextPaid,
+                  showNextPayment: !isSinglePaymentInstallment,
                   dueDate: dueDate,
                   onPayCurrent: () async {
                     Navigator.pop(sheetContext);
@@ -3780,6 +3886,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             'مؤجل حتى ${DateFormat('d/M - h:mm a', 'ar').format(snoozedUntil)}',
         'occurrence': fallbackOccurrence,
         'pending': false,
+        'snoozed': true,
       };
     }
     final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
@@ -3796,6 +3903,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         },
         'occurrence': prompt.occurrence,
         'pending': true,
+        'snoozed': false,
       };
     }
 
@@ -3806,6 +3914,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           'الاستحقاق القادم ${DateFormat('d/M - h:mm a', 'ar').format(occurrence)}',
       'occurrence': occurrence,
       'pending': false,
+      'snoozed': false,
     };
   }
 
@@ -3935,25 +4044,249 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
   }
 
+  Future<DateTime?> _showPostponeDialog({
+    required String title,
+    required String name,
+    required double amount,
+    required String kindLabel,
+    required DateTime occurrence,
+    required bool allowSkip,
+  }) {
+    final now = DateTime.now();
+    DateTime atMorning(DateTime date) =>
+        DateTime(date.year, date.month, date.day, 9);
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final accent = const Color(0xFF9B6B2F);
+        final amountLabel = amount <= 0 ? 'مجاني' : amount.toStringAsFixed(2);
+
+        Widget option({
+          required IconData icon,
+          required String label,
+          required String subtitle,
+          required VoidCallback onTap,
+        }) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.28),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color:
+                        theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: accent, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_left_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AlertDialog(
+          title: Text(title),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        kindLabel,
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$amountLabel · استحقاق ${DateFormat('d/M/yyyy', 'ar').format(occurrence)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (allowSkip)
+                  option(
+                    icon: Icons.skip_next_rounded,
+                    label: 'تخطي هذه المرة',
+                    subtitle: 'اعتبر هذه المرة منتهية وانتقل للاستحقاق القادم',
+                    onTap: () => Navigator.of(dialogContext)
+                        .pop(_TrackingPostponeChoice.skip),
+                  ),
+                option(
+                  icon: Icons.today_rounded,
+                  label: 'تأجيل يوم',
+                  subtitle: 'إظهارها مرة أخرى غدًا',
+                  onTap: () => Navigator.of(dialogContext).pop(
+                    atMorning(now.add(const Duration(days: 1))),
+                  ),
+                ),
+                option(
+                  icon: Icons.event_repeat_rounded,
+                  label: 'تأجيل 3 أيام',
+                  subtitle: 'إظهارها بعد ثلاثة أيام',
+                  onTap: () => Navigator.of(dialogContext).pop(
+                    atMorning(now.add(const Duration(days: 3))),
+                  ),
+                ),
+                option(
+                  icon: Icons.edit_calendar_rounded,
+                  label: 'تحديد تاريخ',
+                  subtitle: 'اختار تاريخ مناسب يدويًا',
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: dialogContext,
+                      initialDate: now.add(const Duration(days: 1)),
+                      firstDate: now.add(const Duration(days: 1)),
+                      lastDate: DateTime(now.year + 1, now.month, now.day),
+                    );
+                    if (picked == null || !dialogContext.mounted) return;
+                    Navigator.of(dialogContext).pop(atMorning(picked));
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('إلغاء'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _postponeIncome(IncomeSourceEntity source) async {
     final dueDate = _incomeDueDateForMonth(source, _month);
-    final cycleEnd = _cycleEnd;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: dueDate.add(const Duration(days: 1)),
-      firstDate: dueDate.add(const Duration(days: 1)),
-      lastDate: DateTime(cycleEnd.year, cycleEnd.month, cycleEnd.day),
+    final picked = await _showPostponeDialog(
+      title: 'تأجيل معاملة متكررة',
+      name: source.name,
+      amount: source.amount,
+      kindLabel: 'راتب / دخل',
+      occurrence: dueDate,
+      allowSkip: false,
     );
     if (picked == null) return;
-    // نحط snoozedUntil مؤقت بدل ما نغير date الدائم
-    final snoozedUntilDate = DateTime(picked.year, picked.month, picked.day, 9);
     final setup = widget.cubit.state.budgetSetup;
     final updatedIncomes = setup.incomeSources.map((i) {
       if (i.id != source.id) return i;
-      return i.copyWith(snoozedUntil: snoozedUntilDate.toIso8601String());
+      return i.copyWith(snoozedUntil: picked.toIso8601String());
     }).toList();
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: updatedIncomes),
+      detailsOverride:
+          'تأجيل دخل: ${source.name} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
+    );
+  }
+
+  Future<void> _postponeDebt(RecurringTransactionEntity recurring) async {
+    final now = DateTime.now();
+    final occurrence = _dueOccurrenceNow(recurring, now) ??
+        _nextRecurringOccurrence(recurring, now) ??
+        now;
+    final picked = await _showPostponeDialog(
+      title: 'تأجيل معاملة متكررة',
+      name: recurring.name,
+      amount: recurring.amount,
+      kindLabel:
+          recurring.expensePlanKind == 'subscription' ? 'اشتراك' : 'دفعة دين',
+      occurrence: occurrence,
+      allowSkip: true,
+    );
+    if (picked == null) return;
+    if (picked == _TrackingPostponeChoice.skip) {
+      await widget.cubit.updateRecurringTransaction(
+        recurring.copyWith(
+          lastHandledOccurrenceAt: occurrence.toIso8601String(),
+          snoozedUntil: '',
+        ),
+        detailsOverride:
+            'تخطي هذه المرة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)}',
+      );
+      return;
+    }
+    await widget.cubit.updateRecurringTransaction(
+      recurring.copyWith(snoozedUntil: picked.toIso8601String()),
+      detailsOverride:
+          'تأجيل معاملة متكررة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
+    );
+  }
+
+  Future<void> _clearDebtPostpone(RecurringTransactionEntity recurring) async {
+    await widget.cubit.updateRecurringTransaction(
+      recurring.copyWith(snoozedUntil: ''),
     );
   }
 
@@ -4061,6 +4394,7 @@ class _InstallmentPaymentsCard extends StatefulWidget {
     required this.installmentAmt,
     required this.currentPaid,
     required this.nextPaid,
+    required this.showNextPayment,
     required this.dueDate,
     required this.onPayCurrent,
     required this.onPayNext,
@@ -4072,6 +4406,7 @@ class _InstallmentPaymentsCard extends StatefulWidget {
   final double installmentAmt;
   final bool currentPaid;
   final bool nextPaid;
+  final bool showNextPayment;
   final DateTime dueDate;
   final VoidCallback onPayCurrent;
   final VoidCallback onPayNext;
@@ -4089,7 +4424,11 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
     final theme = widget.theme;
     final accent = const Color(0xFFC65D2E);
     final now = DateTime.now();
-    final nextMonth = DateTime(now.year, now.month + 1, widget.debt.executionDay.clamp(1, 28));
+    final nextMonth = DateTime(
+      now.year,
+      now.month + 1,
+      widget.debt.executionDay.clamp(1, 28),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -4164,7 +4503,7 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
           // ── الدفعة الحالية ─────────────────────────────────────
           _paymentRow(
             theme: theme,
-            label: 'الدفعة الحالية',
+            label: widget.showNextPayment ? 'الدفعة الحالية' : 'دفعة واحدة',
             date:
                 '${widget.dueDate.day}/${widget.dueDate.month}/${widget.dueDate.year}',
             amount: widget.installmentAmt,
@@ -4172,19 +4511,18 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
             buttonLabel: 'دفع الآن',
             onPay: widget.currentPaid ? null : widget.onPayCurrent,
           ),
-          const SizedBox(height: 10),
-
-          // ── الدفعة القادمة ─────────────────────────────────────
-          _paymentRow(
-            theme: theme,
-            label: 'الدفعة القادمة',
-            date:
-                '${nextMonth.day}/${nextMonth.month}/${nextMonth.year}',
-            amount: widget.installmentAmt,
-            isPaid: widget.nextPaid,
-            buttonLabel: 'تسديد الآن',
-            onPay: widget.nextPaid ? null : widget.onPayNext,
-          ),
+          if (widget.showNextPayment) ...[
+            const SizedBox(height: 10),
+            _paymentRow(
+              theme: theme,
+              label: 'الدفعة القادمة',
+              date: '${nextMonth.day}/${nextMonth.month}/${nextMonth.year}',
+              amount: widget.installmentAmt,
+              isPaid: widget.nextPaid,
+              buttonLabel: 'تسديد الآن',
+              onPay: widget.nextPaid ? null : widget.onPayNext,
+            ),
+          ],
         ],
       ),
     );
@@ -4250,8 +4588,7 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
           ),
           Text(
             amount.toStringAsFixed(2),
-            style: const TextStyle(
-                fontWeight: FontWeight.w900, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
           ),
           if (!isPaid && onPay != null) ...[
             const SizedBox(width: 8),
@@ -4259,12 +4596,12 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
               onPressed: onPay,
               style: FilledButton.styleFrom(
                 backgroundColor: accent,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w800),
+                textStyle:
+                    const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
               ),
               child: Text(buttonLabel),
             ),
@@ -4288,6 +4625,10 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
 enum _TxKindFilter { all, expense, income, transfer }
 
 enum _TxDateFilter { day, week, month, year, custom, all }
+
+class _TrackingPostponeChoice {
+  static final DateTime skip = DateTime(1);
+}
 
 class _DraggableFilterableTxSheet extends StatefulWidget {
   const _DraggableFilterableTxSheet({

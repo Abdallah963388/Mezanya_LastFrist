@@ -106,9 +106,8 @@ class _RecurringTransactionComposerScreenState
     _iconName = recurring?.icon ?? (_type == 'income' ? 'cash' : 'category');
     _iconColor =
         recurring?.iconColor ?? (_type == 'income' ? '#0f9d7a' : '#c65d2e');
-    _expensePlanKind = recurring?.expensePlanKind ??
-        widget.initialExpensePlanKind ??
-        'normal';
+    _expensePlanKind =
+        recurring?.expensePlanKind ?? widget.initialExpensePlanKind ?? 'normal';
     _nameController.text = recurring?.name ?? '';
     _amountController.text = recurring == null
         ? ''
@@ -128,7 +127,8 @@ class _RecurringTransactionComposerScreenState
         downPay != null && downPay > 0 ? downPay.toStringAsFixed(2) : '';
     _isVariableIncome = recurring?.isVariableIncome ?? false;
     _isDebtOrSubscription = recurring?.isDebtOrSubscription ??
-        (_expensePlanKind == 'installment' || _expensePlanKind == 'subscription');
+        (_expensePlanKind == 'installment' ||
+            _expensePlanKind == 'subscription');
     _monthlyDay = (recurring?.dayOfMonth ?? 1).clamp(1, 28);
     _yearlyDay = (recurring?.dayOfMonth ?? 1).clamp(1, 28);
     _yearlyMonth =
@@ -136,6 +136,9 @@ class _RecurringTransactionComposerScreenState
     _reminderLeadDays = recurring?.reminderLeadDays ?? 0;
     _allocationId = recurring?.allocationId;
     _targetJarId = recurring?.targetJarId;
+    if (_type == 'income') {
+      _allocationId = null;
+    }
     _selectedCategoryIds.addAll(recurring?.categoryIds ?? const <String>[]);
     _selectedWeekdays.addAll(
       recurring?.weekdays.isNotEmpty == true
@@ -159,7 +162,8 @@ class _RecurringTransactionComposerScreenState
       _firstPaymentDate = DateTime(now.year, now.month, now.day + 1);
     }
 
-    if (widget.subscriptionOnlyMode && widget.initialSubscriptionPresetId != null) {
+    if (widget.subscriptionOnlyMode &&
+        widget.initialSubscriptionPresetId != null) {
       final preset = subscriptionPresetById(widget.initialSubscriptionPresetId);
       if (preset != null) {
         _nameController.text = preset.name;
@@ -260,7 +264,9 @@ class _RecurringTransactionComposerScreenState
     if (_showAmount) {
       final amt = double.tryParse(_amountController.text.trim()) ?? 0;
       if (amt < 0) return false;
-      if (amt == 0 && !widget.subscriptionOnlyMode) return false;
+      if (amt == 0 && !_isExpenseSubscription && !widget.subscriptionOnlyMode) {
+        return false;
+      }
     }
     if (_type == 'expense' &&
         _withinBudget &&
@@ -315,7 +321,8 @@ class _RecurringTransactionComposerScreenState
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
             // ── وضع القسط المبسّط ──────────────────────────────────────
-            if (_isExpenseInstallment && (widget.debtOnlyMode || _expensePlanKind == 'installment')) ...[
+            if (_isExpenseInstallment &&
+                (widget.debtOnlyMode || _expensePlanKind == 'installment')) ...[
               _installmentHeroHeader(theme),
               const SizedBox(height: 18),
               ..._installmentFormChildren(theme, wallets),
@@ -1079,8 +1086,7 @@ class _RecurringTransactionComposerScreenState
                 ),
               ),
               Icon(Icons.chevron_left_rounded,
-                  color:
-                      Theme.of(context).colorScheme.onSurfaceVariant),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -1089,25 +1095,28 @@ class _RecurringTransactionComposerScreenState
   }
 
   String _budgetScopeLabel(BudgetSetupEntity budget) {
-    if (!_withinBudget) return 'خارج الميزانية';
-    if (_allocationId != null) {
-      final a = budget.allocations
-          .where((a) => a.id == _allocationId)
-          .toList();
+    if (!_withinBudget) {
+      return _type == 'income' ? 'دخل للمحفظة فقط' : 'خارج الميزانية';
+    }
+    if (_type == 'expense' && _allocationId != null) {
+      final a = budget.allocations.where((a) => a.id == _allocationId).toList();
       if (a.isNotEmpty) return 'مخصص: ${a.first.name}';
     }
     if (_targetJarId != null) {
-      final j = budget.linkedWallets
-          .where((j) => j.id == _targetJarId)
-          .toList();
+      final j =
+          budget.linkedWallets.where((j) => j.id == _targetJarId).toList();
       if (j.isNotEmpty) return 'حصالة: ${j.first.name}';
     }
-    return 'داخل الميزانية (عام)';
+    return _type == 'income' ? 'دخل للميزانية الشهرية' : 'داخل الميزانية (عام)';
   }
 
   void _openBudgetScopePicker(BudgetSetupEntity budget) {
-    final totalIncome =
-        budget.totalIncome <= 0 ? 1.0 : budget.totalIncome;
+    final totalIncome = budget.totalIncome <= 0 ? 1.0 : budget.totalIncome;
+    final selectedWalletName = widget.cubit.state.wallets
+        .where((wallet) => wallet.id == _walletId)
+        .map((wallet) => wallet.name)
+        .cast<String?>()
+        .firstWhere((name) => name != null, orElse: () => null);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1120,16 +1129,21 @@ class _RecurringTransactionComposerScreenState
           children: [
             Text(
               _type == 'income' ? 'وجهة الدخل' : 'المخصص',
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w900),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             _ScopeOptionTile(
               isSelected: !_withinBudget,
-              icon: Icons.public_off_rounded,
+              icon: _type == 'income'
+                  ? Icons.account_balance_wallet_rounded
+                  : Icons.public_off_rounded,
               iconColor: Colors.grey,
-              title: 'خارج الميزانية',
-              subtitle: 'لن تُحتسب في خطة الميزانية',
+              title: _type == 'income'
+                  ? 'دخل لمحفظة ${selectedWalletName ?? "مختارة"} فقط'
+                  : 'خارج الميزانية',
+              subtitle: _type == 'income'
+                  ? 'يزود رصيد المحفظة بدون دخوله في خطة الميزانية'
+                  : 'لن تُحتسب في خطة الميزانية',
               progress: null,
               onTap: () {
                 setState(() {
@@ -1143,13 +1157,65 @@ class _RecurringTransactionComposerScreenState
                 Navigator.pop(ctx);
               },
             ),
-            if (_type == 'expense' || _type == 'income') ...[
+            if (_type == 'income') ...[
+              const SizedBox(height: 8),
+              _ScopeOptionTile(
+                isSelected: _withinBudget &&
+                    _allocationId == null &&
+                    _targetJarId == null,
+                icon: Icons.calendar_month_rounded,
+                iconColor: Theme.of(context).colorScheme.primary,
+                title: 'دخل للميزانية الشهرية',
+                subtitle: 'يدخل ضمن دخل الدورة بدون ربطه بمخصص أو حصالة',
+                progress: null,
+                onTap: () {
+                  setState(() {
+                    _withinBudget = true;
+                    _allocationId = null;
+                    _targetJarId = null;
+                    _isDebtOrSubscription = false;
+                    _expensePlanKind = 'normal';
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
+              if (budget.linkedWallets.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const _ScopeDivider(label: 'الحصالات'),
+                const SizedBox(height: 8),
+                ...budget.linkedWallets.map((jar) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _ScopeOptionTile(
+                      isSelected: _withinBudget &&
+                          _targetJarId == jar.id &&
+                          _allocationId == null,
+                      icon: Icons.savings_outlined,
+                      iconColor: const Color(0xFF8B6B3D),
+                      title: jar.name,
+                      subtitle: '${jar.balance.toStringAsFixed(0)} رصيد',
+                      progress: (jar.balance / totalIncome).clamp(0.0, 1.0),
+                      onTap: () {
+                        setState(() {
+                          _withinBudget = true;
+                          _targetJarId = jar.id;
+                          _allocationId = null;
+                          _isDebtOrSubscription = false;
+                          _expensePlanKind = 'normal';
+                        });
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ] else if (_type == 'expense') ...[
               const SizedBox(height: 14),
               const _ScopeDivider(label: 'المخصصات'),
               const SizedBox(height: 8),
               ...budget.allocations.map((a) {
-                final planned = a.funding.fold<double>(
-                    0, (s, f) => s + f.plannedAmount);
+                final planned =
+                    a.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _ScopeOptionTile(
@@ -1187,10 +1253,8 @@ class _RecurringTransactionComposerScreenState
                     icon: Icons.savings_outlined,
                     iconColor: const Color(0xFF8B6B3D),
                     title: jar.name,
-                    subtitle:
-                        '${jar.balance.toStringAsFixed(0)} رصيد',
-                    progress:
-                        (jar.balance / totalIncome).clamp(0.0, 1.0),
+                    subtitle: '${jar.balance.toStringAsFixed(0)} رصيد',
+                    progress: (jar.balance / totalIncome).clamp(0.0, 1.0),
                     onTap: () {
                       setState(() {
                         _withinBudget = true;
@@ -1211,7 +1275,8 @@ class _RecurringTransactionComposerScreenState
     );
   }
 
-  Widget _categorySection(List<CategoryEntity> categories, BudgetSetupEntity budget) {
+  Widget _categorySection(
+      List<CategoryEntity> categories, BudgetSetupEntity budget) {
     return _surfaceSection(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1244,8 +1309,7 @@ class _RecurringTransactionComposerScreenState
               children: categories
                   .map(
                     (category) => FilterChip(
-                      selected:
-                          _selectedCategoryIds.contains(category.id),
+                      selected: _selectedCategoryIds.contains(category.id),
                       label: Text(category.name),
                       onSelected: (selected) {
                         setState(() {
@@ -1283,8 +1347,7 @@ class _RecurringTransactionComposerScreenState
               TextField(
                 controller: nameCtrl,
                 onChanged: (_) => setDialog(() {}),
-                decoration:
-                    const InputDecoration(hintText: 'اسم الفئة'),
+                decoration: const InputDecoration(hintText: 'اسم الفئة'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -1330,16 +1393,16 @@ class _RecurringTransactionComposerScreenState
       icon: iconName,
       color: iconColor,
       scope: _type == 'income' ? 'income' : 'expense',
-      allocationId: (_withinBudget && _allocationId != null &&
+      allocationId: (_withinBudget &&
+              _allocationId != null &&
               _allocationId != 'unallocated')
           ? _allocationId
           : null,
     );
 
     if (_withinBudget && _allocationId != null) {
-      final alloc = budget.allocations
-          .where((a) => a.id == _allocationId)
-          .toList();
+      final alloc =
+          budget.allocations.where((a) => a.id == _allocationId).toList();
       if (alloc.isNotEmpty) {
         await widget.cubit.updateAllocationCategories(
           allocationId: _allocationId!,
@@ -1347,9 +1410,8 @@ class _RecurringTransactionComposerScreenState
         );
       }
     } else if (_withinBudget && _targetJarId != null) {
-      final jar = budget.linkedWallets
-          .where((j) => j.id == _targetJarId)
-          .toList();
+      final jar =
+          budget.linkedWallets.where((j) => j.id == _targetJarId).toList();
       if (jar.isNotEmpty) {
         await widget.cubit.updateLinkedWalletCategories(
           linkedWalletId: _targetJarId!,
@@ -1574,9 +1636,10 @@ class _RecurringTransactionComposerScreenState
         : null;
 
     final countRaw = int.tryParse(_installmentCountController.text.trim());
-    final installmentCount = (_isExpenseInstallment && countRaw != null && countRaw > 0)
-        ? countRaw
-        : null;
+    final installmentCount =
+        (_isExpenseInstallment && countRaw != null && countRaw > 0)
+            ? countRaw
+            : null;
 
     final downPayRaw = double.tryParse(_downPaymentController.text.trim());
     final installmentDownPayment =
@@ -1605,8 +1668,9 @@ class _RecurringTransactionComposerScreenState
       dayOfMonth: effectiveDayOfMonth,
       executionType: effectiveExecutionType,
       walletId: _walletId,
-      budgetScope:
-          _isExpenseInstallment ? 'within-budget' : (_withinBudget ? 'within-budget' : 'outside-budget'),
+      budgetScope: _isExpenseInstallment
+          ? 'within-budget'
+          : (_withinBudget ? 'within-budget' : 'outside-budget'),
       recurrencePattern: effectivePattern,
       icon: _iconName,
       iconColor: _iconColor,
@@ -1623,14 +1687,16 @@ class _RecurringTransactionComposerScreenState
           _type == 'expense' && _withinBudget && !_isDebtOrSubscription
               ? _allocationId
               : null,
-      targetJarId: _type == 'expense' && _withinBudget && !_isDebtOrSubscription
+      targetJarId: (_type == 'expense' || _type == 'income') &&
+              _withinBudget &&
+              !_isDebtOrSubscription
           ? _targetJarId
           : null,
       incomeSourceId: widget.initialRecurring?.incomeSourceId,
       categoryIds: _selectedCategoryIds.toList(),
       isVariableIncome: _isVariableIncome,
-      isDebtOrSubscription:
-          _isExpenseInstallment || (_type == 'expense' && _withinBudget && _isDebtOrSubscription),
+      isDebtOrSubscription: _isExpenseInstallment ||
+          (_type == 'expense' && _withinBudget && _isDebtOrSubscription),
       expensePlanKind: _type == 'expense' ? _expensePlanKind : null,
       debtPrincipalTotal: debtPrincipalTotal,
       installmentCount: installmentCount,
@@ -1891,8 +1957,8 @@ class _ScopeOptionTile extends StatelessWidget {
                     Row(children: [
                       Expanded(
                         child: Text(title,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                       if (isSelected)
                         Icon(Icons.check_circle_rounded,
@@ -1910,10 +1976,8 @@ class _ScopeOptionTile extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: progress,
                           minHeight: 4,
-                          backgroundColor:
-                              iconColor.withValues(alpha: 0.12),
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(iconColor),
+                          backgroundColor: iconColor.withValues(alpha: 0.12),
+                          valueColor: AlwaysStoppedAnimation<Color>(iconColor),
                         ),
                       ),
                     ],
@@ -1937,8 +2001,8 @@ class _ScopeDivider extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-            child: Divider(
-                color: Theme.of(context).colorScheme.outlineVariant)),
+            child:
+                Divider(color: Theme.of(context).colorScheme.outlineVariant)),
         const SizedBox(width: 8),
         Text(label,
             style: TextStyle(
@@ -1947,8 +2011,8 @@ class _ScopeDivider extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(width: 8),
         Expanded(
-            child: Divider(
-                color: Theme.of(context).colorScheme.outlineVariant)),
+            child:
+                Divider(color: Theme.of(context).colorScheme.outlineVariant)),
       ],
     );
   }
@@ -2173,4 +2237,3 @@ class _EditorSection extends StatelessWidget {
     );
   }
 }
-
