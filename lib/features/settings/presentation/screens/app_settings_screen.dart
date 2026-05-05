@@ -30,9 +30,6 @@ class AppSettingsScreen extends StatefulWidget {
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
   late TextEditingController _nameController;
-  late TextEditingController _emailController;
-  late TextEditingController _passwordController;
-  User? _emailUser;
 
   static const _bg = Color(0xFFFFFBF1);
   static const _green = Color(0xFF2F6F5E);
@@ -49,9 +46,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     _nameController = TextEditingController(
       text: widget.cubit.state.userName,
     );
-    _emailController = TextEditingController();
-    _passwordController = TextEditingController();
-    _emailUser = FirebaseAuth.instance.currentUser;
     _initGoogle();
   }
 
@@ -79,8 +73,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -141,8 +133,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 initials: initials,
                 nameController: _nameController,
                 isGoogleConnected: isGoogleConnected,
-                isEmailConnected: _emailUser != null,
-                emailUser: _emailUser,
                 googleAccount: _account,
                 uploadingImage: _uploadingImage,
                 onPickImage: _pickAndUploadProfileImage,
@@ -155,14 +145,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               _SectionHeader(label: 'ربط الحساب', icon: Icons.link_rounded),
               _AccountLinkCard(
                 googleAccount: _account,
-                emailUser: _emailUser,
-                emailController: _emailController,
-                passwordController: _passwordController,
                 onGoogleSignIn: _signInGoogle,
                 onGoogleSignOut: _signOutGoogle,
-                onEmailRegister: _registerEmail,
-                onEmailSignIn: _signInEmail,
-                onEmailSignOut: _signOutEmail,
               ),
 
               const SizedBox(height: 20),
@@ -276,69 +260,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     setState(() => _account = null);
   }
 
-  Future<void> _registerEmail() async {
-    final email = _emailController.text.trim();
-    final pass = _passwordController.text.trim();
-    if (email.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل الإيميل وكلمة السر')),
-      );
-      return;
-    }
-    try {
-      final cred = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: pass);
-      widget.cubit.updateSettings(googleEmail: cred.user?.email ?? '');
-      setState(() => _emailUser = cred.user);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إنشاء الحساب بنجاح')),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_authError(e.code))),
-      );
-    }
-  }
-
-  Future<void> _signInEmail() async {
-    final email = _emailController.text.trim();
-    final pass = _passwordController.text.trim();
-    if (email.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل الإيميل وكلمة السر')),
-      );
-      return;
-    }
-    try {
-      final cred = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: pass);
-      widget.cubit.updateSettings(googleEmail: cred.user?.email ?? '');
-      setState(() => _emailUser = cred.user);
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_authError(e.code))),
-      );
-    }
-  }
-
-  Future<void> _signOutEmail() async {
-    await FirebaseAuth.instance.signOut();
-    setState(() => _emailUser = null);
-  }
-
-  String _authError(String code) {
-    return switch (code) {
-      'email-already-in-use' => 'الإيميل مستخدم بالفعل',
-      'invalid-email' => 'إيميل غير صحيح',
-      'weak-password' => 'كلمة السر ضعيفة جدًا (6 أحرف على الأقل)',
-      'user-not-found' => 'لا يوجد حساب بهذا الإيميل',
-      'wrong-password' => 'كلمة السر غير صحيحة',
-      'too-many-requests' => 'محاولات كثيرة، حاول لاحقًا',
-      _ => 'حدث خطأ، حاول مرة أخرى',
-    };
-  }
 
   Future<void> _showWipeSheet() async {
     showModalBottomSheet<void>(
@@ -688,8 +609,6 @@ class _ProfileCard extends StatelessWidget {
     required this.initials,
     required this.nameController,
     required this.isGoogleConnected,
-    required this.isEmailConnected,
-    required this.emailUser,
     required this.googleAccount,
     required this.uploadingImage,
     required this.onPickImage,
@@ -701,8 +620,6 @@ class _ProfileCard extends StatelessWidget {
   final String initials;
   final TextEditingController nameController;
   final bool isGoogleConnected;
-  final bool isEmailConnected;
-  final User? emailUser;
   final GoogleSignInAccount? googleAccount;
   final bool uploadingImage;
   final VoidCallback onPickImage;
@@ -932,436 +849,201 @@ class _ProfileCard extends StatelessWidget {
 // Account Link Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AccountLinkCard extends StatefulWidget {
+class _AccountLinkCard extends StatelessWidget {
   const _AccountLinkCard({
     required this.googleAccount,
-    required this.emailUser,
-    required this.emailController,
-    required this.passwordController,
     required this.onGoogleSignIn,
     required this.onGoogleSignOut,
-    required this.onEmailRegister,
-    required this.onEmailSignIn,
-    required this.onEmailSignOut,
   });
 
   final GoogleSignInAccount? googleAccount;
-  final User? emailUser;
-  final TextEditingController emailController;
-  final TextEditingController passwordController;
   final VoidCallback onGoogleSignIn;
   final VoidCallback onGoogleSignOut;
-  final VoidCallback onEmailRegister;
-  final VoidCallback onEmailSignIn;
-  final VoidCallback onEmailSignOut;
-
-  @override
-  State<_AccountLinkCard> createState() => _AccountLinkCardState();
-}
-
-class _AccountLinkCardState extends State<_AccountLinkCard> {
-  bool _showEmailForm = false;
-  bool _showPassword = false;
-  bool _isRegisterMode = true;
 
   static const _green = Color(0xFF2F6F5E);
-  static const _blue = Color(0xFF2E5CC6);
 
   @override
   Widget build(BuildContext context) {
-    final isGoogleConnected = widget.googleAccount != null;
-    final isEmailConnected = widget.emailUser != null;
+    final isConnected = googleAccount != null;
 
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: const Color(0xFF2F6F5E).withValues(alpha: 0.1),
+          color: _green.withValues(alpha: 0.1),
         ),
         boxShadow: [
           BoxShadow(
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-            color: const Color(0xFF2F6F5E).withValues(alpha: 0.07),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            color: _green.withValues(alpha: 0.08),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ─── Google section ───────────────────────────────
-          _providerRow(
-            context,
-            icon: _GoogleIcon(),
-            title: 'حساب Google',
-            subtitle: widget.googleAccount?.email ?? 'غير متصل',
-            isConnected: isGoogleConnected,
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: isGoogleConnected
-                ? OutlinedButton.icon(
-                    onPressed: widget.onGoogleSignOut,
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('تسجيل الخروج من جوجل'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      side: BorderSide(
-                          color:
-                              const Color(0xFFC65D2E).withValues(alpha: 0.5)),
-                      foregroundColor: const Color(0xFFC65D2E),
-                    ),
-                  )
-                : FilledButton.icon(
-                    onPressed: widget.onGoogleSignIn,
-                    icon: const Icon(Icons.login_rounded),
-                    label: const Text('تسجيل الدخول بجوجل'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _green,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Row(
-              children: [
-                Expanded(child: Divider()),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    'أو',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
-                Expanded(child: Divider()),
-              ],
-            ),
-          ),
-
-          // ─── Email section ────────────────────────────────
-          _providerRow(
-            context,
-            icon: _EmailIcon(),
-            title: 'حساب بالإيميل',
-            subtitle: widget.emailUser?.email ?? 'غير متصل',
-            isConnected: isEmailConnected,
-          ),
-          const SizedBox(height: 10),
-
-          if (isEmailConnected) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: widget.onEmailSignOut,
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('تسجيل الخروج من الحساب'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  side: BorderSide(
-                      color: const Color(0xFFC65D2E).withValues(alpha: 0.5)),
-                  foregroundColor: const Color(0xFFC65D2E),
-                ),
-              ),
-            ),
-          ] else ...[
-            if (!_showEmailForm)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => setState(() {
-                        _showEmailForm = true;
-                        _isRegisterMode = true;
-                      }),
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: const Text('إنشاء حساب'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        side: BorderSide(color: _blue.withValues(alpha: 0.5)),
-                        foregroundColor: _blue,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => setState(() {
-                        _showEmailForm = true;
-                        _isRegisterMode = false;
-                      }),
-                      icon: const Icon(Icons.login_rounded, size: 18),
-                      label: const Text('تسجيل دخول'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _blue,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            else ...[
-              // Email form
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _blue.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _blue.withValues(alpha: 0.15)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _isRegisterMode
-                              ? Icons.person_add_rounded
-                              : Icons.login_rounded,
-                          color: _blue,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _isRegisterMode ? 'إنشاء حساب جديد' : 'تسجيل الدخول',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
-                            color: _blue,
-                          ),
-                        ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => setState(() => _showEmailForm = false),
-                          child: Icon(Icons.close_rounded,
-                              size: 18,
-                              color: Colors.grey.withValues(alpha: 0.7)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: widget.emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: 'الإيميل',
-                        prefixIcon:
-                            const Icon(Icons.email_outlined, color: _blue),
-                        filled: true,
-                        fillColor: Colors.white,
-                        labelStyle:
-                            TextStyle(color: _blue.withValues(alpha: 0.7)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13),
-                          borderSide:
-                              BorderSide(color: _blue.withValues(alpha: 0.2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13),
-                          borderSide:
-                              const BorderSide(color: _blue, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: widget.passwordController,
-                      obscureText: !_showPassword,
-                      decoration: InputDecoration(
-                        labelText: 'كلمة السر',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded,
-                            color: _blue),
-                        suffixIcon: GestureDetector(
-                          onTap: () =>
-                              setState(() => _showPassword = !_showPassword),
-                          child: Icon(
-                            _showPassword
-                                ? Icons.visibility_off_rounded
-                                : Icons.visibility_rounded,
-                            color: Colors.grey,
-                            size: 20,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        labelStyle:
-                            TextStyle(color: _blue.withValues(alpha: 0.7)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13),
-                          borderSide:
-                              BorderSide(color: _blue.withValues(alpha: 0.2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(13),
-                          borderSide:
-                              const BorderSide(color: _blue, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => setState(() {
-                              _isRegisterMode = !_isRegisterMode;
-                            }),
-                            child: Text(
-                              _isRegisterMode
-                                  ? 'عندي حساب بالفعل'
-                                  : 'إنشاء حساب جديد',
-                              style: TextStyle(
-                                  color: _blue.withValues(alpha: 0.7),
-                                  fontSize: 12),
-                            ),
-                          ),
-                        ),
-                        FilledButton(
-                          onPressed: _isRegisterMode
-                              ? widget.onEmailRegister
-                              : widget.onEmailSignIn,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _blue,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(13)),
-                          ),
-                          child: Text(
-                            _isRegisterMode ? 'إنشاء' : 'دخول',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-
-          if (isGoogleConnected || isEmailConnected) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _green.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_done_rounded,
-                      size: 16, color: _green.withValues(alpha: 0.7)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'بياناتك محمية ومُزامَنة تلقائيًا مع Firebase',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _green.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _providerRow(
-    BuildContext context, {
-    required Widget icon,
-    required String title,
-    required String subtitle,
-    required bool isConnected,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isConnected
-            ? _green.withValues(alpha: 0.06)
-            : const Color(0xFFF8F8F8),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isConnected
-              ? _green.withValues(alpha: 0.2)
-              : const Color(0xFFE0E0E0),
-        ),
-      ),
-      child: Row(
-        children: [
-          icon,
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 14)),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isConnected
-                        ? _green
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
+          // Header with context
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: isConnected
-                  ? const Color(0xFF22C55E).withValues(alpha: 0.12)
-                  : Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
+              color: _green.withValues(alpha: 0.04),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  isConnected ? Icons.circle : Icons.circle_outlined,
-                  size: 8,
-                  color: isConnected ? const Color(0xFF22C55E) : Colors.grey,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                      ),
+                    ],
+                  ),
+                  child: _GoogleIcon(size: 20),
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  isConnected ? 'متصل' : 'غير متصل',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isConnected ? const Color(0xFF22C55E) : Colors.grey,
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'مزامنة السحابية',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF1A4A3A),
+                        ),
+                      ),
+                      Text(
+                        'احفظ بياناتك واسترجعها في أي وقت',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                if (isConnected)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.check_circle_rounded,
+                            size: 12, color: Color(0xFF22C55E)),
+                        SizedBox(width: 4),
+                        Text(
+                          'متصل',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF166534),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                if (isConnected) ...[
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundImage: googleAccount!.photoUrl != null
+                            ? NetworkImage(googleAccount!.photoUrl!)
+                            : null,
+                        child: googleAccount!.photoUrl == null
+                            ? const Icon(Icons.person)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              googleAccount!.displayName ?? 'مستخدم جوجل',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              googleAccount!.email,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: onGoogleSignOut,
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('تبديل الحساب أو الخروج'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFC65D2E),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const Text(
+                    'اربط حسابك بجوجل لتفعيل النسخ الاحتياطي التلقائي والمزامنة بين أجهزتك المختلفة.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Color(0xFF4A5568),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onGoogleSignIn,
+                      icon: _GoogleIcon(size: 18, color: Colors.white),
+                      label: const Text('تسجيل الدخول باستخدام Google'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A4A3A),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1372,52 +1054,20 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
 }
 
 class _GoogleIcon extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(13),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-            color: Colors.black.withValues(alpha: 0.08),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Text(
-          'G',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            fontFamily: 'Arial',
-            color: Color(0xFF4285F4),
-          ),
-        ),
-      ),
-    );
-  }
-}
+  const _GoogleIcon({this.size = 24, this.color});
+  final double size;
+  final Color? color;
 
-class _EmailIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: const Color(0xFF2E5CC6).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: const Icon(
-        Icons.email_rounded,
-        color: Color(0xFF2E5CC6),
-        size: 22,
-      ),
+    if (color != null) {
+      return Icon(Icons.g_mobiledata_rounded, size: size + 10, color: color);
+    }
+    return Image.network(
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_Color_Icon.svg/1200px-Google_Color_Icon.svg.png',
+      width: size,
+      errorBuilder: (context, error, stackTrace) =>
+          Icon(Icons.account_circle, size: size, color: Colors.blue),
     );
   }
 }

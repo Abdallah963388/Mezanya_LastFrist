@@ -863,13 +863,28 @@ class AppCubit extends Cubit<AppStateEntity> {
     RecurringTransactionEntity recurring, {
     String? detailsOverride,
   }) async {
-    // زامن DebtEntity المرتبط لو كان دين/اشتراك
-    BudgetSetupEntity nextBudget = state.budgetSetup;
+    final next = _applyRecurringSync(state, recurring);
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'recurring-transaction',
+      entityId: recurring.id,
+      details: detailsOverride ??
+          _recurringTransactionDetails('تعديل معاملة متكررة', recurring),
+      titleOverride: recurring.name,
+      apply: () async => next,
+    );
+  }
+
+  AppStateEntity _applyRecurringSync(
+    AppStateEntity source,
+    RecurringTransactionEntity recurring,
+  ) {
+    BudgetSetupEntity nextBudget = source.budgetSetup;
     if (recurring.isDebtOrSubscription) {
-      final linkedIndex = state.budgetSetup.debts
+      final linkedIndex = source.budgetSetup.debts
           .indexWhere((d) => d.recurringTransactionId == recurring.id);
       if (linkedIndex >= 0) {
-        final existing = state.budgetSetup.debts[linkedIndex];
+        final existing = source.budgetSetup.debts[linkedIndex];
         final updated = existing.copyWith(
           name: recurring.name,
           amount: recurring.amount,
@@ -884,25 +899,76 @@ class AppCubit extends Cubit<AppStateEntity> {
           recurrencePattern: recurring.recurrencePattern,
           monthOfYear: recurring.monthOfYear,
         );
-        final updatedDebts = List<DebtEntity>.from(state.budgetSetup.debts)
+        final updatedDebts = List<DebtEntity>.from(source.budgetSetup.debts)
           ..[linkedIndex] = updated;
-        nextBudget = state.budgetSetup.copyWith(debts: updatedDebts);
+        nextBudget = source.budgetSetup.copyWith(debts: updatedDebts);
       }
     }
-    final next = state.copyWith(
-      recurringTransactions: state.recurringTransactions
+    return source.copyWith(
+      recurringTransactions: source.recurringTransactions
           .map((item) => item.id == recurring.id ? recurring : item)
           .toList(),
       budgetSetup: nextBudget,
     );
+  }
+
+  Future<void> recordRecurringExpenseOccurrence({
+    required RecurringTransactionEntity recurring,
+    required double amount,
+    required DateTime occurrence,
+    required String transactionNotes,
+    required String logDetails,
+    String? titleOverride,
+  }) async {
+    final transaction = TransactionEntity(
+      id: _id('txn'),
+      walletId: recurring.walletId,
+      amount: amount,
+      type: 'expense',
+      budgetScope: recurring.budgetScope,
+      allocationId: recurring.allocationId,
+      categoryId: recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
+      notes: transactionNotes,
+      createdAt: DateTime.now(),
+    );
+
+    final updatedRecurring = recurring.copyWith(
+      lastHandledOccurrenceAt: occurrence.toIso8601String(),
+      snoozedUntil: '',
+    );
+
     await _applyAndLog(
-      action: 'edit',
+      action: 'add',
+      entityType: 'recurring-expense-handled',
+      entityId: recurring.id,
+      details: logDetails,
+      titleOverride: titleOverride ?? recurring.name,
+      apply: () async {
+        // 1. Add physical transaction (updates balance/allocations)
+        final stateAfterTx = await _repository.addTransaction(transaction);
+        // 2. Update recurring state & sync debt in one go
+        return _applyRecurringSync(stateAfterTx, updatedRecurring);
+      },
+    );
+  }
+
+  Future<void> recordRecurringSkip({
+    required RecurringTransactionEntity recurring,
+    required DateTime occurrence,
+    required String logDetails,
+  }) async {
+    final updatedRecurring = recurring.copyWith(
+      lastHandledOccurrenceAt: occurrence.toIso8601String(),
+      snoozedUntil: '',
+    );
+
+    await _applyAndLog(
+      action: 'skip',
       entityType: 'recurring-transaction',
       entityId: recurring.id,
-      details: detailsOverride ??
-          _recurringTransactionDetails('تعديل معاملة متكررة', recurring),
+      details: logDetails,
       titleOverride: recurring.name,
-      apply: () async => next,
+      apply: () async => _applyRecurringSync(state, updatedRecurring),
     );
   }
 

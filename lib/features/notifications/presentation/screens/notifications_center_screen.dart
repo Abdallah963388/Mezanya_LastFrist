@@ -515,22 +515,12 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) async {
-    await widget.cubit.addTransaction(
-      walletId: recurring.walletId,
+    await widget.cubit.recordRecurringExpenseOccurrence(
+      recurring: recurring,
       amount: debt.amount,
-      type: 'expense',
-      budgetScope: 'within-budget',
-      createdAt: DateTime.now(),
-      notes: 'سداد دين: ${debt.name}',
-      details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
-    );
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(
-        lastHandledOccurrenceAt: occurrence.toIso8601String(),
-        snoozedUntil: '',
-      ),
-      detailsOverride:
-          'سدد الآن: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
+      occurrence: occurrence,
+      transactionNotes: 'سداد دين: ${debt.name}',
+      logDetails: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
   }
 
@@ -540,13 +530,10 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     String name,
     double amount,
   ) async {
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(
-        lastHandledOccurrenceAt: occurrence.toIso8601String(),
-        snoozedUntil: '',
-      ),
-      detailsOverride:
-          'تخطي هذه المرة: $name بقيمة ${amount.toStringAsFixed(2)}',
+    await widget.cubit.recordRecurringSkip(
+      recurring: recurring,
+      occurrence: occurrence,
+      logDetails: 'تخطي هذه المرة: $name بقيمة ${amount.toStringAsFixed(2)}',
     );
   }
 
