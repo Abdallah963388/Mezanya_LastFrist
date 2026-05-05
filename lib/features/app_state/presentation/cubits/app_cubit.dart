@@ -972,6 +972,138 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  // ── سلفة: أضف سجل سلفة وأخصم من المحفظة فوراً ──────────────────────────
+  Future<void> addLentRecord({
+    required String personName,
+    required double amount,
+    required String walletId,
+    required DateTime expectedReturnDate,
+    bool isMonthlyInstallments = false,
+    String? notes,
+  }) async {
+    final recId = _id('rec');
+    final walletName = state.wallets
+        .where((w) => w.id == walletId)
+        .map((w) => w.name)
+        .cast<String?>()
+        .firstWhere((_) => true, orElse: () => null);
+
+    final recurring = RecurringTransactionEntity(
+      id: recId,
+      name: personName,
+      type: 'income',
+      amount: amount,
+      dayOfMonth: expectedReturnDate.day.clamp(1, 28),
+      executionType: 'confirm',
+      walletId: walletId,
+      budgetScope: 'outside-budget',
+      recurrencePattern: isMonthlyInstallments ? 'monthly' : 'manual-variable',
+      icon: 'handshake',
+      iconColor: '#1a7a4a',
+      anchorDate: expectedReturnDate.toIso8601String(),
+      isDebtOrSubscription: false,
+      expensePlanKind: 'lent',
+      debtPrincipalTotal: amount,
+      notes: notes,
+      isLent: true,
+      lentPersonName: personName,
+    );
+
+    // خصم المبلغ من المحفظة فوراً
+    final txn = TransactionEntity(
+      id: _id('txn'),
+      walletId: walletId,
+      amount: amount,
+      type: 'expense',
+      notes: 'سلفة لـ $personName',
+      createdAt: DateTime.now(),
+    );
+
+    var next = await _repository.addTransaction(txn);
+    next = next.copyWith(
+      recurringTransactions: [...next.recurringTransactions, recurring],
+    );
+
+    await _applyAndLog(
+      action: 'add',
+      entityType: 'recurring-transaction',
+      entityId: recId,
+      details: 'سلفة لـ $personName بمبلغ $amount من ${walletName ?? walletId}',
+      titleOverride: 'سلفة لـ $personName',
+      apply: () async => next,
+    );
+  }
+
+  // ── سلفة: تسجيل استرداد السلفة وإضافة المبلغ للمحفظة ─────────────────
+  Future<void> settleLentRecord(String recurringId) async {
+    final target = state.recurringTransactions
+        .where((r) => r.id == recurringId)
+        .toList();
+    if (target.isEmpty) return;
+    final record = target.first;
+
+    final walletName = state.wallets
+        .where((w) => w.id == record.walletId)
+        .map((w) => w.name)
+        .cast<String?>()
+        .firstWhere((_) => true, orElse: () => null);
+
+    // أضف دخل للمحفظة
+    final txn = TransactionEntity(
+      id: _id('txn'),
+      walletId: record.walletId,
+      amount: record.amount,
+      type: 'income',
+      notes: 'استرداد سلفة من ${record.lentPersonName ?? record.name}',
+      createdAt: DateTime.now(),
+    );
+
+    var next = await _repository.addTransaction(txn);
+    // احذف السجل بعد الاسترداد
+    next = next.copyWith(
+      recurringTransactions: next.recurringTransactions
+          .where((r) => r.id != recurringId)
+          .toList(),
+    );
+
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'recurring-transaction',
+      entityId: recurringId,
+      details:
+          'استرداد سلفة من ${record.lentPersonName ?? record.name} بمبلغ ${record.amount} إلى ${walletName ?? record.walletId}',
+      titleOverride: 'استرداد سلفة من ${record.lentPersonName ?? record.name}',
+      apply: () async => next,
+    );
+  }
+
+  // ── سلفة: تأجيل تاريخ الاسترداد ──────────────────────────────────────
+  Future<void> postponeLentRecord(
+      String recurringId, DateTime newDate) async {
+    final target = state.recurringTransactions
+        .where((r) => r.id == recurringId)
+        .toList();
+    if (target.isEmpty) return;
+    final record = target.first;
+    final updated = record.copyWith(
+      anchorDate: newDate.toIso8601String(),
+      dayOfMonth: newDate.day.clamp(1, 28),
+    );
+    final next = state.copyWith(
+      recurringTransactions: state.recurringTransactions
+          .map((r) => r.id == recurringId ? updated : r)
+          .toList(),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'recurring-transaction',
+      entityId: recurringId,
+      details: 'تأجيل استرداد سلفة ${record.lentPersonName ?? record.name} إلى ${newDate.day}/${newDate.month}/${newDate.year}',
+      titleOverride: record.lentPersonName ?? record.name,
+      apply: () async => next,
+    );
+  }
+
   Future<void> deleteRecurringTransaction(String id) async {
     final target =
         state.recurringTransactions.where((item) => item.id == id).toList();

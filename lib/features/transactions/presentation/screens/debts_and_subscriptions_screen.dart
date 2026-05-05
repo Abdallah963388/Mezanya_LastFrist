@@ -20,6 +20,7 @@ class DebtsAndSubscriptionsScreen extends StatefulWidget {
 class _DebtsAndSubscriptionsScreenState
     extends State<DebtsAndSubscriptionsScreen> {
   static const Color _debtAccent = Color(0xFFC65D2E);
+  static const Color _lentAccent = Color(0xFF1A7A4A);
   static const Color _subscriptionAccent = Color(0xFF2E5CC6);
   static const Color _sharedCardBackground = Color(0xFFF9F3E7);
 
@@ -32,12 +33,25 @@ class _DebtsAndSubscriptionsScreenState
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final records = state.recurringTransactions.where(_matchesTab).toList()
-          ..sort((a, b) {
-            final nameCompare = a.name.compareTo(b.name);
-            if (nameCompare != 0) return nameCompare;
-            return a.dayOfMonth.compareTo(b.dayOfMonth);
-          });
+
+        final List<RecurringTransactionEntity> debtRecords = state
+            .recurringTransactions
+            .where((r) =>
+                r.expensePlanKind == 'installment' ||
+                r.expensePlanKind == 'lent')
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+
+        final subscriptionRecords = state.recurringTransactions
+            .where((r) =>
+                r.type == 'expense' && r.expensePlanKind == 'subscription')
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+
+        final lentRecords = debtRecords.where((r) => r.isLent).toList();
+        final borrowedRecords = debtRecords
+            .where((r) => !r.isLent && r.expensePlanKind == 'installment')
+            .toList();
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -49,18 +63,81 @@ class _DebtsAndSubscriptionsScreenState
             children: [
               _typeSwitcher(),
               const SizedBox(height: 14),
-              _addButtons(),
-              const SizedBox(height: 16),
               if (_tab == 'subscriptions') ...[
-                if (records.isEmpty)
-                  _emptyCard(_emptyScopeLabel())
+                _actionButton(
+                  label: 'إضافة اشتراك جديد',
+                  icon: Icons.subscriptions_rounded,
+                  color: _subscriptionAccent,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SubscriptionPresetSelectionScreen(
+                          cubit: widget.cubit,
+                        ),
+                        fullscreenDialog: true,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (subscriptionRecords.isEmpty)
+                  _emptyCard('لا توجد اشتراكات مسجلة حالياً.')
                 else
-                  ...records.map((record) => _recurringCard(state, record)),
+                  ...subscriptionRecords
+                      .map((r) => _recurringCard(state, r)),
               ] else ...[
-                if (records.isEmpty)
-                  _emptyCard(_emptyScopeLabel())
+                // ── أزرار الإضافة ────────────────────────────────────────
+                Row(children: [
+                  Expanded(
+                    child: _actionButton(
+                      label: 'سجّل دين/قسط',
+                      icon: Icons.account_balance_outlined,
+                      color: _debtAccent,
+                      onTap: () => _openRecurringComposer(
+                        mode: 'expense',
+                        initialExpensePlanKind: 'installment',
+                        debtOnlyMode: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _actionButton(
+                      label: 'سلّفت حد',
+                      icon: Icons.handshake_outlined,
+                      color: _lentAccent,
+                      onTap: () => _openLentForm(state),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 20),
+
+                // ── سكشن: سلّفت للناس ────────────────────────────────────
+                _sectionHeader(
+                  label: 'سلّفت للناس',
+                  color: _lentAccent,
+                  icon: Icons.handshake_outlined,
+                ),
+                const SizedBox(height: 10),
+                if (lentRecords.isEmpty)
+                  _emptyCard('ما سلّفتش حد حالياً.')
                 else
-                  ...records.map((record) => _recurringCard(state, record)),
+                  ...lentRecords.map((r) => _lentCard(state, r)),
+
+                const SizedBox(height: 20),
+
+                // ── سكشن: ديون عليّ ──────────────────────────────────────
+                _sectionHeader(
+                  label: 'ديون وأقساط عليّ',
+                  color: _debtAccent,
+                  icon: Icons.account_balance_outlined,
+                ),
+                const SizedBox(height: 10),
+                if (borrowedRecords.isEmpty)
+                  _emptyCard('لا توجد ديون أو أقساط مسجلة حالياً.')
+                else
+                  ...borrowedRecords.map((r) => _recurringCard(state, r)),
               ],
             ],
           ),
@@ -69,62 +146,35 @@ class _DebtsAndSubscriptionsScreenState
     );
   }
 
-  bool _matchesTab(RecurringTransactionEntity item) {
-    if (_tab == 'subscriptions') {
-      return item.type == 'expense' && item.expensePlanKind == 'subscription';
-    }
-    return item.type == 'expense' && item.expensePlanKind == 'installment';
+  Widget _sectionHeader({
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Row(children: [
+      Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        label,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 15,
+          color: color,
+        ),
+      ),
+    ]);
   }
 
   Color get _currentAccent {
     if (_tab == 'subscriptions') return _subscriptionAccent;
     return _debtAccent;
-  }
-
-  String _tabTitle() {
-    if (_tab == 'subscriptions') return 'الاشتراكات المتكررة';
-    return 'الديون والأقساط';
-  }
-
-  String _emptyScopeLabel() {
-    if (_tab == 'subscriptions') {
-      return 'لا توجد اشتراكات مسجلة حالياً.';
-    }
-    return 'لا توجد ديون أو أقساط مسجلة حالياً.';
-  }
-
-  Widget _addButtons() {
-    if (_tab == 'subscriptions') {
-      return _actionButton(
-        label: 'إضافة اشتراك جديد',
-        icon: Icons.subscriptions_rounded,
-        color: _subscriptionAccent,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SubscriptionPresetSelectionScreen(
-                cubit: widget.cubit,
-              ),
-              fullscreenDialog: true,
-            ),
-          );
-        },
-      );
-    }
-
-    return _actionButton(
-      label: 'إضافة دين أو قسط جديد',
-      icon: Icons.account_balance_outlined,
-      color: _debtAccent,
-      onTap: () {
-        _openRecurringComposer(
-          mode: 'expense',
-          initialExpensePlanKind: 'installment',
-          debtOnlyMode: true,
-        );
-      },
-    );
   }
 
   Widget _actionButton({
@@ -153,21 +203,24 @@ class _DebtsAndSubscriptionsScreenState
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 30,
+              height: 30,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: Colors.white, size: 18),
+              child: Icon(icon, color: Colors.white, size: 17),
             ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],
@@ -204,6 +257,7 @@ class _DebtsAndSubscriptionsScreenState
 
   Widget _switchTile(String value, String label, IconData icon) {
     final selected = _tab == value;
+    final accent = value == 'subscriptions' ? _subscriptionAccent : _debtAccent;
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _tab = value),
@@ -230,7 +284,7 @@ class _DebtsAndSubscriptionsScreenState
               Icon(
                 icon,
                 size: 20,
-                color: selected ? _currentAccent : null,
+                color: selected ? accent : null,
               ),
               const SizedBox(width: 6),
               Flexible(
@@ -239,7 +293,7 @@ class _DebtsAndSubscriptionsScreenState
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                    color: selected ? _currentAccent : null,
+                    color: selected ? accent : null,
                   ),
                 ),
               ),
@@ -254,6 +308,7 @@ class _DebtsAndSubscriptionsScreenState
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Theme.of(context)
             .colorScheme
@@ -269,6 +324,550 @@ class _DebtsAndSubscriptionsScreenState
         ),
       ),
     );
+  }
+
+  // ── بطاقة السلفة ─────────────────────────────────────────────────────────
+  Widget _lentCard(AppStateEntity state, RecurringTransactionEntity record) {
+    const accent = _lentAccent;
+    final walletName = _walletName(state, record.walletId);
+    final returnDate = record.anchorDate != null
+        ? DateTime.tryParse(record.anchorDate!)
+        : null;
+    final returnLabel = returnDate != null
+        ? '${returnDate.day}/${returnDate.month}/${returnDate.year}'
+        : 'غير محدد';
+    final isOverdue =
+        returnDate != null && returnDate.isBefore(DateTime.now());
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FAF4),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: accent.withValues(alpha: isOverdue ? 0.55 : 0.22),
+            width: isOverdue ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Center(
+                  child: Icon(Icons.handshake_outlined,
+                      color: accent, size: 26),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      record.lentPersonName ?? record.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'محفظة: $walletName',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    record.amount.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isOverdue
+                          ? const Color(0xFFFFEDED)
+                          : const Color(0xFFE8F5ED),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      isOverdue ? '⚠ $returnLabel' : returnLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: isOverdue
+                            ? const Color(0xFFC0392B)
+                            : const Color(0xFF1A7A4A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ]),
+            if (record.notes?.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              Text(
+                record.notes!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  onPressed: () => _confirmSettleLent(record),
+                  icon: const Icon(Icons.check_circle_outline, size: 16),
+                  label: const Text('تم الاسترداد',
+                      style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: accent,
+                    side: const BorderSide(color: accent),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  onPressed: () => _openPostponeSheet(record),
+                  icon: const Icon(Icons.calendar_month_outlined, size: 16),
+                  label: const Text('تأجيل', style: TextStyle(fontSize: 13)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                ),
+                onPressed: () async {
+                  await widget.cubit
+                      .deleteRecurringTransaction(record.id);
+                },
+                child: const Icon(Icons.delete_outline, size: 18),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmSettleLent(RecurringTransactionEntity record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد الاسترداد'),
+        content: Text(
+          'هل استردّيت مبلغ ${record.amount.toStringAsFixed(2)} من ${record.lentPersonName ?? record.name}؟\n\nسيُضاف المبلغ لمحفظتك تلقائياً.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: _lentAccent),
+            child: const Text('تم الاسترداد'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await widget.cubit.settleLentRecord(record.id);
+    }
+  }
+
+  Future<void> _openPostponeSheet(RecurringTransactionEntity record) async {
+    DateTime picked = record.anchorDate != null
+        ? (DateTime.tryParse(record.anchorDate!) ?? DateTime.now())
+        : DateTime.now();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'تأجيل استرداد السلفة',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'اختر تاريخ الاسترداد الجديد لسلفة ${record.lentPersonName ?? record.name}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: picked,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now()
+                          .add(const Duration(days: 365 * 5)),
+                    );
+                    if (d != null) setS(() => picked = d);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _lentAccent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: _lentAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_month_outlined,
+                          color: _lentAccent),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${picked.day}/${picked.month}/${picked.year}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: _lentAccent,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: _lentAccent),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await widget.cubit
+                          .postponeLentRecord(record.id, picked);
+                    },
+                    child: const Text('تأكيد التأجيل'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── فورم إضافة سلفة ──────────────────────────────────────────────────────
+  Future<void> _openLentForm(AppStateEntity state) async {
+    final nameCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    String walletId =
+        state.wallets.isNotEmpty ? state.wallets.first.id : '';
+    DateTime returnDate =
+        DateTime.now().add(const Duration(days: 30));
+    bool isMonthly = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // ── Hero ────────────────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Row(children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.handshake_outlined,
+                            color: Colors.white, size: 28),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'تسجيل سلفة',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'المبلغ يُخصم من المحفظة فوراً',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 20),
+
+                // ── اسم الشخص ──────────────────────────────────────────
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الشخص',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── المبلغ ──────────────────────────────────────────────
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ المسلَّف',
+                    prefixIcon: Icon(Icons.payments_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── المحفظة ─────────────────────────────────────────────
+                if (state.wallets.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: walletId.isEmpty ? null : walletId,
+                        isExpanded: true,
+                        hint: const Text('اختر المحفظة'),
+                        items: state.wallets.map((w) {
+                          return DropdownMenuItem(
+                            value: w.id,
+                            child: Text(w.name),
+                          );
+                        }).toList(),
+                        onChanged: (v) {
+                          if (v != null) setS(() => walletId = v);
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // ── تاريخ الاسترداد المتوقع ─────────────────────────────
+                InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: returnDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now()
+                          .add(const Duration(days: 365 * 5)),
+                    );
+                    if (d != null) setS(() => returnDate = d);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'تاريخ الاسترداد المتوقع: ${returnDate.day}/${returnDate.month}/${returnDate.year}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // ── أقساط شهرية؟ ────────────────────────────────────────
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: isMonthly,
+                  title: const Text('يردها أقساط شهرية',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('سيظهر تذكير شهري',
+                      style: TextStyle(fontSize: 12)),
+                  onChanged: (v) => setS(() => isMonthly = v),
+                ),
+
+                // ── ملاحظة ──────────────────────────────────────────────
+                TextField(
+                  controller: notesCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة (اختياري)',
+                    prefixIcon: Icon(Icons.notes_outlined),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _lentAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () async {
+                      final name = nameCtrl.text.trim();
+                      final amount = double.tryParse(
+                              amountCtrl.text.trim()) ??
+                          0;
+                      if (name.isEmpty || amount <= 0 || walletId.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  'من فضلك أدخل اسم الشخص والمبلغ والمحفظة')),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      await widget.cubit.addLentRecord(
+                        personName: name,
+                        amount: amount,
+                        walletId: walletId,
+                        expectedReturnDate: returnDate,
+                        isMonthlyInstallments: isMonthly,
+                        notes: notesCtrl.text.trim().isEmpty
+                            ? null
+                            : notesCtrl.text.trim(),
+                      );
+                    },
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('تسجيل السلفة',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    nameCtrl.dispose();
+    amountCtrl.dispose();
+    notesCtrl.dispose();
   }
 
   Widget _recurringCard(
@@ -589,7 +1188,7 @@ class _DebtsAndSubscriptionsScreenState
       'every_6_months' => 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix',
       'yearly' =>
         'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
-      'manual-variable' => 'يدوي متغير',
+      'manual-variable' => 'يدوي / مرة واحدة',
       _ => 'شهري يوم ${record.dayOfMonth}$timeSuffix',
     };
   }
@@ -602,6 +1201,7 @@ class _DebtsAndSubscriptionsScreenState
   String _expensePlanKindLabel(RecurringTransactionEntity record) {
     if (record.expensePlanKind == 'installment') return 'قسط / دين';
     if (record.expensePlanKind == 'subscription') return 'اشتراك';
+    if (record.expensePlanKind == 'lent') return 'سلفة';
     return 'مصروف متكرر';
   }
 

@@ -31,6 +31,8 @@ class RecurringTransactionEntity {
     this.snoozedUntil,
     this.lastHandledOccurrenceAt,
     this.isActive = true,
+    this.isLent = false,
+    this.lentPersonName,
   });
 
   final String id;
@@ -64,6 +66,8 @@ class RecurringTransactionEntity {
   final String? snoozedUntil;
   final String? lastHandledOccurrenceAt;
   final bool isActive;
+  final bool isLent;
+  final String? lentPersonName;
 
   RecurringTransactionEntity copyWith({
     String? id,
@@ -97,6 +101,8 @@ class RecurringTransactionEntity {
     String? snoozedUntil,
     String? lastHandledOccurrenceAt,
     bool? isActive,
+    bool? isLent,
+    String? lentPersonName,
   }) {
     return RecurringTransactionEntity(
       id: id ?? this.id,
@@ -132,6 +138,8 @@ class RecurringTransactionEntity {
       lastHandledOccurrenceAt:
           lastHandledOccurrenceAt ?? this.lastHandledOccurrenceAt,
       isActive: isActive ?? this.isActive,
+      isLent: isLent ?? this.isLent,
+      lentPersonName: lentPersonName ?? this.lentPersonName,
     );
   }
 
@@ -168,6 +176,8 @@ class RecurringTransactionEntity {
       'snoozedUntil': snoozedUntil,
       'lastHandledOccurrenceAt': lastHandledOccurrenceAt,
       'isActive': isActive,
+      'isLent': isLent,
+      'lentPersonName': lentPersonName,
     };
   }
 
@@ -209,6 +219,8 @@ class RecurringTransactionEntity {
       snoozedUntil: map['snoozedUntil'] as String?,
       lastHandledOccurrenceAt: map['lastHandledOccurrenceAt'] as String?,
       isActive: map['isActive'] as bool? ?? true,
+      isLent: map['isLent'] as bool? ?? false,
+      lentPersonName: map['lentPersonName'] as String?,
     );
   }
 }
