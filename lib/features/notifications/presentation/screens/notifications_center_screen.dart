@@ -11,17 +11,18 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../domain/entities/notification_entity.dart';
 import '../widgets/notification_center_widgets.dart';
+import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
 
-class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key, required this.cubit});
+class NotificationsCenterScreen extends StatefulWidget {
+  const NotificationsCenterScreen({super.key, required this.cubit});
 
   final AppCubit cubit;
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  State<NotificationsCenterScreen> createState() => _NotificationsCenterScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   String _selectedTab = 'new';
 
   @override
@@ -196,12 +197,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<NotificationEntity> _historyNotifications(AppStateEntity state) {
     final items = state.notifications.where((item) {
       if (item.relatedLogId == null) return false;
+      if (item.type == 'revert-system') return false;
+
+      // Hide if the original action was reverted
+      final isReverted = state.logs.any((l) => l.id == item.relatedLogId && l.isReverted);
+      if (isReverted) return false;
+
       final text = '${item.title} ${item.message}';
       return text.contains('دخل') ||
           text.contains('دين') ||
           text.contains('اشتراك') ||
           text.contains('تأجيل') ||
-          text.contains('تراجع');
+          text.contains('تخطي') ||
+          text.contains('سدد') ||
+          text.contains('تأكيد') ||
+          text.contains('نزول');
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items;
@@ -214,7 +224,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return NotificationHistoryCard(
       title: _historyTitle(item),
-      timeLabel: DateFormat('d/M HH:mm', 'ar').format(item.createdAt),
+      timeLabel: DateFormat('d MMMM - HH:mm', 'ar').format(item.createdAt),
       amountLabel: _historyAmount(item, log),
       accent: _historyAccent(item),
       icon: _historyIcon(item),
@@ -365,7 +375,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isDueOrLate = !today.isBefore(dueDate);
     if (!canEarly && !isDueOrLate) return null;
 
-    final dateLabel = '${dueDate.day}/${dueDate.month}';
+    final dateLabel = DateFormat('d MMMM', 'ar').format(dueDate);
     final timeLabel = recurring?.scheduledTime?.isNotEmpty == true
         ? recurring!.scheduledTime!
         : null;
@@ -401,12 +411,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       pending: true,
       status: switch (prompt.state) {
         RecurringExpensePromptState.upcoming =>
-          'مستحق قريبًا · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+          'مستحق قريبًا · ${DateFormat('d MMMM - HH:mm', 'ar').format(prompt.occurrence)}',
         RecurringExpensePromptState.due =>
-          'مستحق الآن · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+          'مستحق الآن · ${DateFormat('d MMMM - HH:mm', 'ar').format(prompt.occurrence)}',
         RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
-            ? 'دورة فائتة تحتاج قرارًا · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}'
-            : 'استحقاق متأخر · ${DateFormat('d/M HH:mm', 'ar').format(prompt.occurrence)}',
+            ? 'دورة فائتة تحتاج قرارًا · ${DateFormat('d MMMM - HH:mm', 'ar').format(prompt.occurrence)}'
+            : 'استحقاق متأخر · ${DateFormat('d MMMM - HH:mm', 'ar').format(prompt.occurrence)}',
       },
       occurrence: prompt.occurrence,
     );
@@ -459,9 +469,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       incomeSourceId: source.id,
       budgetScope: 'within-budget',
       createdAt: DateTime(now.year, now.month, now.day, 12),
-      notes: early
-          ? 'تسجيل دخل مبكر: ${source.name}'
-          : 'تأكيد نزول دخل: ${source.name}',
+      details: early
+          ? 'تسجيل دخل مبكر: ${source.name} بقيمة ${amount.toStringAsFixed(2)}'
+          : 'تأكيد نزول دخل: ${source.name} بقيمة ${amount.toStringAsFixed(2)}',
     );
   }
 
@@ -470,28 +480,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     DateTime month,
   ) async {
     final dueDate = _incomeDueDateForMonth(source, month);
-    final picked = await _showPostponeDialog(
-      title: 'تأجيل معاملة متكررة',
+    final result = await RecurringPostponeDialog.show(
+      context,
       name: source.name,
       amount: source.amount,
-      kindLabel: 'راتب / دخل',
+      kindLabel: 'دفعة دخل متكررة',
       occurrence: dueDate,
       allowSkip: false,
     );
-    if (picked == null) return;
 
+    if (result == null || result is! DateTime) {
+      return;
+    }
+
+    final picked = result;
     final setup = widget.cubit.state.budgetSetup;
     final incomes = setup.incomeSources
         .map(
           (income) => income.id == source.id
-              ? income.copyWith(snoozedUntil: picked.toIso8601String())
+              ? income.copyWith(date: picked.day)
               : income,
         )
         .toList();
+
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: incomes),
       detailsOverride:
-          'تأجيل دخل: ${source.name} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
+          'تأجيل دخل: ${source.name} حتى ${DateFormat('d MMMM yyyy', 'ar').format(picked)}',
     );
   }
 
@@ -507,6 +522,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       budgetScope: 'within-budget',
       createdAt: DateTime.now(),
       notes: 'سداد دين: ${debt.name}',
+      details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(
@@ -543,7 +559,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(snoozedUntil: until.toIso8601String()),
       detailsOverride:
-          'تأجيل معاملة متكررة: $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d/M/yyyy', 'ar').format(until)}',
+          'تأجيل معاملة متكررة: $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(until)}',
     );
   }
 
@@ -553,16 +569,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required DateTime occurrence,
     required double amount,
   }) async {
-    final picked = await _showPostponeDialog(
-      title: 'تأجيل معاملة متكررة',
+    final result = await RecurringPostponeDialog.show(
+      context,
       name: debt.name,
       amount: amount,
       kindLabel: debt.isSubscription ? 'اشتراك' : 'دفعة دين',
       occurrence: occurrence,
       allowSkip: true,
     );
-    if (picked == null) return;
-    if (picked == _PostponeChoice.skip) {
+
+    if (result == null) return;
+
+    if (result == PostponeChoice.skip) {
       await _skipRecurringExpenseOccurrence(
         recurring,
         occurrence,
@@ -571,197 +589,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
       return;
     }
-    await _postponeRecurringExpenseUntil(
-      recurring: recurring,
-      name: debt.name,
-      amount: amount,
-      until: picked,
-    );
+
+    if (result is DateTime) {
+      await _postponeRecurringExpenseUntil(
+        recurring: recurring,
+        name: debt.name,
+        amount: amount,
+        until: result,
+      );
+    }
   }
 
-  Future<DateTime?> _showPostponeDialog({
-    required String title,
-    required String name,
-    required double amount,
-    required String kindLabel,
-    required DateTime occurrence,
-    required bool allowSkip,
-  }) {
-    final now = DateTime.now();
-    DateTime atMorning(DateTime date) =>
-        DateTime(date.year, date.month, date.day, 9);
-
-    return showDialog<DateTime>(
-      context: context,
-      builder: (dialogContext) {
-        final theme = Theme.of(dialogContext);
-        final accent = const Color(0xFF9B6B2F);
-        final amountLabel = amount <= 0 ? 'مجاني' : amount.toStringAsFixed(2);
-
-        Widget option({
-          required IconData icon,
-          required String label,
-          required String subtitle,
-          required VoidCallback onTap,
-        }) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.28),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color:
-                        theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: accent, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_left_rounded,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return AlertDialog(
-          title: Text(title),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.09),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        kindLabel,
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$amountLabel · استحقاق ${DateFormat('d/M/yyyy', 'ar').format(occurrence)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (allowSkip)
-                  option(
-                    icon: Icons.skip_next_rounded,
-                    label: 'تخطي هذه المرة',
-                    subtitle: 'اعتبر هذه المرة منتهية وانتقل للاستحقاق القادم',
-                    onTap: () =>
-                        Navigator.of(dialogContext).pop(_PostponeChoice.skip),
-                  ),
-                option(
-                  icon: Icons.today_rounded,
-                  label: 'تأجيل يوم',
-                  subtitle: 'إظهارها مرة أخرى غدًا',
-                  onTap: () => Navigator.of(dialogContext).pop(
-                    atMorning(now.add(const Duration(days: 1))),
-                  ),
-                ),
-                option(
-                  icon: Icons.event_repeat_rounded,
-                  label: 'تأجيل 3 أيام',
-                  subtitle: 'إظهارها بعد ثلاثة أيام',
-                  onTap: () => Navigator.of(dialogContext).pop(
-                    atMorning(now.add(const Duration(days: 3))),
-                  ),
-                ),
-                option(
-                  icon: Icons.edit_calendar_rounded,
-                  label: 'تحديد تاريخ',
-                  subtitle: 'اختار تاريخ مناسب يدويًا',
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: dialogContext,
-                      initialDate: now.add(const Duration(days: 1)),
-                      firstDate: now.add(const Duration(days: 1)),
-                      lastDate: DateTime(now.year + 1, now.month, now.day),
-                    );
-                    if (picked == null || !dialogContext.mounted) return;
-                    Navigator.of(dialogContext).pop(atMorning(picked));
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('إلغاء'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // Removed local _showPostponeDialog in favor of RecurringPostponeDialog
 
   String _walletName(String walletId) {
     if (walletId.isEmpty) return 'بدون محفظة';
@@ -790,7 +629,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       MapEntry('القيمة', _historyAmount(item, log)),
       MapEntry(
         'الوقت',
-        DateFormat('d/M/yyyy - HH:mm', 'ar').format(item.createdAt),
+        DateFormat('d MMMM yyyy - HH:mm', 'ar').format(item.createdAt),
       ),
       MapEntry('الرسالة', item.message),
     ];
@@ -853,8 +692,4 @@ class _ExpensePendingMeta {
   final bool pending;
   final String status;
   final DateTime occurrence;
-}
-
-class _PostponeChoice {
-  static final DateTime skip = DateTime(1);
 }

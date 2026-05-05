@@ -50,8 +50,7 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
   List<TransactionEntity> get _allClean =>
       widget.allTransactions.where((t) => !_isJarTx(t)).toList();
 
-  String get _monthLabel =>
-      DateFormat('MMMM yyyy', 'ar').format(_month);
+  String get _monthLabel => DateFormat('MMMM yyyy', 'ar').format(_month);
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +65,11 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
         .where((t) => t.type == 'expense')
         .fold<double>(0, (s, t) => s + t.amount);
     final netSaving = netIncome - netExpense;
-    final savingRate =
-        netIncome > 0 ? (netSaving / netIncome).clamp(0.0, 1.0) : 0.0;
+
+    double savingRate = 0.0;
+    if (netIncome > 0 && netIncome.isFinite && netSaving.isFinite) {
+      savingRate = (netSaving / netIncome).clamp(0.0, 1.0);
+    }
 
     return Scaffold(
       backgroundColor: _beige,
@@ -102,7 +104,7 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
                     title: 'نسبة التوفير',
                     subtitle: 'من الدخل الكلي هذا الشهر',
                     child: _SavingRateGauge(
-                        savingRate: savingRate as double, saving: netSaving),
+                        savingRate: savingRate, saving: netSaving),
                   ),
                   const SizedBox(height: 14),
 
@@ -127,8 +129,8 @@ class _TransactionChartsScreenState extends State<TransactionChartsScreen> {
                   _ChartCard(
                     title: 'الاتجاه الشهري',
                     subtitle: 'آخر 6 شهور — دخل ومصروف',
-                    child: _MonthlyTrendChart(
-                        allTx: allTx, currentMonth: _month),
+                    child:
+                        _MonthlyTrendChart(allTx: allTx, currentMonth: _month),
                   ),
                   const SizedBox(height: 14),
 
@@ -262,8 +264,8 @@ class _MonthBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBF1),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-            color: const Color(0xFF165b47).withValues(alpha: 0.20)),
+        border:
+            Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.20)),
       ),
       child: Row(
         children: [
@@ -427,8 +429,8 @@ class _ChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFFBF1),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-            color: const Color(0xFF165b47).withValues(alpha: 0.13)),
+        border:
+            Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.13)),
         boxShadow: [
           BoxShadow(
               color: const Color(0xFF165b47).withValues(alpha: 0.06),
@@ -475,7 +477,7 @@ class _SavingRateGauge extends StatelessWidget {
         SizedBox(
           height: 100,
           child: CustomPaint(
-            painter: _GaugePainter(value: savingRate as double, color: color),
+            painter: _GaugePainter(value: savingRate, color: color),
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 40),
@@ -506,8 +508,7 @@ class _SavingRateGauge extends StatelessWidget {
           children: [
             _LegendDot(color: const Color(0xFF165b47), label: 'نسبة التوفير'),
             const SizedBox(width: 16),
-            _LegendDot(
-                color: const Color(0xFFDC2626), label: 'نسبة المصروف'),
+            _LegendDot(color: const Color(0xFFDC2626), label: 'نسبة المصروف'),
           ],
         ),
         const SizedBox(height: 10),
@@ -541,6 +542,8 @@ class _GaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0 || !value.isFinite) return;
+
     final center = Offset(size.width / 2, size.height * 0.9);
     final radius = size.width * 0.42;
     const startAngle = math.pi;
@@ -558,10 +561,10 @@ class _GaugePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-        startAngle, sweepAngle, false, bgPaint);
-    canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-        startAngle, sweepAngle * value.clamp(0.0, 1.0), false, fgPaint);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle,
+        sweepAngle, false, bgPaint);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle,
+        sweepAngle * value.clamp(0.0, 1.0), false, fgPaint);
   }
 
   @override
@@ -581,12 +584,13 @@ class _LegendDot extends StatelessWidget {
         Container(
             width: 10,
             height: 10,
-            decoration:
-                BoxDecoration(color: color, shape: BoxShape.circle)),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
         Text(label,
             style: const TextStyle(
-                fontSize: 11, color: Color(0xFF8A7F72), fontWeight: FontWeight.w500)),
+                fontSize: 11,
+                color: Color(0xFF8A7F72),
+                fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -606,11 +610,9 @@ class _DailyBarsChart extends StatelessWidget {
     final dailyOut = <int, double>{};
     for (final t in monthTx) {
       if (t.type == 'income') {
-        dailyIn[t.createdAt.day] =
-            (dailyIn[t.createdAt.day] ?? 0) + t.amount;
+        dailyIn[t.createdAt.day] = (dailyIn[t.createdAt.day] ?? 0) + t.amount;
       } else if (t.type == 'expense') {
-        dailyOut[t.createdAt.day] =
-            (dailyOut[t.createdAt.day] ?? 0) + t.amount;
+        dailyOut[t.createdAt.day] = (dailyOut[t.createdAt.day] ?? 0) + t.amount;
       }
     }
 
@@ -618,8 +620,12 @@ class _DailyBarsChart extends StatelessWidget {
       return const _EmptyChart(text: 'لا توجد بيانات');
     }
 
-    final allVals = [...dailyIn.values, ...dailyOut.values];
-    final maxVal = allVals.isEmpty ? 1.0 : allVals.reduce(math.max).clamp(1.0, double.infinity);
+    final allVals = [...dailyIn.values, ...dailyOut.values]
+        .where((v) => v.isFinite)
+        .toList();
+    final maxVal = allVals.isEmpty
+        ? 1.0
+        : allVals.reduce(math.max).clamp(1.0, double.infinity);
 
     // Show every 5 days
     final displayDays = <int>[];
@@ -647,6 +653,13 @@ class _DailyBarsChart extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        // Fill space to maintain correct height ratio
+                        if (1.0 - inc - exp > 0.01)
+                          Spacer(
+                            flex: (((1.0 - inc - exp).clamp(0.0, 1.0)) * 100)
+                                .toInt()
+                                .clamp(1, 100),
+                          ),
                         if (inc > 0)
                           Flexible(
                             flex: (inc * 100).toInt().clamp(1, 100),
@@ -654,8 +667,10 @@ class _DailyBarsChart extends StatelessWidget {
                               width: double.infinity,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF16A34A),
-                                borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(3)),
+                                borderRadius: BorderRadius.vertical(
+                                  top: const Radius.circular(3),
+                                  bottom: Radius.circular(exp > 0 ? 0 : 3),
+                                ),
                               ),
                             ),
                           ),
@@ -669,6 +684,7 @@ class _DailyBarsChart extends StatelessWidget {
                                     .withValues(alpha: 0.80),
                                 borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(inc > 0 ? 0 : 3),
+                                  bottom: const Radius.circular(3),
                                 ),
                               ),
                             ),
@@ -745,8 +761,8 @@ class _CategoryBreakdown extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(
-                        color: color, shape: BoxShape.circle),
+                    decoration:
+                        BoxDecoration(color: color, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -794,8 +810,7 @@ class _CategoryBreakdown extends StatelessWidget {
 // ── Monthly Trend Chart (last 6 months) ────────────────────────────────────
 
 class _MonthlyTrendChart extends StatelessWidget {
-  const _MonthlyTrendChart(
-      {required this.allTx, required this.currentMonth});
+  const _MonthlyTrendChart({required this.allTx, required this.currentMonth});
   final List<TransactionEntity> allTx;
   final DateTime currentMonth;
 
@@ -807,8 +822,8 @@ class _MonthlyTrendChart extends StatelessWidget {
     });
 
     final data = months.map((m) {
-      final tx = allTx.where((t) =>
-          t.createdAt.year == m.year && t.createdAt.month == m.month);
+      final tx = allTx.where(
+          (t) => t.createdAt.year == m.year && t.createdAt.month == m.month);
       final inc = tx
           .where((t) => t.type == 'income')
           .fold<double>(0, (s, t) => s + t.amount);
@@ -818,11 +833,12 @@ class _MonthlyTrendChart extends StatelessWidget {
       return (m, inc, exp);
     }).toList();
 
-    final maxVal = data
-        .expand((d) => [d.$2, d.$3])
-        .fold<double>(1.0, (m, v) => v > m ? v : m);
+    final allValues = data.expand((d) => [d.$2, d.$3]).where((v) => v.isFinite);
+    final maxVal = allValues.isEmpty
+        ? 1.0
+        : allValues.reduce(math.max).clamp(1.0, double.infinity);
 
-    if (maxVal <= 1) {
+    if (maxVal <= 1 || !maxVal.isFinite) {
       return const _EmptyChart(text: 'لا توجد بيانات كافية');
     }
 
@@ -830,11 +846,9 @@ class _MonthlyTrendChart extends StatelessWidget {
       children: [
         Row(
           children: [
-            _LegendDot(
-                color: const Color(0xFF16A34A), label: 'الدخل'),
+            _LegendDot(color: const Color(0xFF16A34A), label: 'الدخل'),
             const SizedBox(width: 16),
-            _LegendDot(
-                color: const Color(0xFFDC2626), label: 'المصروف'),
+            _LegendDot(color: const Color(0xFFDC2626), label: 'المصروف'),
           ],
         ),
         const SizedBox(height: 14),
@@ -854,43 +868,38 @@ class _MonthlyTrendChart extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                // Income bar
-                                Expanded(
-                                  child: FractionallySizedBox(
-                                    heightFactor: incRatio,
-                                    alignment: Alignment.bottomCenter,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF16A34A),
-                                        borderRadius: const BorderRadius.vertical(
-                                            top: Radius.circular(5)),
-                                      ),
-                                    ),
+                            // Income bar
+                            Expanded(
+                              child: FractionallySizedBox(
+                                heightFactor: incRatio,
+                                alignment: Alignment.bottomCenter,
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF16A34A),
+                                    borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(5)),
                                   ),
                                 ),
-                                const SizedBox(width: 2),
-                                // Expense bar
-                                Expanded(
-                                  child: FractionallySizedBox(
-                                    heightFactor: expRatio,
-                                    alignment: Alignment.bottomCenter,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFDC2626)
-                                            .withValues(alpha: 0.80),
-                                        borderRadius: const BorderRadius.vertical(
-                                            top: Radius.circular(5)),
-                                      ),
-                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            // Expense bar
+                            Expanded(
+                              child: FractionallySizedBox(
+                                heightFactor: expRatio,
+                                alignment: Alignment.bottomCenter,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDC2626)
+                                        .withValues(alpha: 0.80),
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(5)),
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
@@ -974,7 +983,15 @@ class _DayOfWeekChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    final days = [
+      'الأحد',
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'الجمعة',
+      'السبت'
+    ];
     final dayTotals = List.generate(7, (i) {
       return monthTx
           .where((t) => t.type == 'expense' && t.createdAt.weekday % 7 == i)
@@ -1041,8 +1058,7 @@ class _DayOfWeekChart extends StatelessWidget {
 // ── Income Breakdown ───────────────────────────────────────────────────────
 
 class _IncomeBreakdown extends StatelessWidget {
-  const _IncomeBreakdown(
-      {required this.monthTx, required this.categories});
+  const _IncomeBreakdown({required this.monthTx, required this.categories});
   final List<TransactionEntity> monthTx;
   final List<CategoryEntity> categories;
 
@@ -1120,8 +1136,7 @@ class _IncomeBreakdown extends StatelessWidget {
                           Expanded(
                             child: Text(cat?.name ?? 'أخرى',
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700)),
+                                    fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
                           Text(
                             '+${e.value.toStringAsFixed(2)}',
@@ -1235,9 +1250,7 @@ class _TopSpendingDays extends StatelessWidget {
               Text(
                 e.value.toStringAsFixed(0),
                 style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900),
+                    color: color, fontSize: 13, fontWeight: FontWeight.w900),
               ),
             ],
           ),

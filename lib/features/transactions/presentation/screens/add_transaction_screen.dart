@@ -1588,8 +1588,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             runSpacing: 8,
             children: categories.map((c) {
               final color = _parseColor(c.color);
-              final effectiveSelected =
-                  selectedId != null ? selectedId : _selectedCategoryId;
+              final effectiveSelected = selectedId ?? _selectedCategoryId;
               final selected = effectiveSelected == c.id;
               return GestureDetector(
                 onTap: () {

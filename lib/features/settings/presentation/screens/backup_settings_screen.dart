@@ -38,7 +38,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   GoogleSignInAccount? _account;
   bool loading = false;
-  bool _uploadLoading = false;
+  final bool _uploadLoading = false;
   String? localPath;
   String? _lastBackupAt;
   BackupFrequency localFreq = BackupFrequency.onExit;
@@ -133,8 +133,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
 
   void _msg(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   String _freqLabel(BackupFrequency f) {
@@ -213,7 +212,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     try {
       setState(() => loading = true);
 
-      final email = _account!.email!;
+      final email = _account!.email;
       final existingMeta = await BackupService.fetchMetadata(email);
 
       if (existingMeta != null) {
@@ -275,7 +274,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     if (appState.isEmpty) return;
     try {
       await BackupService.upload(
-        email: _account!.email!,
+        email: _account!.email,
         displayName: _account!.displayName ?? '',
         jsonData: widget.cubit.exportStateJson(),
         txCount: appState.transactions.length,
@@ -294,7 +293,7 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
     if (!_guardAuth()) return;
     try {
       setState(() => loading = true);
-      final json = await BackupService.fetchData(_account!.email!);
+      final json = await BackupService.fetchData(_account!.email);
       if (json == null) {
         _msg('لا توجد نسخة محفوظة');
         return;
@@ -357,7 +356,8 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
                   if (localFreq == BackupFrequency.onExit) ...[
                     const SizedBox(height: 10),
                     _InfoBanner(
-                      text: 'سيتم تحديث النسخة تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
+                      text:
+                          'سيتم تحديث النسخة تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -522,7 +522,6 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen>
       ),
     );
   }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -546,7 +545,8 @@ class _InfoBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: _green.withValues(alpha: 0.8)),
+          Icon(Icons.info_outline_rounded,
+              size: 16, color: _green.withValues(alpha: 0.8)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -594,9 +594,8 @@ class _CloudBackupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoggedIn = account != null;
     final hasBackup = lastBackupLabel != 'لم يتم النسخ بعد';
-    final statusColor = isLoggedIn
-        ? (hasBackup ? _green : _orange)
-        : const Color(0xFF888888);
+    final statusColor =
+        isLoggedIn ? (hasBackup ? _green : _orange) : const Color(0xFF888888);
 
     return _BackupCard(
       children: [
@@ -636,8 +635,7 @@ class _CloudBackupCard extends StatelessWidget {
                                 color: Color(0xFF4285F4),
                               ))
                           : Icon(Icons.cloud_off_rounded,
-                              size: 20,
-                              color: Colors.grey.shade400),
+                              size: 20, color: Colors.grey.shade400),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -671,7 +669,8 @@ class _CloudBackupCard extends StatelessWidget {
                   ),
                   // مؤشر الاتصال
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),
@@ -765,7 +764,8 @@ class _CloudBackupCard extends StatelessWidget {
         if (cloudFreq == BackupFrequency.onExit) ...[
           const SizedBox(height: 10),
           _InfoBanner(
-            text: 'سيتم رفع النسخة السحابية تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
+            text:
+                'سيتم رفع النسخة السحابية تلقائياً عند الضغط على رجوع أو غلق التطبيق.',
           ),
         ],
         const SizedBox(height: 16),
@@ -784,7 +784,6 @@ class _CloudBackupCard extends StatelessWidget {
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable Widgets
@@ -983,9 +982,8 @@ class _BackupStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasBackup = lastBackupLabel != 'لم يتم النسخ بعد';
-    final statusColor = isLoggedIn
-        ? (hasBackup ? _green : _orange)
-        : const Color(0xFF888888);
+    final statusColor =
+        isLoggedIn ? (hasBackup ? _green : _orange) : const Color(0xFF888888);
     final statusIcon = isLoggedIn
         ? (hasBackup ? Icons.cloud_done_rounded : Icons.cloud_off_rounded)
         : Icons.cloud_off_rounded;

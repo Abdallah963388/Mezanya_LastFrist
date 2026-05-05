@@ -111,7 +111,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
       title: transaction.notes?.isNotEmpty == true
           ? transaction.notes!
           : _transactionTypeName(transaction.type),
-      subtitle: DateFormat('d/M/yyyy').format(transaction.createdAt),
+      subtitle: DateFormat('d MMMM yyyy', 'ar').format(transaction.createdAt),
       onTap: () => openTransactionDetailsSheet(
         context,
         cubit: widget.cubit,

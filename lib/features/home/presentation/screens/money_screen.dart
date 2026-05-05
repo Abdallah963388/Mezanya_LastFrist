@@ -48,8 +48,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-        final totalBalance =
-            wallets.fold<double>(0, (s, w) => s + w.balance);
+        final totalBalance = wallets.fold<double>(0, (s, w) => s + w.balance);
         final netIncome = monthTx
             .where((t) => t.type == 'income')
             .fold<double>(0, (s, t) => s + t.amount);
@@ -63,92 +62,92 @@ class _MoneyScreenState extends State<MoneyScreen> {
             : (netExpense > 0 ? -1.0 : 1.0);
 
         return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              // ── Month selector bar (above card) ────────────────────────
-              _MonthBar(
-                month: _month,
-                onPrev: () => setState(
-                    () => _month = DateTime(_month.year, _month.month - 1, 1)),
-                onNext: () => setState(
-                    () => _month = DateTime(_month.year, _month.month + 1, 1)),
-              ),
-              const SizedBox(height: 10),
+          padding: EdgeInsets.zero,
+          children: [
+            // ── Month selector bar (above card) ────────────────────────
+            _MonthBar(
+              month: _month,
+              onPrev: () => setState(
+                  () => _month = DateTime(_month.year, _month.month - 1, 1)),
+              onNext: () => setState(
+                  () => _month = DateTime(_month.year, _month.month + 1, 1)),
+            ),
+            const SizedBox(height: 10),
 
-              // ── Hero card ──────────────────────────────────────────────
-              _HeroCard(
-                totalBalance: totalBalance,
-                netIncome: netIncome,
-                netExpense: netExpense,
-                netSaving: netSaving,
-                savingRate: savingRate as double,
-                currencyCode: state.currencyCode,
-              ),
-              const SizedBox(height: 14),
+            // ── Hero card ──────────────────────────────────────────────
+            _HeroCard(
+              totalBalance: totalBalance,
+              netIncome: netIncome,
+              netExpense: netExpense,
+              netSaving: netSaving,
+              savingRate: savingRate,
+              currencyCode: state.currencyCode,
+            ),
+            const SizedBox(height: 14),
 
-              // ── Quick stats row ────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _QuickStatsRow(
-                  monthTx: monthTx,
-                  categories: state.categories,
+            // ── Quick stats row ────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _QuickStatsRow(
+                monthTx: monthTx,
+                categories: state.categories,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Transactions section ───────────────────────────────────
+            _SectionCard(
+              title: 'المعاملات',
+              subtitle: 'آخر الحركات في هذا الشهر',
+              accentColor: _green,
+              onMore: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AllTransactionsScreen(
+                  cubit: widget.cubit,
+                  allTransactions: allTx,
+                  initialMonth: _month,
                 ),
-              ),
-              const SizedBox(height: 14),
+              )),
+              child: monthTx.isEmpty
+                  ? const _EmptyHint(text: 'لا توجد معاملات لهذا الشهر.')
+                  : Column(
+                      children: monthTx
+                          .take(5)
+                          .map((t) => _TxTile(
+                                tx: t,
+                                categories: state.categories,
+                                onTap: () => openTransactionDetailsSheet(
+                                    context,
+                                    cubit: widget.cubit,
+                                    transaction: t),
+                              ))
+                          .toList(),
+                    ),
+            ),
+            const SizedBox(height: 14),
 
-              // ── Transactions section ───────────────────────────────────
-              _SectionCard(
-                title: 'المعاملات',
-                subtitle: 'آخر الحركات في هذا الشهر',
-                accentColor: _green,
-                onMore: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => AllTransactionsScreen(
-                    cubit: widget.cubit,
-                    allTransactions: allTx,
-                    initialMonth: _month,
-                  ),
-                )),
-                child: monthTx.isEmpty
-                    ? const _EmptyHint(text: 'لا توجد معاملات لهذا الشهر.')
-                    : Column(
-                        children: monthTx
-                            .take(5)
-                            .map((t) => _TxTile(
-                                  tx: t,
-                                  categories: state.categories,
-                                  onTap: () => openTransactionDetailsSheet(
-                                      context,
-                                      cubit: widget.cubit,
-                                      transaction: t),
-                                ))
-                            .toList(),
-                      ),
-              ),
-              const SizedBox(height: 14),
-
-              // ── Chart preview section ──────────────────────────────────
-              _SectionCard(
-                title: 'الرسم البياني',
-                subtitle: 'ملخص مالي سريع',
-                accentColor: _green,
-                onMore: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TransactionChartsScreen(
-                    cubit: widget.cubit,
-                    allTransactions: allTx,
-                    initialMonth: _month,
-                  ),
-                )),
-                child: monthTx.isEmpty
-                    ? const _EmptyHint(text: 'لا توجد بيانات لهذا الشهر.')
-                    : _MiniChartPreview(
-                        monthTx: monthTx,
-                        netIncome: netIncome,
-                        netExpense: netExpense,
-                        categories: state.categories,
-                      ),
-              ),
-              const SizedBox(height: 24),
-            ],
+            // ── Chart preview section ──────────────────────────────────
+            _SectionCard(
+              title: 'الرسم البياني',
+              subtitle: 'ملخص مالي سريع',
+              accentColor: _green,
+              onMore: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TransactionChartsScreen(
+                  cubit: widget.cubit,
+                  allTransactions: allTx,
+                  initialMonth: _month,
+                ),
+              )),
+              child: monthTx.isEmpty
+                  ? const _EmptyHint(text: 'لا توجد بيانات لهذا الشهر.')
+                  : _MiniChartPreview(
+                      monthTx: monthTx,
+                      netIncome: netIncome,
+                      netExpense: netExpense,
+                      categories: state.categories,
+                    ),
+            ),
+            const SizedBox(height: 24),
+          ],
         );
       },
     );
@@ -362,7 +361,8 @@ class _HeroCard extends StatelessWidget {
                 Expanded(
                   child: _HeroStat(
                     label: 'التوفير',
-                    value: '${isPositive ? '+' : ''}${netSaving.toStringAsFixed(2)}',
+                    value:
+                        '${isPositive ? '+' : ''}${netSaving.toStringAsFixed(2)}',
                     icon: Icons.savings_rounded,
                     iconBg: isPositive
                         ? const Color(0x3360D4A0)
@@ -565,11 +565,10 @@ class _QuickStatsRow extends StatelessWidget {
     }
     String? topCatName;
     if (catMap.isNotEmpty) {
-      final topId = catMap.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-      topCatName = categories
-          .where((c) => c.id == topId)
-          .map((c) => c.name)
-          .firstOrNull;
+      final topId =
+          catMap.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+      topCatName =
+          categories.where((c) => c.id == topId).map((c) => c.name).firstOrNull;
     }
 
     return Row(
@@ -939,8 +938,9 @@ class _MiniChartPreview extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))
-                .withValues(alpha: 0.10),
+            color:
+                (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626))
+                    .withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -982,7 +982,8 @@ class _MiniChartPreview extends StatelessWidget {
                     width: 70,
                     child: Text(
                       cat?.name ?? 'أخرى',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -996,7 +997,8 @@ class _MiniChartPreview extends StatelessWidget {
                         minHeight: 7,
                         backgroundColor:
                             const Color(0xFFDC2626).withValues(alpha: 0.10),
-                        valueColor: const AlwaysStoppedAnimation(Color(0xFFDC2626)),
+                        valueColor:
+                            const AlwaysStoppedAnimation(Color(0xFFDC2626)),
                       ),
                     ),
                   ),
@@ -1021,7 +1023,8 @@ class _MiniChartPreview extends StatelessWidget {
         SizedBox(
           width: 52,
           child: Text(label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(width: 8),
         Expanded(

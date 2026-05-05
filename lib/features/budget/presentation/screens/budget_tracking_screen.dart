@@ -12,8 +12,8 @@ import '../../../transactions/domain/entities/recurring_transaction_entity.dart'
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/services/recurring_schedule_engine.dart';
 import '../../../transactions/presentation/screens/recurring_transaction_composer_screen.dart';
+import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
-import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
 import 'budget_setup_screen.dart';
@@ -3883,7 +3883,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (snoozedUntil != null && now.isBefore(snoozedUntil)) {
       return <String, dynamic>{
         'status':
-            'مؤجل حتى ${DateFormat('d/M - h:mm a', 'ar').format(snoozedUntil)}',
+            'مؤجل حتى ${DateFormat('d MMMM - h:mm a', 'ar').format(snoozedUntil)}',
         'occurrence': fallbackOccurrence,
         'pending': false,
         'snoozed': true,
@@ -3894,12 +3894,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       return <String, dynamic>{
         'status': switch (prompt.state) {
           RecurringExpensePromptState.upcoming =>
-            'مستحق قريبًا ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+            'مستحق قريبًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
           RecurringExpensePromptState.due =>
-            'مستحق الآن ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+            'مستحق الآن ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
           RecurringExpensePromptState.overdue => prompt.catchUpFromAuto
-              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}'
-              : 'استحقاق متأخر ${DateFormat('d/M - h:mm a', 'ar').format(prompt.occurrence)}',
+              ? 'دورة فائتة تحتاج قرارًا ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}'
+              : 'استحقاق متأخر ${DateFormat('d MMMM - h:mm a', 'ar').format(prompt.occurrence)}',
         },
         'occurrence': prompt.occurrence,
         'pending': true,
@@ -4038,216 +4038,37 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       incomeSourceId: source.id,
       budgetScope: 'within-budget',
       createdAt: DateTime(now.year, now.month, now.day, 12),
-      notes: early
-          ? 'تسجيل دخل مبكر: ${source.name}'
-          : 'تأكيد نزول دخل: ${source.name}',
+      details: early
+          ? 'تسجيل دخل مبكر: ${source.name} بقيمة ${amount.toStringAsFixed(2)}'
+          : 'تأكيد نزول دخل: ${source.name} بقيمة ${amount.toStringAsFixed(2)}',
     );
   }
 
-  Future<DateTime?> _showPostponeDialog({
-    required String title,
-    required String name,
-    required double amount,
-    required String kindLabel,
-    required DateTime occurrence,
-    required bool allowSkip,
-  }) {
-    final now = DateTime.now();
-    DateTime atMorning(DateTime date) =>
-        DateTime(date.year, date.month, date.day, 9);
-
-    return showDialog<DateTime>(
-      context: context,
-      builder: (dialogContext) {
-        final theme = Theme.of(dialogContext);
-        final accent = const Color(0xFF9B6B2F);
-        final amountLabel = amount <= 0 ? 'مجاني' : amount.toStringAsFixed(2);
-
-        Widget option({
-          required IconData icon,
-          required String label,
-          required String subtitle,
-          required VoidCallback onTap,
-        }) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest
-                      .withValues(alpha: 0.28),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color:
-                        theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: accent, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_left_rounded,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return AlertDialog(
-          title: Text(title),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.09),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        kindLabel,
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$amountLabel · استحقاق ${DateFormat('d/M/yyyy', 'ar').format(occurrence)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (allowSkip)
-                  option(
-                    icon: Icons.skip_next_rounded,
-                    label: 'تخطي هذه المرة',
-                    subtitle: 'اعتبر هذه المرة منتهية وانتقل للاستحقاق القادم',
-                    onTap: () => Navigator.of(dialogContext)
-                        .pop(_TrackingPostponeChoice.skip),
-                  ),
-                option(
-                  icon: Icons.today_rounded,
-                  label: 'تأجيل يوم',
-                  subtitle: 'إظهارها مرة أخرى غدًا',
-                  onTap: () => Navigator.of(dialogContext).pop(
-                    atMorning(now.add(const Duration(days: 1))),
-                  ),
-                ),
-                option(
-                  icon: Icons.event_repeat_rounded,
-                  label: 'تأجيل 3 أيام',
-                  subtitle: 'إظهارها بعد ثلاثة أيام',
-                  onTap: () => Navigator.of(dialogContext).pop(
-                    atMorning(now.add(const Duration(days: 3))),
-                  ),
-                ),
-                option(
-                  icon: Icons.edit_calendar_rounded,
-                  label: 'تحديد تاريخ',
-                  subtitle: 'اختار تاريخ مناسب يدويًا',
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: dialogContext,
-                      initialDate: now.add(const Duration(days: 1)),
-                      firstDate: now.add(const Duration(days: 1)),
-                      lastDate: DateTime(now.year + 1, now.month, now.day),
-                    );
-                    if (picked == null || !dialogContext.mounted) return;
-                    Navigator.of(dialogContext).pop(atMorning(picked));
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('إلغاء'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // Removed local _showPostponeDialog in favor of RecurringPostponeDialog
 
   Future<void> _postponeIncome(IncomeSourceEntity source) async {
     final dueDate = _incomeDueDateForMonth(source, _month);
-    final picked = await _showPostponeDialog(
-      title: 'تأجيل معاملة متكررة',
+    final result = await RecurringPostponeDialog.show(
+      context,
       name: source.name,
       amount: source.amount,
       kindLabel: 'راتب / دخل',
       occurrence: dueDate,
       allowSkip: false,
     );
-    if (picked == null) return;
+
+    if (result == null || result is! DateTime) return;
+
     final setup = widget.cubit.state.budgetSetup;
     final updatedIncomes = setup.incomeSources.map((i) {
       if (i.id != source.id) return i;
-      return i.copyWith(snoozedUntil: picked.toIso8601String());
+      return i.copyWith(snoozedUntil: result.toIso8601String());
     }).toList();
+
     await widget.cubit.updateBudgetSetup(
       setup.copyWith(incomeSources: updatedIncomes),
       detailsOverride:
-          'تأجيل دخل: ${source.name} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
+          'تأجيل دخل: ${source.name} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(result)}',
     );
   }
 
@@ -4256,8 +4077,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final occurrence = _dueOccurrenceNow(recurring, now) ??
         _nextRecurringOccurrence(recurring, now) ??
         now;
-    final picked = await _showPostponeDialog(
-      title: 'تأجيل معاملة متكررة',
+    final result = await RecurringPostponeDialog.show(
+      context,
       name: recurring.name,
       amount: recurring.amount,
       kindLabel:
@@ -4265,8 +4086,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       occurrence: occurrence,
       allowSkip: true,
     );
-    if (picked == null) return;
-    if (picked == _TrackingPostponeChoice.skip) {
+
+    if (result == null) return;
+
+    if (result == PostponeChoice.skip) {
       await widget.cubit.updateRecurringTransaction(
         recurring.copyWith(
           lastHandledOccurrenceAt: occurrence.toIso8601String(),
@@ -4277,11 +4100,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       );
       return;
     }
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: picked.toIso8601String()),
-      detailsOverride:
-          'تأجيل معاملة متكررة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)} حتى ${DateFormat('d/M/yyyy', 'ar').format(picked)}',
-    );
+
+    if (result is DateTime) {
+      await widget.cubit.updateRecurringTransaction(
+        recurring.copyWith(snoozedUntil: result.toIso8601String()),
+        detailsOverride:
+            'تأجيل معاملة متكررة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(result)}',
+      );
+    }
   }
 
   Future<void> _clearDebtPostpone(RecurringTransactionEntity recurring) async {
@@ -4302,6 +4128,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       budgetScope: 'within-budget',
       createdAt: DateTime.now(),
       notes: 'سداد دين: ${debt.name}',
+      details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
     await widget.cubit.updateRecurringTransaction(
       recurring.copyWith(
@@ -4342,7 +4169,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   title: Text(
                       item.notes?.isNotEmpty == true ? item.notes! : 'معاملة'),
                   subtitle: Text(
-                      DateFormat('d/M - h:mm a', 'ar').format(item.createdAt)),
+                      DateFormat('d MMMM - h:mm a', 'ar').format(item.createdAt)),
                   trailing: Text(item.amount.toStringAsFixed(2)),
                   onTap: () => openTransactionDetailsSheet(
                     context,
@@ -4504,8 +4331,7 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
           _paymentRow(
             theme: theme,
             label: widget.showNextPayment ? 'الدفعة الحالية' : 'دفعة واحدة',
-            date:
-                '${widget.dueDate.day}/${widget.dueDate.month}/${widget.dueDate.year}',
+            date: DateFormat('d MMMM yyyy', 'ar').format(widget.dueDate),
             amount: widget.installmentAmt,
             isPaid: widget.currentPaid,
             buttonLabel: 'دفع الآن',
@@ -4516,7 +4342,7 @@ class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
             _paymentRow(
               theme: theme,
               label: 'الدفعة القادمة',
-              date: '${nextMonth.day}/${nextMonth.month}/${nextMonth.year}',
+              date: DateFormat('d MMMM yyyy', 'ar').format(nextMonth),
               amount: widget.installmentAmt,
               isPaid: widget.nextPaid,
               buttonLabel: 'تسديد الآن',
@@ -4738,7 +4564,7 @@ class _DraggableFilterableTxSheetState
     switch (_dateFilter) {
       case _TxDateFilter.day:
         final day = _selectedDay ?? widget.initialMonth;
-        return 'يوم ${DateFormat('d/M/yyyy', 'ar').format(day)}';
+        return 'يوم ${DateFormat('d MMMM yyyy', 'ar').format(day)}';
       case _TxDateFilter.week:
         final start = _selectedWeekStart ?? widget.initialMonth;
         final end = start.add(const Duration(days: 6));
@@ -4749,7 +4575,7 @@ class _DraggableFilterableTxSheetState
         return 'سنة ${widget.initialMonth.year}';
       case _TxDateFilter.custom:
         if (_customRange == null) return 'مدى مخصص';
-        return '${DateFormat('d/M/yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d/M/yyyy', 'ar').format(_customRange!.end)}';
+        return '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}';
       case _TxDateFilter.all:
         return 'كل المعاملات';
     }
@@ -4954,7 +4780,7 @@ class _DraggableFilterableTxSheetState
                     title: 'يوم محدد',
                     subtitle: _selectedDay == null
                         ? 'اختر يومًا بعينه'
-                        : DateFormat('d/M/yyyy', 'ar').format(_selectedDay!),
+                        : DateFormat('d MMMM yyyy', 'ar').format(_selectedDay!),
                     selected: _dateFilter == _TxDateFilter.day,
                     onTap: () async {
                       final picked = await showDatePicker(
@@ -4998,7 +4824,7 @@ class _DraggableFilterableTxSheetState
                     title: 'من تاريخ إلى تاريخ',
                     subtitle: _customRange == null
                         ? 'حدد مدى زمني مخصص'
-                        : '${DateFormat('d/M/yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d/M/yyyy', 'ar').format(_customRange!.end)}',
+                        : '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}',
                     selected: _dateFilter == _TxDateFilter.custom,
                     onTap: () async {
                       final picked = await showDateRangePicker(

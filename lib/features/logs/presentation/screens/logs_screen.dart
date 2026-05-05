@@ -50,8 +50,7 @@ class _LogsScreenState extends State<LogsScreen> {
             actions: [
               IconButton(
                 icon: Badge(
-                  isLabelVisible:
-                      _range != 'all' || _entityTypes.isNotEmpty,
+                  isLabelVisible: _range != 'all' || _entityTypes.isNotEmpty,
                   child: const Icon(Icons.tune_rounded),
                 ),
                 tooltip: 'الفلاتر',
@@ -142,9 +141,7 @@ class _LogsScreenState extends State<LogsScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  filtered == total
-                      ? '$total سجل'
-                      : '$filtered من $total سجل',
+                  filtered == total ? '$total سجل' : '$filtered من $total سجل',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,
@@ -183,10 +180,8 @@ class _LogsScreenState extends State<LogsScreen> {
         child: Row(
           children: [
             _tabChip('all', 'الكل', Icons.list_rounded, _green),
-            _tabChip(
-                'transaction', 'معاملة', Icons.receipt_rounded, _green),
-            _tabChip('recurring', 'متكررة',
-                Icons.repeat_rounded, _blue),
+            _tabChip('transaction', 'معاملة', Icons.receipt_rounded, _green),
+            _tabChip('recurring', 'متكررة', Icons.repeat_rounded, _blue),
             _tabChip('add', 'إضافة', Icons.add_circle_outline_rounded, _green),
             _tabChip('edit', 'تعديل', Icons.edit_outlined, _amber),
             _tabChip('delete', 'حذف', Icons.delete_outline_rounded, _red),
@@ -243,8 +238,7 @@ class _LogsScreenState extends State<LogsScreen> {
               Text(
                 label,
                 style: TextStyle(
-                  fontWeight:
-                      selected ? FontWeight.w900 : FontWeight.w700,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                   fontSize: 13,
                   color: selected
                       ? color
@@ -324,8 +318,7 @@ class _LogsScreenState extends State<LogsScreen> {
       filtered = filtered.where((log) => log.action == 'transfer');
     }
     if (_entityTypes.isNotEmpty) {
-      filtered =
-          filtered.where((log) => _entityTypes.contains(log.entityType));
+      filtered = filtered.where((log) => _entityTypes.contains(log.entityType));
     }
     return filtered.toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -356,7 +349,7 @@ class _LogsScreenState extends State<LogsScreen> {
       ('custom', 'نطاق مخصص'),
     ];
 
-    String _fmtDate(DateTime? d) {
+    String fmtDate(DateTime? d) {
       if (d == null) return 'اختر تاريخ';
       return DateFormat('yyyy/MM/dd', 'ar').format(d);
     }
@@ -389,8 +382,8 @@ class _LogsScreenState extends State<LogsScreen> {
                       color: _green.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.tune_rounded,
-                        color: _green, size: 22),
+                    child:
+                        const Icon(Icons.tune_rounded, color: _green, size: 22),
                   ),
                   const SizedBox(width: 12),
                   const Text(
@@ -441,14 +434,11 @@ class _LogsScreenState extends State<LogsScreen> {
                       child: Text(
                         label,
                         style: TextStyle(
-                          fontWeight:
-                              sel ? FontWeight.w900 : FontWeight.w700,
+                          fontWeight: sel ? FontWeight.w900 : FontWeight.w700,
                           fontSize: 13,
                           color: sel
                               ? _blue
-                              : Theme.of(ctx)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              : Theme.of(ctx).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -462,8 +452,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   decoration: BoxDecoration(
                     color: _blue.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                        color: _blue.withValues(alpha: 0.2)),
+                    border: Border.all(color: _blue.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,7 +509,7 @@ class _LogsScreenState extends State<LogsScreen> {
                                     const SizedBox(width: 7),
                                     Expanded(
                                       child: Text(
-                                        'من: ${_fmtDate(customStart)}',
+                                        'من: ${fmtDate(customStart)}',
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -579,7 +568,7 @@ class _LogsScreenState extends State<LogsScreen> {
                                     const SizedBox(width: 7),
                                     Expanded(
                                       child: Text(
-                                        'إلى: ${_fmtDate(customEnd)}',
+                                        'إلى: ${fmtDate(customEnd)}',
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -648,8 +637,7 @@ class _LogsScreenState extends State<LogsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (sel) ...[
-                            Icon(Icons.check_rounded,
-                                size: 15, color: _amber),
+                            Icon(Icons.check_rounded, size: 15, color: _amber),
                             const SizedBox(width: 5),
                           ],
                           Text(
@@ -660,9 +648,7 @@ class _LogsScreenState extends State<LogsScreen> {
                               fontSize: 13,
                               color: sel
                                   ? _amber
-                                  : Theme.of(ctx)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  : Theme.of(ctx).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -797,8 +783,7 @@ class _LogsScreenState extends State<LogsScreen> {
                             _miniTag(_actionName(log.action), accent),
                             _miniTag(_entityTypeName(log.entityType),
                                 accent.withValues(alpha: 0.75)),
-                            if (log.isReverted)
-                              _miniTag('تم التراجع', _purple),
+                            if (log.isReverted) _miniTag('تم التراجع', _purple),
                           ],
                         ),
                       ],
@@ -830,9 +815,8 @@ class _LogsScreenState extends State<LogsScreen> {
                     children: [
                       Icon(Icons.info_outline_rounded,
                           size: 16,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant),
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -840,9 +824,8 @@ class _LogsScreenState extends State<LogsScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
                             height: 1.5,
                           ),
                         ),
@@ -975,8 +958,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   if (canDeleteTransaction) {
                     await widget.cubit.deleteTransaction(log.entityId);
                   } else {
-                    await widget.cubit
-                        .deleteRecurringTransaction(log.entityId);
+                    await widget.cubit.deleteRecurringTransaction(log.entityId);
                   }
                   if (sheetContext.mounted) Navigator.pop(sheetContext);
                 },
@@ -986,8 +968,7 @@ class _LogsScreenState extends State<LogsScreen> {
                   canDeleteTransaction
                       ? 'حذف المعاملة'
                       : 'حذف المعاملة المتكررة',
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1221,15 +1202,13 @@ class _LogsScreenState extends State<LogsScreen> {
       if (tx.walletId != null) 'المحفظة': _walletName(state, tx.walletId),
       if (tx.fromWalletId != null)
         'من محفظة': _walletName(state, tx.fromWalletId),
-      if (tx.toWalletId != null)
-        'إلى': _walletOrJarName(state, tx.toWalletId),
+      if (tx.toWalletId != null) 'إلى': _walletOrJarName(state, tx.toWalletId),
       if (tx.incomeSourceId != null)
         'مصدر الدخل': _incomeName(state, tx.incomeSourceId),
       if (tx.allocationId != null)
         'المخصص': _allocationName(state, tx.allocationId),
       if (tx.categoryId != null) 'الفئة': _categoryName(state, tx.categoryId),
-      if (tx.budgetScope != null)
-        'النطاق': _budgetScopeName(tx.budgetScope!),
+      if (tx.budgetScope != null) 'النطاق': _budgetScopeName(tx.budgetScope!),
       if (tx.notes?.isNotEmpty == true) 'الملاحظات': tx.notes!,
     };
   }
@@ -1341,17 +1320,15 @@ class _LogsScreenState extends State<LogsScreen> {
     if (id == null || id.isEmpty) return '-';
     final wallets = state.wallets.where((item) => item.id == id).toList();
     if (wallets.isNotEmpty) return wallets.first.name;
-    final jars = state.budgetSetup.linkedWallets
-        .where((item) => item.id == id)
-        .toList();
+    final jars =
+        state.budgetSetup.linkedWallets.where((item) => item.id == id).toList();
     return jars.isEmpty ? id : jars.first.name;
   }
 
   String _incomeName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.incomeSources
-        .where((item) => item.id == id)
-        .toList();
+    final items =
+        state.budgetSetup.incomeSources.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
 
@@ -1608,15 +1585,14 @@ class _DetailsTable extends StatelessWidget {
           final entry = entries[i];
           final isLast = i == entries.length - 1;
           return Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(
               border: isLast
                   ? null
                   : Border(
                       bottom: BorderSide(
-                        color: colorScheme.outlineVariant
-                            .withValues(alpha: 0.45),
+                        color:
+                            colorScheme.outlineVariant.withValues(alpha: 0.45),
                       ),
                     ),
             ),
@@ -1675,15 +1651,13 @@ class _BeforeAfterTable extends StatelessWidget {
         children: [
           // Header row
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: amber.withValues(alpha: 0.08),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(22)),
               border: Border(
-                bottom: BorderSide(
-                    color: amber.withValues(alpha: 0.25)),
+                bottom: BorderSide(color: amber.withValues(alpha: 0.25)),
               ),
             ),
             child: Row(
@@ -1720,15 +1694,14 @@ class _BeforeAfterTable extends StatelessWidget {
             final (field, before, after) = rows[i];
             final isLast = i == rows.length - 1;
             return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               decoration: BoxDecoration(
                 border: isLast
                     ? null
                     : Border(
                         bottom: BorderSide(
-                          color: colorScheme.outlineVariant
-                              .withValues(alpha: 0.4),
+                          color:
+                              colorScheme.outlineVariant.withValues(alpha: 0.4),
                         ),
                       ),
               ),

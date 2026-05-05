@@ -64,7 +64,7 @@ Future<void> openTransactionDetailsSheet(
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          '${_typeLabel(transaction.type)} - ${DateFormat('d/M/yyyy - HH:mm', 'ar').format(transaction.createdAt)}',
+                          '${_typeLabel(transaction.type)} - ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(transaction.createdAt)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w700,
@@ -152,7 +152,7 @@ List<MapEntry<String, String>> _detailRows(AppCubit cubit, TransactionEntity tx)
   return [
     MapEntry('النوع', _typeLabel(tx.type)),
     MapEntry('المبلغ', tx.amount.toStringAsFixed(2)),
-    MapEntry('التاريخ', DateFormat('d/M/yyyy', 'ar').format(tx.createdAt)),
+    MapEntry('التاريخ', DateFormat('d MMMM yyyy', 'ar').format(tx.createdAt)),
     MapEntry('الوقت', DateFormat('HH:mm', 'ar').format(tx.createdAt)),
     if (tx.walletId != null) MapEntry('المحفظة', walletName(tx.walletId)),
     if (tx.fromWalletId != null)

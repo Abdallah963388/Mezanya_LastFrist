@@ -489,29 +489,27 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                               'لا يوجد مصدر تمويل مضاف. يمكنك إضافة واحد للربط بالميزانية الشهرية، أو حفظ الحصالة بدون تمويل.',
                         )
                       else
-                        ..._funding
-                            .map(
-                              (item) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _JarFundingCard(
-                                  item: item,
-                                  incomeSources: widget.incomeSources,
-                                  canDelete: true,
-                                  onChanged: ({
-                                    String? incomeSourceId,
-                                    double? amount,
-                                  }) {
-                                    _updateFunding(
-                                      item.id,
-                                      incomeSourceId: incomeSourceId,
-                                      amount: amount,
-                                    );
-                                  },
-                                  onDelete: () => _removeFunding(item.id),
-                                ),
-                              ),
-                            )
-                            .toList(),
+                        ..._funding.map(
+                          (item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _JarFundingCard(
+                              item: item,
+                              incomeSources: widget.incomeSources,
+                              canDelete: true,
+                              onChanged: ({
+                                String? incomeSourceId,
+                                double? amount,
+                              }) {
+                                _updateFunding(
+                                  item.id,
+                                  incomeSourceId: incomeSourceId,
+                                  amount: amount,
+                                );
+                              },
+                              onDelete: () => _removeFunding(item.id),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
           ),

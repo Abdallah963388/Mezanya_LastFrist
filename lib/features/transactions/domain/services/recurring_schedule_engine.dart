@@ -99,20 +99,9 @@ class RecurringScheduleEngine {
           prevMonth.year, prevMonth.month, prevDay, time.hour, time.minute);
     }
 
-    // للسنوي: الـ anchor هو آخر استحقاق سنوي
+    // للسنوي: الـ anchor هو تاريخ اليوم لضمان عدم استرجاع استحقاقات من السنة الماضية للمشتريات الجديدة
     if (recurring.recurrencePattern == 'yearly') {
-      final month = (recurring.monthOfYear ?? reference.month).clamp(1, 12);
-      final time =
-          parseScheduledTime(recurring.scheduledTime, reference) ?? reference;
-      final thisYearDay =
-          _dayInMonth(reference.year, month, recurring.dayOfMonth);
-      final thisYear =
-          DateTime(reference.year, month, thisYearDay, time.hour, time.minute);
-      if (!thisYear.isAfter(reference)) return thisYear;
-      final prevYearDay =
-          _dayInMonth(reference.year - 1, month, recurring.dayOfMonth);
-      return DateTime(
-          reference.year - 1, month, prevYearDay, time.hour, time.minute);
+      return reference;
     }
 
     // fallback: استخدم nextOccurrence

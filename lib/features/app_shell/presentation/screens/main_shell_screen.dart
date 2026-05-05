@@ -148,7 +148,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
       MaterialPageRoute(
         builder: (_) => SectionPageScaffold(
           title: 'الإشعارات',
-          child: NotificationsScreen(cubit: widget.cubit),
+          child: NotificationsCenterScreen(cubit: widget.cubit),
         ),
       ),
     );

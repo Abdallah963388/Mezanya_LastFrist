@@ -98,9 +98,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
       final uid = _emailUser?.uid ??
           _account?.id ??
           widget.cubit.state.userName.hashCode.toString();
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_images/$uid.$ext');
+      final ref =
+          FirebaseStorage.instance.ref().child('profile_images/$uid.$ext');
       await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
       final url = await ref.getDownloadURL();
       await widget.cubit.updateSettings(profileImageUrl: url);
@@ -138,8 +137,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               const SizedBox(height: 8),
 
               // ── الملف الشخصي ─────────────────────────────────
-              _SectionHeader(
-                  label: 'الملف الشخصي', icon: Icons.person_rounded),
+              _SectionHeader(label: 'الملف الشخصي', icon: Icons.person_rounded),
               _ProfileCard(
                 profileImageUrl: state.profileImageUrl,
                 googlePhotoUrl: _account?.photoUrl,
@@ -151,15 +149,13 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 googleAccount: _account,
                 uploadingImage: _uploadingImage,
                 onPickImage: _pickAndUploadProfileImage,
-                onNameChanged: (v) =>
-                    widget.cubit.updateSettings(userName: v),
+                onNameChanged: (v) => widget.cubit.updateSettings(userName: v),
               ),
 
               const SizedBox(height: 20),
 
               // ── ربط الحساب ────────────────────────────────────
-              _SectionHeader(
-                  label: 'ربط الحساب', icon: Icons.link_rounded),
+              _SectionHeader(label: 'ربط الحساب', icon: Icons.link_rounded),
               _AccountLinkCard(
                 googleAccount: _account,
                 emailUser: _emailUser,
@@ -175,8 +171,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               const SizedBox(height: 20),
 
               // ── البيانات ──────────────────────────────────────
-              _SectionHeader(
-                  label: 'البيانات', icon: Icons.storage_rounded),
+              _SectionHeader(label: 'البيانات', icon: Icons.storage_rounded),
               _ActionTile(
                 icon: Icons.backup_rounded,
                 iconColor: _green,
@@ -185,8 +180,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        BackupSettingsScreen(cubit: widget.cubit),
+                    builder: (_) => BackupSettingsScreen(cubit: widget.cubit),
                   ),
                 ),
               ),
@@ -194,8 +188,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               _ActionTile(
                 icon: Icons.delete_sweep_rounded,
                 iconColor: const Color(0xFFC65D2E),
-                iconBgColor:
-                    const Color(0xFFC65D2E).withValues(alpha: 0.1),
+                iconBgColor: const Color(0xFFC65D2E).withValues(alpha: 0.1),
                 title: 'مسح بيانات التطبيق',
                 subtitle: 'إعادة ضبط كاملة لجميع البيانات',
                 titleColor: const Color(0xFFC65D2E),
@@ -247,10 +240,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         return;
       }
 
-      final txCount =
-          (meta['recordsCount']?['transactions'] as int?) ?? 0;
-      final walletCount =
-          (meta['recordsCount']?['wallets'] as int?) ?? 0;
+      final txCount = (meta['recordsCount']?['transactions'] as int?) ?? 0;
+      final walletCount = (meta['recordsCount']?['wallets'] as int?) ?? 0;
       final updatedAt = meta['updatedAt'] is Timestamp
           ? (meta['updatedAt'] as Timestamp).toDate()
           : null;
@@ -373,8 +364,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               padding: const EdgeInsets.all(28),
               decoration: const BoxDecoration(
                 color: _surface,
-                borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(32)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -391,13 +381,12 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   ),
                   const SizedBox(height: 18),
                   const Text(
-                    'تحذير',
-                    style: TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w900),
+                    'تحذير الأمان',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'سيتم حذف جميع البيانات بشكل نهائي\nولا يمكن التراجع عن هذا الإجراء.',
+                    'أنت على وشك البدء في عملية حذف البيانات.\nيرجى الانتظار للمتابعة.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
@@ -408,21 +397,18 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: count > 0 ? null : _finalDeleteConfirm,
+                      onPressed: count > 0 ? null : () => _showSelectionSheet(),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFC65D2E),
                         disabledBackgroundColor:
                             const Color(0xFFC65D2E).withValues(alpha: 0.4),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       child: Text(
-                        count > 0
-                            ? 'انتظر $count ثواني...'
-                            : 'متابعة الحذف',
+                        count > 0 ? 'انتظر $count ثواني...' : 'متابعة الخيارات',
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
@@ -448,38 +434,207 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     );
   }
 
-  Future<void> _finalDeleteConfirm() async {
-    Navigator.pop(context);
-    await Future.delayed(const Duration(seconds: 2));
-    final ok = await showDialog<bool>(
+  Future<void> _showSelectionSheet() async {
+    Navigator.pop(context); // Close countdown 1
+    final selected = await showModalBottomSheet<Map<String, bool>>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24)),
-        title: const Text('تأكيد أخير'),
-        content: const Text('هل أنت متأكد من حذف جميع البيانات؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFC65D2E),
-            ),
-            child: const Text('حذف نهائي'),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        bool tx = true;
+        bool logs = true;
+        bool wallets = true;
+        bool recurring = true;
+        bool budget = true;
+        bool cats = true;
+        bool goals = true;
+        bool notifs = true;
+
+        return StatefulBuilder(
+          builder: (stCtx, setSt) {
+            return Container(
+              padding: const EdgeInsets.all(28),
+              decoration: const BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'تحديد البيانات المراد حذفها',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 16),
+                  _wipeOption(
+                      'المعاملات المالية', tx, (v) => setSt(() => tx = v!)),
+                  _wipeOption(
+                      'سجل النشاط (Logs)', logs, (v) => setSt(() => logs = v!)),
+                  _wipeOption('المحافظ والأرصدة', wallets,
+                      (v) => setSt(() => wallets = v!)),
+                  _wipeOption('المعاملات المتكررة (ديون واشتراكات)', recurring,
+                      (v) => setSt(() => recurring = v!)),
+                  _wipeOption('خطة الميزانية والدخل', budget,
+                      (v) => setSt(() => budget = v!)),
+                  _wipeOption(
+                      'الفئات المخصصة', cats, (v) => setSt(() => cats = v!)),
+                  _wipeOption(
+                      'أهداف التوفير', goals, (v) => setSt(() => goals = v!)),
+                  _wipeOption('تاريخ الإشعارات', notifs,
+                      (v) => setSt(() => notifs = v!)),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(stCtx, {
+                        'tx': tx,
+                        'logs': logs,
+                        'wallets': wallets,
+                        'recurring': recurring,
+                        'budget': budget,
+                        'cats': cats,
+                        'goals': goals,
+                        'notifs': notifs,
+                      }),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFC65D2E),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text('تأكيد الاختيارات',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(stCtx),
+                      child: const Text('إلغاء'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-    if (ok == true) {
-      await widget.cubit.resetAllData();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف جميع البيانات')),
-      );
-    }
+
+    if (selected == null) return;
+    _finalDeleteCountdown(selected);
+  }
+
+  Widget _wipeOption(String label, bool value, ValueChanged<bool?> onChanged) {
+    return CheckboxListTile(
+      title: Text(label,
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+      value: value,
+      onChanged: onChanged,
+      activeColor: const Color(0xFFC65D2E),
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+    );
+  }
+
+  Future<void> _finalDeleteCountdown(Map<String, bool> selected) async {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) {
+        int count = 5;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Future.doWhile(() async {
+              if (count == 0) return false;
+              await Future.delayed(const Duration(seconds: 1));
+              count--;
+              if (ctx.mounted) setSheet(() {});
+              return count > 0;
+            });
+
+            return Container(
+              padding: const EdgeInsets.all(28),
+              decoration: const BoxDecoration(
+                color: _surface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'تأكيد نهائي',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFC65D2E)),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'هل أنت متأكد تماماً؟ سيتم حذف البيانات المختارة نهائياً ولا يمكن الرجوع عنها.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: count > 0
+                          ? null
+                          : () async {
+                              Navigator.pop(ctx);
+                              await widget.cubit.wipeDataSelective(
+                                transactions: selected['tx'] ?? false,
+                                logs: selected['logs'] ?? false,
+                                wallets: selected['wallets'] ?? false,
+                                recurring: selected['recurring'] ?? false,
+                                budget: selected['budget'] ?? false,
+                                categories: selected['cats'] ?? false,
+                                goals: selected['goals'] ?? false,
+                                notifications: selected['notifs'] ?? false,
+                              );
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('تم حذف البيانات المختارة بنجاح')),
+                              );
+                            },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFC65D2E),
+                        disabledBackgroundColor:
+                            const Color(0xFFC65D2E).withValues(alpha: 0.4),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        count > 0
+                            ? 'تأكيد الحذف النهائي ($count)...'
+                            : 'حذف الآن',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('إلغاء'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 
@@ -561,8 +716,7 @@ class _ProfileCard extends StatelessWidget {
   String? get _effectivePhoto =>
       profileImageUrl.isNotEmpty ? profileImageUrl : googlePhotoUrl;
 
-  String get _connectedEmail =>
-      emailUser?.email ?? googleAccount?.email ?? '';
+  String get _connectedEmail => emailUser?.email ?? googleAccount?.email ?? '';
 
   bool get _anyConnected => isGoogleConnected || isEmailConnected;
 
@@ -595,8 +749,7 @@ class _ProfileCard extends StatelessWidget {
                 end: Alignment.bottomLeft,
                 colors: [Color(0xFF2F6F5E), Color(0xFF1A4A3A)],
               ),
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
             ),
             child: Column(
               children: [
@@ -681,8 +834,7 @@ class _ProfileCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: const Color(0xFF22C55E),
                             shape: BoxShape.circle,
-                            border: Border.all(
-                                color: Colors.white, width: 2),
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: const Icon(Icons.check_rounded,
                               color: Colors.white, size: 13),
@@ -693,8 +845,8 @@ class _ProfileCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 if (_anyConnected && _connectedEmail.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(999),
@@ -718,8 +870,8 @@ class _ProfileCard extends StatelessWidget {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(999),
@@ -758,14 +910,13 @@ class _ProfileCard extends StatelessWidget {
                   color: _green.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w700,
                 ),
-                prefixIcon: const Icon(Icons.person_outline_rounded,
-                    color: _green),
+                prefixIcon:
+                    const Icon(Icons.person_outline_rounded, color: _green),
                 filled: true,
                 fillColor: const Color(0xFFF5FAF8),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                      color: _green.withValues(alpha: 0.18)),
+                  borderSide: BorderSide(color: _green.withValues(alpha: 0.18)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -864,8 +1015,8 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                       side: BorderSide(
-                          color: const Color(0xFFC65D2E)
-                              .withValues(alpha: 0.5)),
+                          color:
+                              const Color(0xFFC65D2E).withValues(alpha: 0.5)),
                       foregroundColor: const Color(0xFFC65D2E),
                     ),
                   )
@@ -946,8 +1097,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
-                        side: BorderSide(
-                            color: _blue.withValues(alpha: 0.5)),
+                        side: BorderSide(color: _blue.withValues(alpha: 0.5)),
                         foregroundColor: _blue,
                       ),
                     ),
@@ -994,9 +1144,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _isRegisterMode
-                              ? 'إنشاء حساب جديد'
-                              : 'تسجيل الدخول',
+                          _isRegisterMode ? 'إنشاء حساب جديد' : 'تسجيل الدخول',
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
                             fontSize: 14,
@@ -1005,8 +1153,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                         ),
                         const Spacer(),
                         GestureDetector(
-                          onTap: () =>
-                              setState(() => _showEmailForm = false),
+                          onTap: () => setState(() => _showEmailForm = false),
                           child: Icon(Icons.close_rounded,
                               size: 18,
                               color: Colors.grey.withValues(alpha: 0.7)),
@@ -1027,8 +1174,8 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                             TextStyle(color: _blue.withValues(alpha: 0.7)),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(13),
-                          borderSide: BorderSide(
-                              color: _blue.withValues(alpha: 0.2)),
+                          borderSide:
+                              BorderSide(color: _blue.withValues(alpha: 0.2)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(13),
@@ -1043,11 +1190,11 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                       obscureText: !_showPassword,
                       decoration: InputDecoration(
                         labelText: 'كلمة السر',
-                        prefixIcon:
-                            const Icon(Icons.lock_outline_rounded, color: _blue),
+                        prefixIcon: const Icon(Icons.lock_outline_rounded,
+                            color: _blue),
                         suffixIcon: GestureDetector(
-                          onTap: () => setState(
-                              () => _showPassword = !_showPassword),
+                          onTap: () =>
+                              setState(() => _showPassword = !_showPassword),
                           child: Icon(
                             _showPassword
                                 ? Icons.visibility_off_rounded
@@ -1062,8 +1209,8 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                             TextStyle(color: _blue.withValues(alpha: 0.7)),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(13),
-                          borderSide: BorderSide(
-                              color: _blue.withValues(alpha: 0.2)),
+                          borderSide:
+                              BorderSide(color: _blue.withValues(alpha: 0.2)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(13),
@@ -1117,8 +1264,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
           if (isGoogleConnected || isEmailConnected) ...[
             const SizedBox(height: 10),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: _green.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
@@ -1195,8 +1341,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: isConnected
                   ? const Color(0xFF22C55E).withValues(alpha: 0.12)
@@ -1209,9 +1354,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                 Icon(
                   isConnected ? Icons.circle : Icons.circle_outlined,
                   size: 8,
-                  color: isConnected
-                      ? const Color(0xFF22C55E)
-                      : Colors.grey,
+                  color: isConnected ? const Color(0xFF22C55E) : Colors.grey,
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -1219,9 +1362,7 @@ class _AccountLinkCardState extends State<_AccountLinkCard> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: isConnected
-                        ? const Color(0xFF22C55E)
-                        : Colors.grey,
+                    color: isConnected ? const Color(0xFF22C55E) : Colors.grey,
                   ),
                 ),
               ],
@@ -1362,8 +1503,7 @@ class _ActionTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color:
-                          Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

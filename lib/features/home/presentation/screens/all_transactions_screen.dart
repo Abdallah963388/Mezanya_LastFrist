@@ -101,10 +101,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         if (_customFrom == null && _customTo == null) return 'مخصص';
         final f = _customFrom == null
             ? '...'
-            : DateFormat('d/M/yyyy').format(_customFrom!);
+            : DateFormat('d MMMM yyyy', 'ar').format(_customFrom!);
         final t = _customTo == null
             ? '...'
-            : DateFormat('d/M/yyyy').format(_customTo!);
+            : DateFormat('d MMMM yyyy', 'ar').format(_customTo!);
         return '$f → $t';
     }
   }
@@ -674,7 +674,7 @@ class _DatePickerBox extends StatelessWidget {
             Text(
               date == null
                   ? 'اختر تاريخ'
-                  : DateFormat('d/M/yyyy').format(date!),
+                  : DateFormat('d MMMM yyyy', 'ar').format(date!),
               style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF165b47)),

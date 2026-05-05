@@ -4,8 +4,6 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
-import '../../domain/entities/transaction_entity.dart';
-import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
 import 'subscription_preset_selection_screen.dart';
 
@@ -87,7 +85,6 @@ class _DebtsAndSubscriptionsScreenState
     if (_tab == 'subscriptions') return 'الاشتراكات المتكررة';
     return 'الديون والأقساط';
   }
-
 
   String _emptyScopeLabel() {
     if (_tab == 'subscriptions') {
@@ -252,7 +249,6 @@ class _DebtsAndSubscriptionsScreenState
       ),
     );
   }
-
 
   Widget _emptyCard(String text) {
     return Container(
@@ -513,7 +509,8 @@ class _DebtsAndSubscriptionsScreenState
                       _openRecurringComposer(
                         mode: record.type,
                         editing: record,
-                        subscriptionOnlyMode: record.expensePlanKind == 'subscription',
+                        subscriptionOnlyMode:
+                            record.expensePlanKind == 'subscription',
                         debtOnlyMode: record.expensePlanKind == 'installment',
                       );
                     },
@@ -539,7 +536,6 @@ class _DebtsAndSubscriptionsScreenState
       ),
     );
   }
-
 
   Map<String, String> _detailsRows(
     AppStateEntity state,
@@ -691,7 +687,6 @@ class _DebtsAndSubscriptionsScreenState
     return Color(int.parse(buffer.toString(), radix: 16));
   }
 
-
   Future<void> _openRecurringComposer({
     required String mode,
     RecurringTransactionEntity? editing,
@@ -707,7 +702,8 @@ class _DebtsAndSubscriptionsScreenState
           initialType: mode,
           initialRecurring: editing,
           initialWithinBudget: true,
-          initialExpensePlanKind: editing?.expensePlanKind ?? initialExpensePlanKind,
+          initialExpensePlanKind:
+              editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
           subscriptionOnlyMode: subscriptionOnlyMode,
           debtOnlyMode: debtOnlyMode,
@@ -730,8 +726,10 @@ class _DetailsTable extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color:
-              Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.65),
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.65),
         ),
       ),
       child: Column(

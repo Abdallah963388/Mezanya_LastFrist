@@ -222,7 +222,7 @@ class _MoreTabContentState extends State<MoreTabContent> {
             MaterialPageRoute(
               builder: (_) => SectionPageScaffold(
                 title: 'الإشعارات',
-                child: NotificationsScreen(cubit: widget.cubit),
+                child: NotificationsCenterScreen(cubit: widget.cubit),
               ),
             ),
           );

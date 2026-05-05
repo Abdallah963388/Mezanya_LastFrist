@@ -113,12 +113,13 @@ class AppCubit extends Cubit<AppStateEntity> {
     required String entityType,
     required String entityId,
     required String details,
+    String? titleOverride,
     required Future<AppStateEntity> Function() apply,
   }) async {
     final before = jsonEncode(_coreMap(state));
     final nextRaw = await apply();
     final after = jsonEncode(_coreMap(nextRaw));
-    final title = _notificationTitle(action, entityType);
+    final title = titleOverride ?? _notificationTitle(action, entityType);
     final log = LogEntryEntity(
       id: _id('log'),
       action: action,
@@ -202,6 +203,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     String? transferType,
     String? notes,
     DateTime? createdAt,
+    String? details,
   }) async {
     final walletName = walletId == null
         ? null
@@ -245,7 +247,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: type == 'transfer' ? 'transfer' : 'add',
       entityType: 'transaction',
       entityId: transaction.id,
-      details: _transactionDetails(
+      details: details ?? _transactionDetails(
         type: type,
         amount: amount,
         walletName: walletName,
@@ -253,6 +255,9 @@ class AppCubit extends Cubit<AppStateEntity> {
         allocationName: allocationName,
         budgetScope: budgetScope,
       ),
+      titleOverride: notes?.isNotEmpty == true
+          ? notes
+          : incomeName ?? walletName ?? (type == 'income' ? 'دخل' : 'مصروف'),
       apply: () => _repository.addTransaction(transaction),
     );
   }
@@ -335,10 +340,12 @@ class AppCubit extends Cubit<AppStateEntity> {
       if (isPhysicalFrom && isPhysicalTo) {
         // Reverse physical transfer
         wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId)
+          if (w.id == transaction.fromWalletId) {
             return w.copyWith(balance: w.balance + transaction.amount);
-          if (w.id == transaction.toWalletId)
+          }
+          if (w.id == transaction.toWalletId) {
             return w.copyWith(balance: w.balance - transaction.amount);
+          }
           return w;
         }).toList();
       } else {
@@ -894,6 +901,7 @@ class AppCubit extends Cubit<AppStateEntity> {
       entityId: recurring.id,
       details: detailsOverride ??
           _recurringTransactionDetails('تعديل معاملة متكررة', recurring),
+      titleOverride: recurring.name,
       apply: () async => next,
     );
   }
@@ -1212,6 +1220,79 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> wipeDataSelective({
+    bool transactions = false,
+    bool logs = false,
+    bool wallets = false,
+    bool recurring = false,
+    bool budget = false,
+    bool categories = false,
+    bool goals = false,
+    bool notifications = false,
+  }) async {
+    var next = state;
+    final details = <String>[];
+
+    if (transactions) {
+      next = next.copyWith(transactions: []);
+      details.add('المعاملات');
+    }
+    if (logs) {
+      next = next.copyWith(logs: []);
+      details.add('سجل النشاط');
+    }
+    if (wallets) {
+      next = next.copyWith(
+        wallets: [
+          const WalletEntity(
+              id: 'wallet-cash-default', name: 'الكاش', balance: 0),
+          const WalletEntity(
+              id: 'wallet-bank-default', name: 'البنك', balance: 0),
+        ],
+      );
+      details.add('المحافظ والأرصدة');
+    }
+    if (recurring) {
+      next = next.copyWith(recurringTransactions: []);
+      details.add('المعاملات المتكررة');
+    }
+    if (budget) {
+      next = next.copyWith(
+        budgetSetup: next.budgetSetup.copyWith(
+          incomeSources: [],
+          debts: [],
+          allocations: [],
+          linkedWallets: next.budgetSetup.linkedWallets
+              .where((w) => w.id == 'linked-savings-default')
+              .toList(),
+        ),
+      );
+      details.add('خطة الميزانية');
+    }
+    if (categories) {
+      next = next.copyWith(categories: []);
+      details.add('الفئات');
+    }
+    if (goals) {
+      next = next.copyWith(goals: []);
+      details.add('الأهداف');
+    }
+    if (notifications) {
+      next = next.copyWith(notifications: []);
+      details.add('الإشعارات');
+    }
+
+    if (details.isEmpty) return;
+
+    await _applyAndLog(
+      action: 'delete',
+      entityType: 'selective-wipe',
+      entityId: 'reset',
+      details: 'تم حذف بيانات محددة: ${details.join('، ')}',
+      apply: () async => next,
+    );
+  }
+
   Future<void> toggleLogRevert(String logId) async {
     final target = state.logs.where((log) => log.id == logId).toList();
     if (target.isEmpty) return;
@@ -1242,10 +1323,10 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
     final revertNotification = NotificationEntity(
       id: _id('notif'),
-      title: 'إشعار التراجع',
+      title: 'إشعار تراجع',
       message: revertLog.details,
       createdAt: DateTime.now(),
-      type: 'revert',
+      type: 'revert-system', // Changed to hide from history UI
       relatedLogId: revertLog.id,
     );
     final next = restored.copyWith(
