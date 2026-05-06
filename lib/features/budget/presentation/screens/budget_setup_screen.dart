@@ -1707,47 +1707,91 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                   .toList(),
         ),
         const SizedBox(height: 14),
-        _plannerSection(
-          title: 'الديون والأقساط',
-          subtitle: 'أقساط شهرية وديون ذات أصل كلي مربوطة بالميزانية.',
-          icon: Icons.receipt_long_rounded,
-          accent: const Color(0xFFC65D2E),
-          actionLabel: '',
-          onAction: () {},
-          showHeaderAction: false,
-          footerAction: _thinAddButton(
-            label: 'إضافة دين',
-            onPressed: () =>
-                _showAddRecurringOrDebtComposer(subscriptionOnly: false),
-            tint: const Color(0xFFC65D2E),
-          ),
-          children: () {
+        BlocBuilder<AppCubit, AppStateEntity>(
+          bloc: widget.cubit,
+          builder: (ctx, appState) {
             final installments = _visibleDebtsForDisplayCycle
                 .where((d) => d.isInstallment)
                 .toList();
-            if (installments.isEmpty) {
-              return [
-                _emptyState('لا توجد ديون أو أقساط مستحقة في هذه الدورة.')
-              ];
-            }
-            return installments.map((debt) {
-              final recurring = _linkedRecurringDebt(debt);
-              final iconColor = recurring?.iconColor ?? '#c65d2e';
-              return _planTile(
-                title: debt.name,
-                amountText: debt.amount.toStringAsFixed(2),
-                detailText: 'يوم ${debt.executionDay}',
-                leadingWidget: _iconBadge(
-                  iconName: recurring?.icon ?? 'receipt',
-                  colorHex: iconColor,
-                  size: 42,
-                ),
-                tint: _colorFromHex(iconColor),
-                onTap: () => _openDebtInfoSheet(debt),
-                onDelete: null,
-              );
-            }).toList();
-          }(),
+            final lents = appState.recurringTransactions
+                .where((r) => r.isLent)
+                .toList();
+
+            return _plannerSection(
+              title: 'الديون والأقساط',
+              subtitle: 'أقساط شهرية وديون مربوطة بالميزانية، بالإضافة للسلف.',
+              icon: Icons.receipt_long_rounded,
+              accent: const Color(0xFFC65D2E),
+              actionLabel: '',
+              onAction: () {},
+              showHeaderAction: false,
+              footerAction: _thinAddButton(
+                label: 'إضافة دين',
+                onPressed: () =>
+                    _showAddRecurringOrDebtComposer(subscriptionOnly: false),
+                tint: const Color(0xFFC65D2E),
+              ),
+              children: () {
+                if (installments.isEmpty && lents.isEmpty) {
+                  return [
+                    _emptyState('لا توجد ديون أو أقساط أو سلف في هذه الدورة.')
+                  ];
+                }
+
+                final today = DateTime.now();
+                final todayMid = DateTime(today.year, today.month, today.day);
+
+                return [
+                  // الأقساط والديون
+                  ...installments.map((debt) {
+                    final recurring = _linkedRecurringDebt(debt);
+                    final iconColor = recurring?.iconColor ?? '#c65d2e';
+                    return _planTile(
+                      title: debt.name,
+                      amountText: debt.amount.toStringAsFixed(2),
+                      detailText: 'يوم ${debt.executionDay}',
+                      leadingWidget: _iconBadge(
+                        iconName: recurring?.icon ?? 'receipt',
+                        colorHex: iconColor,
+                        size: 42,
+                      ),
+                      tint: _colorFromHex(iconColor),
+                      onTap: () => _openDebtInfoSheet(debt),
+                      onDelete: null,
+                    );
+                  }),
+
+                  // السلف
+                  ...lents.map((record) {
+                    final name = record.lentPersonName ?? record.name;
+                    final ret = record.anchorDate != null
+                        ? DateTime.tryParse(record.anchorDate!)
+                        : null;
+                    final overdue = ret != null &&
+                        DateTime(ret.year, ret.month, ret.day)
+                            .isBefore(todayMid);
+                    final dateText = ret != null
+                        ? 'استرداد ${ret.day}/${ret.month}/${ret.year}${overdue ? ' ⚠️' : ''}'
+                        : 'بدون تاريخ استرداد';
+                    return _planTile(
+                      title: name,
+                      amountText: record.amount.toStringAsFixed(2),
+                      detailText: dateText,
+                      leadingWidget: _iconBadge(
+                          iconName: 'handshake',
+                          colorHex: '#1a7a4a',
+                          size: 42),
+                      tint: overdue
+                          ? const Color(0xFFC65D2E)
+                          : const Color(0xFF1a7a4a),
+                      onTap: () => _openLentSetupManagementSheet(record),
+                      onDelete: null,
+                    );
+                  }),
+                ];
+              }(),
+            );
+          },
         ),
         const SizedBox(height: 14),
         _plannerSection(
@@ -1790,59 +1834,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
               );
             }).toList();
           }(),
-        ),
-        const SizedBox(height: 14),
-        BlocBuilder<AppCubit, AppStateEntity>(
-          bloc: widget.cubit,
-          builder: (ctx, appState) {
-            final lents = appState.recurringTransactions
-                .where((r) => r.isLent)
-                .toList();
-            final today = DateTime.now();
-            final todayMid = DateTime(today.year, today.month, today.day);
-            return _plannerSection(
-              title: 'سلف للناس',
-              subtitle: 'مبالغ أسلفتها لأشخاص وتنتظر استردادها.',
-              icon: Icons.handshake_rounded,
-              accent: const Color(0xFF1a7a4a),
-              actionLabel: '',
-              onAction: () {},
-              showHeaderAction: false,
-              footerAction: _thinAddButton(
-                label: 'إضافة سلفة',
-                onPressed: _openAddLentComposer,
-                tint: const Color(0xFF1a7a4a),
-              ),
-              children: lents.isEmpty
-                  ? [_emptyState('أضف السلف اللي تنتظر استردادها.')]
-                  : lents.map((record) {
-                      final name = record.lentPersonName ?? record.name;
-                      final ret = record.anchorDate != null
-                          ? DateTime.tryParse(record.anchorDate!)
-                          : null;
-                      final overdue = ret != null &&
-                          DateTime(ret.year, ret.month, ret.day)
-                              .isBefore(todayMid);
-                      final dateText = ret != null
-                          ? 'استرداد ${ret.day}/${ret.month}/${ret.year}${overdue ? ' ⚠️' : ''}'
-                          : 'بدون تاريخ استرداد';
-                      return _planTile(
-                        title: name,
-                        amountText: record.amount.toStringAsFixed(2),
-                        detailText: dateText,
-                        leadingWidget: _iconBadge(
-                            iconName: 'handshake',
-                            colorHex: '#1a7a4a',
-                            size: 42),
-                        tint: overdue
-                            ? const Color(0xFFC65D2E)
-                            : const Color(0xFF1a7a4a),
-                        onTap: () => _openLentSetupManagementSheet(record),
-                        onDelete: null,
-                      );
-                    }).toList(),
-            );
-          },
         ),
         const SizedBox(height: 18),
         _planSummaryCard(),

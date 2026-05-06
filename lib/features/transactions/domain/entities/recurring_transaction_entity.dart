@@ -33,6 +33,8 @@ class RecurringTransactionEntity {
     this.isActive = true,
     this.isLent = false,
     this.lentPersonName,
+    this.lentEntries = const [],
+    this.isLentArchived = false,
   });
 
   final String id;
@@ -69,6 +71,23 @@ class RecurringTransactionEntity {
   final bool isLent;
   final String? lentPersonName;
 
+  /// قائمة السلفات الفردية لهذا الشخص
+  /// كل عنصر: { id, amount, lentDate, expectedReturnDate, notes, isSettled }
+  final List<Map<String, dynamic>> lentEntries;
+
+  /// هل تم أرشفة هذا الشخص (كل سلفاته انتهت)
+  final bool isLentArchived;
+
+  // ── Computed helpers ───────────────────────────────────────────────────────
+
+  /// إجمالي المبالغ غير المستردة
+  double get outstandingLentAmount => lentEntries
+      .where((e) => e['isSettled'] != true)
+      .fold(0.0, (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0));
+
+  /// هل هناك سلفات لم تُسدد؟
+  bool get hasOutstandingLent => lentEntries.any((e) => e['isSettled'] != true);
+
   RecurringTransactionEntity copyWith({
     String? id,
     String? name,
@@ -103,6 +122,8 @@ class RecurringTransactionEntity {
     bool? isActive,
     bool? isLent,
     String? lentPersonName,
+    List<Map<String, dynamic>>? lentEntries,
+    bool? isLentArchived,
   }) {
     return RecurringTransactionEntity(
       id: id ?? this.id,
@@ -140,6 +161,8 @@ class RecurringTransactionEntity {
       isActive: isActive ?? this.isActive,
       isLent: isLent ?? this.isLent,
       lentPersonName: lentPersonName ?? this.lentPersonName,
+      lentEntries: lentEntries ?? this.lentEntries,
+      isLentArchived: isLentArchived ?? this.isLentArchived,
     );
   }
 
@@ -178,6 +201,8 @@ class RecurringTransactionEntity {
       'isActive': isActive,
       'isLent': isLent,
       'lentPersonName': lentPersonName,
+      'lentEntries': lentEntries,
+      'isLentArchived': isLentArchived,
     };
   }
 
@@ -221,6 +246,10 @@ class RecurringTransactionEntity {
       isActive: map['isActive'] as bool? ?? true,
       isLent: map['isLent'] as bool? ?? false,
       lentPersonName: map['lentPersonName'] as String?,
+      lentEntries: (map['lentEntries'] as List<dynamic>? ?? const <dynamic>[])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+      isLentArchived: map['isLentArchived'] as bool? ?? false,
     );
   }
 }

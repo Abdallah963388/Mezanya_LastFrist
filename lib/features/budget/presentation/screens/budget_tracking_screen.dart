@@ -2677,43 +2677,67 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     final cycleEnd = _cycleEnd;
 
-    final cycleCreatedLent = allLent.where((r) {
+    // الأشخاص اللي حصل ليهم نشاط (سلفة أو استرداد) في الدورة دي
+    final cycleLentPersons = allLent.where((r) {
       final name = r.lentPersonName ?? r.name;
       return state.transactions.any((t) =>
-          t.type == 'expense' &&
-          t.walletId == r.walletId &&
-          (t.notes?.contains('سلفة لـ $name') ?? false) &&
+          ((t.notes?.contains('سلفة لـ $name') ?? false) ||
+           (t.notes?.contains('استرداد سلفة من $name') ?? false)) &&
           !t.createdAt.isBefore(_cycleStart) &&
           !t.createdAt.isAfter(cycleEnd));
     }).toList();
 
-    if (cycleCreatedLent.isEmpty) return [];
+    if (cycleLentPersons.isEmpty) return [];
 
-    final total = cycleCreatedLent.fold<double>(0, (s, r) => s + r.amount);
-    final hasOverdue = cycleCreatedLent.any((r) {
-      if (r.anchorDate == null) return false;
-      final d = DateTime.tryParse(r.anchorDate!);
-      if (d == null) return false;
-      final today = DateTime.now();
-      return DateTime(d.year, d.month, d.day)
-          .isBefore(DateTime(today.year, today.month, today.day));
-    });
+    // إجمالي اللي اتسلف في الدورة دي (Outflow)
+    double cycleTotalOut = 0;
+    for (final person in cycleLentPersons) {
+      final name = person.lentPersonName ?? person.name;
+      final txs = state.transactions.where((t) =>
+          t.type == 'expense' &&
+          (t.notes?.contains('سلفة لـ $name') ?? false) &&
+          !t.createdAt.isBefore(_cycleStart) &&
+          !t.createdAt.isAfter(cycleEnd));
+      cycleTotalOut += txs.fold(0.0, (s, t) => s + t.amount);
+    }
+
+    final hasOverdueGlobal = cycleLentPersons.any((r) => r.hasOutstandingLent && r.lentEntries.any((e) {
+      if (e['isSettled'] == true) return false;
+      final retStr = e['expectedReturnDate'] as String?;
+      if (retStr == null) return false;
+      final d = DateTime.tryParse(retStr);
+      return d != null && d.isBefore(DateTime.now());
+    }));
 
     const lentAccent = Color(0xFF1a7a4a);
-    final today = DateTime.now();
-    final todayMidnight = DateTime(today.year, today.month, today.day);
 
-    final childTiles = cycleCreatedLent.map((record) {
+    final childTiles = cycleLentPersons.map((record) {
       final personName = record.lentPersonName ?? record.name;
-      final returnDate = record.anchorDate != null
-          ? DateTime.tryParse(record.anchorDate!)
-          : null;
-      final isOverdue = returnDate != null &&
-          DateTime(returnDate.year, returnDate.month, returnDate.day)
-              .isBefore(todayMidnight);
-      final dateLabel = returnDate != null
-          ? 'الاسترداد ${returnDate.day}/${returnDate.month}/${returnDate.year}'
-          : 'بدون تاريخ استرداد';
+      
+      // نشاط الشخص ده في الدورة دي
+      final personCycleTxs = state.transactions.where((t) =>
+          ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
+           (t.notes?.contains('استرداد سلفة من $personName') ?? false)) &&
+          !t.createdAt.isBefore(_cycleStart) &&
+          !t.createdAt.isAfter(cycleEnd)).toList();
+      
+      final out = personCycleTxs.where((t) => t.type == 'expense').fold(0.0, (s, t) => s + t.amount);
+      final inc = personCycleTxs.where((t) => t.type == 'income').fold(0.0, (s, t) => s + t.amount);
+      
+      final isOverdue = record.hasOutstandingLent && record.lentEntries.any((e) {
+        if (e['isSettled'] == true) return false;
+        final retStr = e['expectedReturnDate'] as String?;
+        if (retStr == null) return false;
+        final d = DateTime.tryParse(retStr);
+        return d != null && d.isBefore(DateTime.now());
+      });
+
+      String activityLabel = '';
+      if (out > 0 && inc > 0) activityLabel = 'سلفة ${out.toStringAsFixed(0)} • استرداد ${inc.toStringAsFixed(0)}';
+      else if (out > 0) activityLabel = 'سلفة ${out.toStringAsFixed(0)}';
+      else if (inc > 0) activityLabel = 'استرداد ${inc.toStringAsFixed(0)}';
+      
+      final balanceLabel = 'المتبقي: ${record.outstandingLentAmount.toStringAsFixed(0)}';
       final statusLabel = isOverdue ? ' · متأخر ⚠️' : '';
 
       return _entityTile(
@@ -2723,11 +2747,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           record.iconColor.isEmpty ? '#1a7a4a' : record.iconColor,
           size: 48,
         ),
-        amountText: record.amount.toStringAsFixed(2),
-        metaText: '$dateLabel$statusLabel',
-        tint: isOverdue ? const Color(0xFFC65D2E) : null,
-        onTap: () => _openBudgetLentDetailsSheet(
-            record, state, monthTx),
+        amountText: out > 0 ? out.toStringAsFixed(2) : inc.toStringAsFixed(2),
+        metaText: '$activityLabel\n$balanceLabel$statusLabel',
+        tint: isOverdue ? const Color(0xFFC65D2E) : (out > 0 ? null : const Color(0xFF1a7a4a)),
+        onTap: () => _openBudgetLentDetailsSheet(record, state),
         embeddedInIncomeCard: true,
         actions: const [],
       );
@@ -2768,12 +2791,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${cycleCreatedLent.length} سلفة'
-                              '${hasOverdue ? ' · يوجد متأخرات ⚠️' : ''}',
+                              '${cycleLentPersons.length} نشاط سلف'
+                              '${hasOverdueGlobal ? ' · يوجد متأخرات ⚠️' : ''}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: hasOverdue
+                                color: hasOverdueGlobal
                                     ? const Color(0xFFC65D2E)
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
@@ -2785,7 +2808,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            total.toStringAsFixed(2),
+                            cycleTotalOut.toStringAsFixed(2),
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
@@ -2824,342 +2847,229 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _openBudgetLentDetailsSheet(
-    RecurringTransactionEntity record,
+    RecurringTransactionEntity person,
     AppStateEntity state,
-    List<TransactionEntity> monthTx,
   ) async {
-    final personName = record.lentPersonName ?? record.name;
-    final returnDate = record.anchorDate != null
-        ? DateTime.tryParse(record.anchorDate!)
-        : null;
-    final today = DateTime.now();
-    final todayMid = DateTime(today.year, today.month, today.day);
-    final isOverdue = returnDate != null &&
-        DateTime(returnDate.year, returnDate.month, returnDate.day)
-            .isBefore(todayMid);
-
-    // الـ transactions المرتبطة بهذه السلفة
-    final lentTx = state.transactions.where((t) {
-      return t.type == 'expense' &&
-          t.walletId == record.walletId &&
-          (t.notes?.contains('سلفة لـ $personName') ?? false);
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    const accent = Color(0xFF1a7a4a);
+    final personName = person.lentPersonName ?? person.name;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
-      builder: (sheetCtx) {
-        final maxH = MediaQuery.of(sheetCtx).size.height * 0.78;
-        return SizedBox(
-          height: maxH.clamp(420.0, 700.0),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setS) {
+          final currentState = widget.cubit.state;
+          final currentPerson = currentState.recurringTransactions
+              .where((r) => r.id == person.id)
+              .cast<RecurringTransactionEntity?>()
+              .firstWhere((_) => true, orElse: () => null) ?? person;
+          final entries = currentPerson.lentEntries;
+
+          // معاملات التاريخ
+          final historyTxs = currentState.transactions.where((t) =>
+              ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
+               (t.notes?.contains('استرداد سلفة من $personName') ?? false))
+          ).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          return SizedBox(
+            height: MediaQuery.of(sheetCtx).size.height * 0.85,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color:
-                            const Color(0xFF1a7a4a).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.handshake_rounded,
-                          color: Color(0xFF1a7a4a)),
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)],
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            personName,
-                            style: Theme.of(sheetCtx)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                          Text(
-                            '${record.amount.toStringAsFixed(2)}'
-                            '${returnDate != null ? ' • ${returnDate.day}/${returnDate.month}/${returnDate.year}' : ''}'
-                            '${isOverdue ? ' ⚠️ متأخر' : ''}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isOverdue
-                                  ? const Color(0xFFC65D2E)
-                                  : Theme.of(sheetCtx)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (lentTx.isNotEmpty) ...[
-                  Text(
-                    'معاملات السلفة',
-                    style: Theme.of(sheetCtx).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(sheetCtx).colorScheme.onSurfaceVariant,
-                        ),
+                    borderRadius: BorderRadius.circular(22),
                   ),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    child: Container(
+                  child: Row(children: [
+                    Container(
+                      width: 56, height: 56,
                       decoration: BoxDecoration(
-                        color: Theme.of(sheetCtx)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.4),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Theme.of(sheetCtx)
-                              .colorScheme
-                              .outlineVariant
-                              .withValues(alpha: 0.5),
-                        ),
                       ),
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(10),
-                        shrinkWrap: true,
-                        itemCount: lentTx.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1, indent: 8),
-                        itemBuilder: (_, i) {
-                          final tx = lentTx[i];
-                          final d = tx.createdAt;
-                          return ListTile(
-                            dense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 8),
-                            leading: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1a7a4a)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.handshake_outlined,
-                                  color: Color(0xFF1a7a4a), size: 18),
+                      child: const Center(child: Icon(Icons.handshake_outlined, color: Colors.white, size: 28)),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(personName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+                        Text('إجمالي غير مسترد: ${currentPerson.outstandingLentAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    )),
+                  ]),
+                ),
+
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.receipt_long_outlined, size: 16, color: accent),
+                        const SizedBox(width: 6),
+                        const Text('السلفات الفردية', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: accent)),
+                      ]),
+                      const SizedBox(height: 10),
+                      if (entries.isEmpty)
+                        const Center(child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text('لا توجد سلفات مسجلة'),
+                        ))
+                      else
+                        ...entries.reversed.map((entry) {
+                          final isSettled = entry['isSettled'] == true;
+                          final amount = (entry['amount'] as num?)?.toDouble() ?? 0;
+                          final lentDateStr = entry['lentDate'] as String?;
+                          final returnStr = entry['expectedReturnDate'] as String?;
+                          final lentDate = lentDateStr != null ? DateTime.tryParse(lentDateStr) : null;
+                          final returnDate = returnStr != null ? DateTime.tryParse(returnStr) : null;
+                          final isOverdue = !isSettled && returnDate != null && returnDate.isBefore(DateTime.now());
+                          final entryId = entry['id'] as String;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isSettled ? Colors.grey.withValues(alpha: 0.05) : (isOverdue ? const Color(0xFFFFF5F5) : const Color(0xFFF0FAF4)),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: isSettled ? Colors.grey.withValues(alpha: 0.2) : (isOverdue ? Colors.red.withValues(alpha: 0.2) : accent.withValues(alpha: 0.2))),
                             ),
-                            title: Text(
-                              tx.notes?.isNotEmpty == true
-                                  ? tx.notes!
-                                  : personName,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  tx.amount.toStringAsFixed(2),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 13,
-                                    color: Color(0xFFC65D2E),
+                                Row(children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isSettled ? Colors.grey.withValues(alpha: 0.1) : accent.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(isSettled ? '✓ مسترد' : isOverdue ? '⚠ متأخر' : 'معلق',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: isSettled ? Colors.grey : (isOverdue ? Colors.red : accent))),
                                   ),
-                                ),
-                                Text(
-                                  '${d.day}/${d.month}/${d.year}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Theme.of(sheetCtx)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                                ),
+                                  const Spacer(),
+                                  Text(amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                                ]),
+                                const SizedBox(height: 8),
+                                if (lentDate != null)
+                                  Text('تاريخ السلفة: ${lentDate.day}/${lentDate.month}/${lentDate.year}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                if (returnDate != null)
+                                  Text('الاسترداد المتوقع: ${returnDate.day}/${returnDate.month}/${returnDate.year}',
+                                      style: TextStyle(fontSize: 12, color: isOverdue ? Colors.red : Colors.grey, fontWeight: isOverdue ? FontWeight.w700 : null)),
+                                
+                                if (!isSettled) ...[
+                                  const SizedBox(height: 12),
+                                  Row(children: [
+                                    _actionBtn(label: 'استرداد', icon: Icons.check_circle_outline, color: accent, onTap: () async {
+                                      await widget.cubit.settleLentEntry(currentPerson.id, entryId);
+                                      setS((){});
+                                    }),
+                                    const SizedBox(width: 8),
+                                    _actionBtn(label: 'تأجيل', icon: Icons.update_rounded, color: Colors.blueGrey, onTap: () async {
+                                      final newDate = await showDatePicker(context: sheetCtx, initialDate: DateTime.now().add(const Duration(days: 7)), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
+                                      if (newDate != null) {
+                                        await widget.cubit.postponeLentEntry(currentPerson.id, entryId, newDate);
+                                        setS((){});
+                                      }
+                                    }),
+                                    const SizedBox(width: 8),
+                                    _actionBtn(label: 'تنازل', icon: Icons.heart_broken_outlined, color: Colors.redAccent, onTap: () async {
+                                      final confirm = await _confirmAction(sheetCtx, 'تنازل عن السلفة', 'هل أنت متأكد من التنازل عن هذا المبلغ؟ سيتم اعتباره مصروفاً نهائياً ولن يطالب به.');
+                                      if (confirm) {
+                                        await widget.cubit.writeOffLentEntry(currentPerson.id, entryId);
+                                        setS((){});
+                                      }
+                                    }),
+                                  ]),
+                                ],
                               ],
                             ),
                           );
-                        },
-                      ),
-                    ),
+                        }),
+
+                      const SizedBox(height: 24),
+                      Row(children: [
+                        const Icon(Icons.history_rounded, size: 16, color: Colors.grey),
+                        const SizedBox(width: 6),
+                        const Text('سجل المعاملات', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.grey)),
+                      ]),
+                      const SizedBox(height: 10),
+                      if (historyTxs.isEmpty)
+                        const Center(child: Text('لا توجد معاملات مسجلة'))
+                      else
+                        ...historyTxs.map((tx) {
+                          final isIncome = tx.type == 'income';
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: (isIncome ? Colors.green : Colors.red).withValues(alpha: 0.1), shape: BoxShape.circle),
+                              child: Icon(isIncome ? Icons.south_west_rounded : Icons.north_east_rounded, size: 16, color: isIncome ? Colors.green : Colors.red),
+                            ),
+                            title: Text(isIncome ? 'استرداد مبلغ' : 'إخراج سلفة', style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: Text('${tx.createdAt.day}/${tx.createdAt.month}/${tx.createdAt.year}', style: const TextStyle(fontSize: 11)),
+                            trailing: Text('${isIncome ? '+' : '-'}${tx.amount.toStringAsFixed(0)}',
+                                style: TextStyle(fontWeight: FontWeight.w900, color: isIncome ? Colors.green : Colors.red)),
+                          );
+                        }),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      Navigator.of(sheetCtx).pop();
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          fullscreenDialog: true,
-                          builder: (_) => RecurringTransactionComposerScreen(
-                            cubit: widget.cubit,
-                            initialType: 'expense',
-                            initialWithinBudget: true,
-                            debtOnlyMode: true,
-                            initialLentMode: true,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add_rounded,
-                        color: Color(0xFF1a7a4a)),
-                    label: const Text('إضافة سلفة جديدة لنفس الشخص',
-                        style: TextStyle(color: Color(0xFF1a7a4a))),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      side: const BorderSide(
-                          color: Color(0xFF1a7a4a), width: 1),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(sheetCtx).pop();
-                          _confirmBudgetSettleLent(record.id, personName);
-                        },
-                        icon: const Icon(Icons.check_rounded, size: 18),
-                        label: const Text('تم الاسترداد',
-                            style: TextStyle(fontSize: 13)),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1a7a4a),
-                          minimumSize: const Size.fromHeight(44),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(sheetCtx).pop();
-                          _openBudgetLentPostpone(record.id, returnDate);
-                        },
-                        icon: const Icon(Icons.schedule_rounded, size: 18),
-                        label: const Text('تأجيل',
-                            style: TextStyle(fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.of(sheetCtx).pop();
-                          _confirmBudgetWriteOff(
-                              record.id, personName, record.amount);
-                        },
-                        icon: const Icon(
-                            Icons.remove_circle_outline_rounded,
-                            size: 18,
-                            color: Color(0xFF7B4FBF)),
-                        label: const Text('تنازل',
-                            style: TextStyle(
-                                color: Color(0xFF7B4FBF), fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
-                          side: const BorderSide(
-                              color: Color(0xFF7B4FBF)),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmBudgetSettleLent(
-      String recurringId, String personName) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد الاسترداد'),
-        content: Text('هل استردّيت السلفة من $personName؟\nسيتم إضافة المبلغ لمحفظتك.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تم الاسترداد'),
-          ),
-        ],
+          );
+        },
       ),
     );
-    if (confirmed == true && mounted) {
-      await widget.cubit.settleLentRecord(recurringId);
-    }
   }
 
-  Future<void> _openBudgetLentPostpone(
-      String recurringId, DateTime? currentDate) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: currentDate ?? DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-      helpText: 'اختر تاريخ الاسترداد الجديد',
-    );
-    if (picked != null && mounted) {
-      await widget.cubit.postponeLentRecord(recurringId, picked);
-    }
-  }
-
-  Future<void> _confirmBudgetWriteOff(
-      String recurringId, String personName, double amount) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تنازل عن السلفة'),
-        content: Text(
-          'هل متأكد إنك هتتنازل عن ${amount.toStringAsFixed(2)} من $personName؟\n\nلن يُضاف المبلغ لمحفظتك.',
+  Widget _actionBtn({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.2))),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF7B4FBF)),
-            child: const Text('تنازل'),
-          ),
-        ],
       ),
     );
-    if (confirmed == true && mounted) {
-      await widget.cubit.writeOffLentRecord(recurringId);
-    }
   }
+
+  Future<bool> _confirmAction(BuildContext context, String title, String msg) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد')),
+        ],
+      )
+    ) ?? false;
+  }
+
+
+
 
   List<Widget> _subscriptionCards(
     AppStateEntity state,

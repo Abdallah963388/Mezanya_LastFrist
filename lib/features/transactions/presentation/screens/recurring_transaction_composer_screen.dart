@@ -725,6 +725,31 @@ class _RecurringTransactionComposerScreenState
       ),
       const SizedBox(height: 12),
 
+      // الأيقونة واللون
+      _surfaceSection(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('الأيقونة واللون'),
+          subtitle: const Text('تظهر في التقارير والميزانية'),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _parseColor(_iconColor).withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: AppIconPickerDialog.iconWidgetForName(
+              _iconName,
+              color: _parseColor(_iconColor),
+              size: 22,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: _pickIcon,
+        ),
+      ),
+      const SizedBox(height: 12),
+
       // المبلغ
       TextField(
         controller: _lentAmountController,
