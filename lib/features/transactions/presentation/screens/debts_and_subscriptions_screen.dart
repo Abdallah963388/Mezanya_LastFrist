@@ -502,7 +502,7 @@ class _DebtsAndSubscriptionsScreenState
               .cast<RecurringTransactionEntity?>()
               .firstWhere((_) => true, orElse: () => null) ?? person;
           
-          final pendingEntries = currentPerson.lentEntries.where((e) => e['isSettled'] != true).toList();
+          final allEntries = currentPerson.lentEntries.toList();
           
           final historyTxs = currentState.transactions.where((t) =>
               ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
@@ -566,9 +566,10 @@ class _DebtsAndSubscriptionsScreenState
                     theme: theme,
                     accent: accent,
                     person: currentPerson,
-                    pendingEntries: pendingEntries,
+                    allEntries: allEntries,
                     onEntryAction: () => setS(() {}),
                     cubit: widget.cubit,
+                    sheetCtx: sheetCtx,
                   ),
                 ),
 
@@ -1581,60 +1582,70 @@ class _LentEntriesExpandingCard extends StatefulWidget {
     required this.theme,
     required this.accent,
     required this.person,
-    required this.pendingEntries,
+    required this.allEntries,
     required this.onEntryAction,
     required this.cubit,
+    required this.sheetCtx,
   });
 
   final ThemeData theme;
   final Color accent;
   final RecurringTransactionEntity person;
-  final List<dynamic> pendingEntries;
+  final List<dynamic> allEntries;
   final VoidCallback onEntryAction;
   final AppCubit cubit;
+  final BuildContext sheetCtx;
 
   @override
   State<_LentEntriesExpandingCard> createState() => _LentEntriesExpandingCardState();
 }
 
 class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
-  bool _expanded = false;
+  bool _expanded = true;
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final accent = widget.accent;
+    final pendingCount = widget.allEntries.where((e) => e['isSettled'] != true).length;
 
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
       child: Column(
         children: [
+          // ── Header ─────────────────────────────────────────────────────
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
                   Container(
-                    width: 36, height: 36,
+                    width: 38, height: 38,
                     decoration: BoxDecoration(
                       color: accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(Icons.receipt_long_rounded, color: accent, size: 18),
+                    child: Icon(Icons.receipt_long_rounded, color: accent, size: 20),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'سلفات لم تسدد (${widget.pendingEntries.length})',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('السلفات الفردية', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                        Text(
+                          '$pendingCount معلق · ${widget.allEntries.length} إجمالي',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                        ),
+                      ],
                     ),
                   ),
                   AnimatedRotation(
@@ -1646,9 +1657,11 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
               ),
             ),
           ),
+
+          // ── Entries List ────────────────────────────────────────────────
           AnimatedCrossFade(
             firstChild: const SizedBox.shrink(),
-            secondChild: _buildEntriesList(),
+            secondChild: _buildEntriesList(theme, accent),
             crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
@@ -1657,58 +1670,112 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
     );
   }
 
-  Widget _buildEntriesList() {
-    if (widget.pendingEntries.isEmpty) {
+  Widget _buildEntriesList(ThemeData theme, Color accent) {
+    final entries = widget.allEntries.reversed.toList();
+    if (entries.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.only(bottom: 14),
-        child: Text('لا توجد سلفات معلقة حالياً.'),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Text('لا توجد سلفات مسجلة لهذا الشخص.', style: TextStyle(color: Colors.grey)),
       );
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         children: [
           const Divider(height: 1),
           const SizedBox(height: 12),
-          ...widget.pendingEntries.map((entry) {
+          ...entries.map((entry) {
+            final isSettled = entry['isSettled'] == true;
             final amount = (entry['amount'] as num?)?.toDouble() ?? 0;
+            final lentDateStr = entry['lentDate'] as String?;
             final returnStr = entry['expectedReturnDate'] as String?;
+            final lentDate = lentDateStr != null ? DateTime.tryParse(lentDateStr) : null;
             final returnDate = returnStr != null ? DateTime.tryParse(returnStr) : null;
+            final isOverdue = !isSettled && returnDate != null && returnDate.isBefore(DateTime.now());
             final entryId = entry['id'] as String;
-            final isOverdue = returnDate != null && returnDate.isBefore(DateTime.now());
+
+            final cardColor = isSettled
+                ? Colors.grey.withValues(alpha: 0.05)
+                : (isOverdue ? const Color(0xFFFFF5F5) : const Color(0xFFF0FAF4));
+            final borderColor = isSettled
+                ? Colors.grey.withValues(alpha: 0.2)
+                : (isOverdue ? Colors.red.withValues(alpha: 0.2) : accent.withValues(alpha: 0.2));
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isOverdue ? Colors.red.withValues(alpha: 0.05) : widget.accent.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(14),
+                color: cardColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: borderColor),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                            if (returnDate != null)
-                              Text(
-                                'تاريخ الاسترداد: ${returnDate.day}/${returnDate.month}',
-                                style: TextStyle(fontSize: 11, color: isOverdue ? Colors.red : Colors.grey, fontWeight: isOverdue ? FontWeight.w700 : null),
-                              ),
-                          ],
+                  // ── Status badge + Amount ──────────────────────────────
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSettled
+                            ? Colors.grey.withValues(alpha: 0.1)
+                            : (isOverdue ? Colors.red.withValues(alpha: 0.1) : accent.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isSettled ? '✓ مسترد' : (isOverdue ? '⚠ متأخر' : 'معلق'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: isSettled ? Colors.grey : (isOverdue ? Colors.red : accent),
                         ),
                       ),
-                      _miniActionBtn(label: 'رد', icon: Icons.check_rounded, color: widget.accent, onTap: () async {
-                        await widget.cubit.settleLentEntry(widget.person.id, entryId);
-                        widget.onEntryAction();
-                      }),
-                      const SizedBox(width: 6),
-                      _miniActionBtn(label: 'أجل', icon: Icons.update_rounded, color: Colors.blueGrey, onTap: () async {
-                         final d = await showDatePicker(
-                            context: context,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${amount.toStringAsFixed(2)} ج.م',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+
+                  // ── Dates ──────────────────────────────────────────────
+                  if (lentDate != null)
+                    Text(
+                      'تاريخ السلفة: ${lentDate.day}/${lentDate.month}/${lentDate.year}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  if (returnDate != null)
+                    Text(
+                      'الاسترداد المتوقع: ${returnDate.day}/${returnDate.month}/${returnDate.year}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isOverdue ? Colors.red : Colors.grey,
+                        fontWeight: isOverdue ? FontWeight.w700 : null,
+                      ),
+                    ),
+
+                  // ── Action Buttons (pending only) ──────────────────────
+                  if (!isSettled) ...[
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      _actionBtn(
+                        label: 'استرداد',
+                        icon: Icons.check_circle_outline,
+                        color: accent,
+                        onTap: () async {
+                          await widget.cubit.settleLentEntry(widget.person.id, entryId);
+                          widget.onEntryAction();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _actionBtn(
+                        label: 'تأجيل',
+                        icon: Icons.update_rounded,
+                        color: Colors.blueGrey,
+                        onTap: () async {
+                          final d = await showDatePicker(
+                            context: widget.sheetCtx,
                             initialDate: DateTime.now().add(const Duration(days: 7)),
                             firstDate: DateTime.now(),
                             lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
@@ -1717,9 +1784,37 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
                             await widget.cubit.postponeLentEntry(widget.person.id, entryId, d);
                             widget.onEntryAction();
                           }
-                      }),
-                    ],
-                  ),
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      _actionBtn(
+                        label: 'تنازل',
+                        icon: Icons.heart_broken_outlined,
+                        color: Colors.redAccent,
+                        onTap: () async {
+                          final confirm = await showDialog<bool>(
+                            context: widget.sheetCtx,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('تنازل عن السلفة'),
+                              content: const Text('هل أنت متأكد من التنازل عن هذا المبلغ؟ سيتم اعتباره مصروفاً نهائياً.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                                FilledButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                  child: const Text('تنازل'),
+                                ),
+                              ],
+                            ),
+                          ) ?? false;
+                          if (confirm) {
+                            await widget.cubit.writeOffLentEntry(widget.person.id, entryId);
+                            widget.onEntryAction();
+                          }
+                        },
+                      ),
+                    ]),
+                  ],
                 ],
               ),
             );
@@ -1729,19 +1824,26 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
     );
   }
 
-  Widget _miniActionBtn({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
-          ],
+  Widget _actionBtn({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+            ],
+          ),
         ),
       ),
     );
