@@ -4860,7 +4860,8 @@ class _BudgetLentPendingCard extends StatelessWidget {
         .toList();
     final pendingCount = pendingEntries.length;
     final overdueCount = pendingEntries.where((entry) {
-      final date = DateTime.tryParse(entry['expectedReturnDate'] as String? ?? '');
+      final date =
+          DateTime.tryParse(entry['expectedReturnDate'] as String? ?? '');
       return date != null && date.isBefore(DateTime.now());
     }).length;
     final totalPending = pendingEntries.fold<double>(0, (sum, entry) {
