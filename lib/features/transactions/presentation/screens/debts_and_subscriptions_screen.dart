@@ -436,11 +436,11 @@ class _DebtsAndSubscriptionsScreenState
               decoration: BoxDecoration(
                 color: (isArchived ? Colors.grey : accent)
                     .withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(16),
+                shape: BoxShape.circle,
               ),
               child: Center(
-                child: AppIconPickerDialog.iconWidgetForName(
-                  isArchived ? 'archive' : person.icon,
+                child: Icon(
+                  isArchived ? Icons.archive_outlined : Icons.person_rounded,
                   color: isArchived ? Colors.grey : accent,
                   size: 26,
                 ),
@@ -562,9 +562,9 @@ class _DebtsAndSubscriptionsScreenState
                       width: 56, height: 56,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(16),
+                        shape: BoxShape.circle,
                       ),
-                      child: Center(child: AppIconPickerDialog.iconWidgetForName(person.icon, color: Colors.white, size: 28)),
+                      child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 28)),
                     ),
                     const SizedBox(width: 14),
                     Expanded(child: Column(
@@ -714,9 +714,17 @@ class _DebtsAndSubscriptionsScreenState
             .firstWhere((_) => true, orElse: () => null)
         : null;
 
-    final nameCtrl = TextEditingController(text: existingPerson?.lentPersonName ?? existingPerson?.name ?? '');
+    // قائمة الأشخاص الموجودين للاختيار منهم
+    final allLentPersons = state.recurringTransactions
+        .where((r) => r.isLent && !r.isLentArchived)
+        .toList();
+
+    final nameCtrl = TextEditingController(text: '');
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+
+    // الشخص المحدد: إما الموجود مسبقاً أو null (شخص جديد)
+    RecurringTransactionEntity? selectedPerson = existingPerson;
     String walletId = existingPerson?.walletId ?? (state.wallets.isNotEmpty ? state.wallets.first.id : '');
     DateTime lentDate = DateTime.now();
     DateTime returnDate = DateTime.now().add(const Duration(days: 30));
@@ -726,113 +734,186 @@ class _DebtsAndSubscriptionsScreenState
       isScrollControlled: true,
       useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 46, height: 5,
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(999)))),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)], begin: Alignment.topRight, end: Alignment.bottomLeft),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Row(children: [
-                    Container(width: 48, height: 48,
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(14)),
-                        child: const Center(child: Icon(Icons.handshake_outlined, color: Colors.white, size: 26))),
-                    const SizedBox(width: 14),
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(existingPerson != null ? 'سلفة جديدة لـ ${existingPerson.lentPersonName ?? existingPerson.name}' : 'تسجيل سلفة',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
-                      const Text('المبلغ يُخصم من المحفظة فوراً',
-                          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 12)),
-                    ]),
-                  ]),
-                ),
-                const SizedBox(height: 20),
+        builder: (ctx, setS) {
+          final effectivePerson = selectedPerson;
+          final effectiveName = effectivePerson != null
+              ? (effectivePerson.lentPersonName ?? effectivePerson.name)
+              : null;
 
-                // اسم الشخص
-                if (existingPerson == null)
-                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الشخص', prefixIcon: Icon(Icons.person_outline_rounded)))
-                else
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 46, height: 5,
+                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(999)))),
+                  const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: _lentAccent.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)], begin: Alignment.topRight, end: Alignment.bottomLeft),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
                     child: Row(children: [
-                      const Icon(Icons.person_rounded, color: _lentAccent, size: 20),
-                      const SizedBox(width: 10),
-                      Text(existingPerson.lentPersonName ?? existingPerson.name, style: const TextStyle(fontWeight: FontWeight.w800, color: _lentAccent)),
+                      Container(width: 48, height: 48,
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                          child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 26))),
+                      const SizedBox(width: 14),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(effectiveName != null ? 'سلفة جديدة لـ $effectiveName' : 'تسجيل سلفة',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                        const Text('المبلغ يُخصم من المحفظة فوراً',
+                            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 12)),
+                      ])),
                     ]),
                   ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 20),
 
-                // المبلغ
-                TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'المبلغ', prefixIcon: Icon(Icons.payments_outlined))),
-                const SizedBox(height: 12),
+                  // ── اختيار الشخص ─────────────────────────────────────────
+                  if (allLentPersons.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _lentAccent.withValues(alpha: 0.4)),
+                        borderRadius: BorderRadius.circular(16),
+                        color: _lentAccent.withValues(alpha: 0.04),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String?>(
+                          value: selectedPerson?.id,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _lentAccent),
+                          hint: const Row(children: [
+                            Icon(Icons.person_add_outlined, size: 18, color: _lentAccent),
+                            SizedBox(width: 8),
+                            Text('شخص جديد', style: TextStyle(fontWeight: FontWeight.w700, color: _lentAccent)),
+                          ]),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Row(children: [
+                                Icon(Icons.person_add_outlined, size: 18, color: _lentAccent),
+                                SizedBox(width: 8),
+                                Text('شخص جديد', style: TextStyle(fontWeight: FontWeight.w700, color: _lentAccent)),
+                              ]),
+                            ),
+                            ...allLentPersons.map((p) {
+                              final name = p.lentPersonName ?? p.name;
+                              return DropdownMenuItem<String?>(
+                                value: p.id,
+                                child: Row(children: [
+                                  const Icon(Icons.person_rounded, size: 18, color: _lentAccent),
+                                  const SizedBox(width: 8),
+                                  Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                ]),
+                              );
+                            }),
+                          ],
+                          onChanged: (val) {
+                            setS(() {
+                              if (val == null) {
+                                selectedPerson = null;
+                                nameCtrl.text = '';
+                                walletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
+                              } else {
+                                selectedPerson = allLentPersons.firstWhere((p) => p.id == val);
+                                walletId = selectedPerson!.walletId;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // المحفظة
-                if (state.wallets.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(16)),
-                    child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                      value: walletId.isEmpty ? null : walletId, isExpanded: true, hint: const Text('اختر المحفظة'),
-                      items: state.wallets.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))).toList(),
-                      onChanged: (v) { if (v != null) setS(() => walletId = v); },
-                    )),
-                  ),
+                  // اسم الشخص (شخص جديد فقط)
+                  if (effectivePerson == null)
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الشخص',
+                        prefixIcon: Icon(Icons.person_outline_rounded),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: _lentAccent.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
+                      child: Row(children: [
+                        const Icon(Icons.person_rounded, color: _lentAccent, size: 20),
+                        const SizedBox(width: 10),
+                        Text(effectiveName ?? '', style: const TextStyle(fontWeight: FontWeight.w800, color: _lentAccent)),
+                      ]),
+                    ),
                   const SizedBox(height: 12),
+
+                  // المبلغ
+                  TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'المبلغ', prefixIcon: Icon(Icons.payments_outlined))),
+                  const SizedBox(height: 12),
+
+                  // المحفظة
+                  if (state.wallets.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(16)),
+                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                        value: walletId.isEmpty ? null : walletId, isExpanded: true, hint: const Text('اختر المحفظة'),
+                        items: state.wallets.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))).toList(),
+                        onChanged: (v) { if (v != null) setS(() => walletId = v); },
+                      )),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // تاريخ السلفة
+                  _datePicker(ctx: ctx, label: 'تاريخ السلفة', date: lentDate,
+                      firstDate: DateTime(2020), lastDate: DateTime.now(),
+                      onPicked: (d) => setS(() => lentDate = d)),
+                  const SizedBox(height: 10),
+
+                  // تاريخ الاسترداد
+                  _datePicker(ctx: ctx, label: 'تاريخ الاسترداد المتوقع', date: returnDate,
+                      firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+                      onPicked: (d) => setS(() => returnDate = d)),
+                  const SizedBox(height: 12),
+
+                  // ملاحظة
+                  TextField(controller: notesCtrl, maxLines: 2,
+                      decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)', prefixIcon: Icon(Icons.notes_outlined))),
+                  const SizedBox(height: 20),
+
+                  SizedBox(width: double.infinity, child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: _lentAccent, padding: const EdgeInsets.symmetric(vertical: 14)),
+                    onPressed: () async {
+                      final name = effectivePerson != null
+                          ? (effectivePerson.lentPersonName ?? effectivePerson.name)
+                          : nameCtrl.text.trim();
+                      final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+                      if (name.isEmpty || amount <= 0 || walletId.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل الاسم والمبلغ والمحفظة')));
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      await widget.cubit.addLentRecord(
+                        personName: name, amount: amount, walletId: walletId,
+                        lentDate: lentDate, expectedReturnDate: returnDate,
+                        existingPersonId: effectivePerson?.id,
+                        notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                      );
+                    },
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('تسجيل السلفة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  )),
                 ],
-
-                // تاريخ السلفة
-                _datePicker(ctx: ctx, label: 'تاريخ السلفة', date: lentDate,
-                    firstDate: DateTime(2020), lastDate: DateTime.now(),
-                    onPicked: (d) => setS(() => lentDate = d)),
-                const SizedBox(height: 10),
-
-                // تاريخ الاسترداد
-                _datePicker(ctx: ctx, label: 'تاريخ الاسترداد المتوقع', date: returnDate,
-                    firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                    onPicked: (d) => setS(() => returnDate = d)),
-                const SizedBox(height: 12),
-
-                // ملاحظة
-                TextField(controller: notesCtrl, maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)', prefixIcon: Icon(Icons.notes_outlined))),
-                const SizedBox(height: 20),
-
-                SizedBox(width: double.infinity, child: FilledButton.icon(
-                  style: FilledButton.styleFrom(backgroundColor: _lentAccent, padding: const EdgeInsets.symmetric(vertical: 14)),
-                  onPressed: () async {
-                    final name = existingPerson != null ? (existingPerson.lentPersonName ?? existingPerson.name) : nameCtrl.text.trim();
-                    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-                    if (name.isEmpty || amount <= 0 || walletId.isEmpty) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل الاسم والمبلغ والمحفظة')));
-                      return;
-                    }
-                    Navigator.pop(ctx);
-                    await widget.cubit.addLentRecord(
-                      personName: name, amount: amount, walletId: walletId,
-                      lentDate: lentDate, expectedReturnDate: returnDate,
-                      existingPersonId: existingPersonId,
-                      notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-                    );
-                  },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('تسجيل السلفة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                )),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
     nameCtrl.dispose();
