@@ -5,6 +5,8 @@ import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
+import '../../domain/entities/transaction_entity.dart';
+import '../widgets/transaction_details_sheet.dart';
 import 'recurring_transaction_composer_screen.dart';
 import 'subscription_preset_selection_screen.dart';
 
@@ -77,18 +79,39 @@ class _DebtsAndSubscriptionsScreenState
               _typeSwitcher(),
               const SizedBox(height: 14),
               if (_tab == 'subscriptions') ...[
+                _actionButton(
+                  label: 'إضافة اشتراك جديد',
+                  icon: Icons.subscriptions_rounded,
+                  color: _subscriptionAccent,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SubscriptionPresetSelectionScreen(
+                          cubit: widget.cubit,
+                        ),
+                        fullscreenDialog: true,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
                 if (subscriptionRecords.isEmpty)
                   _emptyCard('لا توجد اشتراكات مسجلة حالياً.')
                 else
                   ...subscriptionRecords
                       .map((r) => _recurringCard(state, r)),
               ] else ...[
-                // ── زرار الإضافة الموحّد ──────────────────────────────────
+                // ── زرار الإضافة ─────────────────────────────────────────
                 _actionButton(
-                  label: 'إضافة دين أو سلفة',
-                  icon: Icons.add_rounded,
+                  label: 'دين أو قسط',
+                  icon: Icons.account_balance_outlined,
                   color: _debtAccent,
-                  onTap: () => _openAddDebtOrLentSheet(state),
+                  onTap: () => _openRecurringComposer(
+                    mode: 'expense',
+                    initialExpensePlanKind: 'installment',
+                    debtOnlyMode: true,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -498,16 +521,20 @@ class _DebtsAndSubscriptionsScreenState
         builder: (sheetCtx, setS) {
           final currentState = widget.cubit.state;
           final currentPerson = currentState.recurringTransactions
-              .where((r) => r.id == person.id)
-              .cast<RecurringTransactionEntity?>()
-              .firstWhere((_) => true, orElse: () => null) ?? person;
-          
+                  .where((r) => r.id == person.id)
+                  .cast<RecurringTransactionEntity?>()
+                  .firstWhere((_) => true, orElse: () => null) ??
+              person;
+
           final allEntries = currentPerson.lentEntries.toList();
-          
-          final historyTxs = currentState.transactions.where((t) =>
-              ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
-               (t.notes?.contains('استرداد سلفة من $personName') ?? false))
-          ).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+          final historyTxs = currentState.transactions
+              .where((t) =>
+                  ((t.notes?.contains('سلفة لـ $personName') ?? false) ||
+                      (t.notes?.contains('استرداد سلفة من $personName') ??
+                          false)))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           return SizedBox(
             height: MediaQuery.of(sheetCtx).size.height * 0.9,
@@ -515,49 +542,98 @@ class _DebtsAndSubscriptionsScreenState
               children: [
                 // ── Hero Header ──────────────────────────────────────────
                 Container(
-                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [accent, accent.withValues(alpha: 0.7)],
                       begin: Alignment.topRight,
                       end: Alignment.bottomLeft,
                     ),
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  child: Row(children: [
-                    Container(
-                      width: 56, height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3)),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                            size: 38,
+                          ),
+                        ),
                       ),
-                      child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 28)),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(personName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
-                        Text('إجمالي غير مسترد: ${currentPerson.outstandingLentAmount.toStringAsFixed(2)}',
-                            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                      ],
-                    )),
-                    IconButton.filledTonal(
-                      onPressed: () {
-                        Navigator.pop(sheetCtx);
-                        _openLentForm(currentState, existingPersonId: currentPerson.id);
-                      },
-                      icon: const Icon(Icons.add_rounded),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        foregroundColor: Colors.white,
+                      const SizedBox(width: 18),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              personName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 22,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'إجمالي غير مسترد: ${currentPerson.outstandingLentAmount.toStringAsFixed(2)} ج.م',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ]),
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          Navigator.pop(sheetCtx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecurringTransactionComposerScreen(
+                                cubit: widget.cubit,
+                                initialType: 'expense',
+                                initialRecurring: currentPerson,
+                                initialLentMode: true,
+                              ),
+                              fullscreenDialog: true,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.add_rounded, size: 28),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.25),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.all(12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // ── Expanding Card for Pending Entries ──────────────────
                 Padding(
@@ -573,16 +649,23 @@ class _DebtsAndSubscriptionsScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // ── History Header ──────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(children: [
-                    Icon(Icons.history_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: 8),
-                    const Text('سجل المعاملات', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(Icons.history_rounded,
+                          size: 18, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'سجل المعاملات',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14),
+                      ),
+                    ],
+                  ),
                 ),
 
                 // ── History List ────────────────────────────────────────
@@ -597,16 +680,35 @@ class _DebtsAndSubscriptionsScreenState
                             final isIncome = tx.type == 'income';
                             return ListTile(
                               dense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
                               leading: Container(
                                 padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(color: (isIncome ? Colors.green : Colors.red).withValues(alpha: 0.1), shape: BoxShape.circle),
-                                child: Icon(isIncome ? Icons.south_west_rounded : Icons.north_east_rounded, size: 16, color: isIncome ? Colors.green : Colors.red),
+                                decoration: BoxDecoration(
+                                    color: (isIncome ? Colors.green : Colors.red)
+                                        .withValues(alpha: 0.1),
+                                    shape: BoxShape.circle),
+                                child: Icon(
+                                    isIncome
+                                        ? Icons.south_west_rounded
+                                        : Icons.north_east_rounded,
+                                    size: 16,
+                                    color: isIncome ? Colors.green : Colors.red),
                               ),
-                              title: Text(isIncome ? 'استرداد مبلغ' : 'إخراج سلفة', style: const TextStyle(fontWeight: FontWeight.w700)),
-                              subtitle: Text(DateFormat('d MMMM yyyy', 'ar').format(tx.createdAt), style: const TextStyle(fontSize: 11)),
-                              trailing: Text('${isIncome ? '+' : '-'}${tx.amount.toStringAsFixed(0)}',
-                                  style: TextStyle(fontWeight: FontWeight.w900, color: isIncome ? Colors.green : Colors.red)),
+                              title: Text(
+                                  isIncome ? 'استرداد مبلغ' : 'إخراج سلفة',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              subtitle: Text(
+                                  DateFormat('d MMMM yyyy', 'ar')
+                                      .format(tx.createdAt),
+                                  style: const TextStyle(fontSize: 11)),
+                              trailing: Text(
+                                  '${isIncome ? '+' : '-'}${tx.amount.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      color:
+                                          isIncome ? Colors.green : Colors.red)),
                             );
                           },
                         ),
@@ -614,38 +716,59 @@ class _DebtsAndSubscriptionsScreenState
 
                 // ── أزرار الشخص ───────────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                  child: Row(children: [
-                    Expanded(child: OutlinedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(sheetCtx);
-                        await widget.cubit.archiveLentPerson(person.id, archive: !person.isLentArchived);
-                      },
-                      icon: Icon(person.isLentArchived ? Icons.unarchive_outlined : Icons.archive_outlined, size: 16),
-                      label: Text(person.isLentArchived ? 'إلغاء الأرشفة' : 'أرشفة'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        side: BorderSide(color: Colors.grey.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            Navigator.pop(sheetCtx);
+                            await widget.cubit.archiveLentPerson(person.id,
+                                archive: !person.isLentArchived);
+                          },
+                          icon: Icon(
+                              person.isLentArchived
+                                  ? Icons.unarchive_outlined
+                                  : Icons.archive_outlined,
+                              size: 18),
+                          label: Text(
+                              person.isLentArchived ? 'إلغاء الأرشفة' : 'أرشفة الشخص',
+                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurfaceVariant,
+                            side: BorderSide(
+                                color: theme.colorScheme.outlineVariant,
+                                width: 1.5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
                       ),
-                    )),
-                    const SizedBox(width: 8),
-                    Expanded(child: OutlinedButton.icon(
-                      onPressed: () async {
-                        Navigator.pop(sheetCtx);
-                        await widget.cubit.deleteRecurringTransaction(person.id);
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('حذف'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      const SizedBox(width: 10),
+                      IconButton.outlined(
+                        onPressed: () async {
+                          final confirm = await _confirmDialog(
+                            title: 'حذف السجل',
+                            content: 'هل تريد حذف سجل $personName نهائياً؟',
+                          );
+                          if (confirm) {
+                            await widget.cubit
+                                .deleteRecurringTransaction(person.id);
+                            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            color: Colors.red),
+                        style: IconButton.styleFrom(
+                          side: const BorderSide(color: Colors.red, width: 1.5),
+                          padding: const EdgeInsets.all(14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
                       ),
-                    )),
-                  ]),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -655,113 +778,7 @@ class _DebtsAndSubscriptionsScreenState
     );
   }
 
-  // ── شيت اختيار نوع الإضافة (دين أو سلفة) ────────────────────────────────
-  Future<void> _openAddDebtOrLentSheet(AppStateEntity state) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'إضافة جديدة',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'اختار نوع الإضافة',
-              style: TextStyle(
-                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 20),
-            // ── دين عليّا ─────────────────────────────────────────────
-            InkWell(
-              onTap: () {
-                Navigator.pop(ctx);
-                _openRecurringComposer(
-                  mode: 'expense',
-                  initialExpensePlanKind: 'installment',
-                  debtOnlyMode: true,
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: _debtAccent.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _debtAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(children: [
-                  Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(
-                      color: _debtAccent.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Center(child: Icon(Icons.account_balance_outlined, color: _debtAccent, size: 26)),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('دين عليّا', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _debtAccent)),
-                      Text('قسط أو دين بيتخصم منك كل دورة', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _debtAccent.withValues(alpha: 0.7))),
-                    ],
-                  )),
-                  const Icon(Icons.chevron_left_rounded, color: _debtAccent),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // ── سلف لحد ────────────────────────────────────────────────
-            InkWell(
-              onTap: () {
-                Navigator.pop(ctx);
-                _openLentForm(state, existingPersonId: null);
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: _lentAccent.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _lentAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(children: [
-                  Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(
-                      color: _lentAccent.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(child: Icon(Icons.person_rounded, color: _lentAccent, size: 26)),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('سلف لحد', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _lentAccent)),
-                      Text('سلفت مبلغ لشخص وبتنتظر رده', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _lentAccent.withValues(alpha: 0.7))),
-                    ],
-                  )),
-                  const Icon(Icons.chevron_left_rounded, color: _lentAccent),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // (تم حذف شاشة الاختيار بطلب من المستخدم لفتح الفورم مباشرة)
 
   Future<bool> _confirmDialog({required String title, required String content}) async {
     final result = await showDialog<bool>(
@@ -783,220 +800,7 @@ class _DebtsAndSubscriptionsScreenState
   }
 
   // ── فورم إضافة سلفة (جديد أو لشخص موجود) ────────────────────────────────
-  Future<void> _openLentForm(AppStateEntity state, {String? existingPersonId}) async {
-    final existingPerson = existingPersonId != null
-        ? state.recurringTransactions
-            .where((r) => r.id == existingPersonId)
-            .cast<RecurringTransactionEntity?>()
-            .firstWhere((_) => true, orElse: () => null)
-        : null;
-
-    // قائمة الأشخاص الموجودين للاختيار منهم
-    final allLentPersons = state.recurringTransactions
-        .where((r) => r.isLent && !r.isLentArchived)
-        .toList();
-
-    final nameCtrl = TextEditingController(text: '');
-    final amountCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-
-    // الشخص المحدد: إما الموجود مسبقاً أو null (شخص جديد)
-    RecurringTransactionEntity? selectedPerson = existingPerson;
-    String walletId = existingPerson?.walletId ?? (state.wallets.isNotEmpty ? state.wallets.first.id : '');
-    DateTime lentDate = DateTime.now();
-    DateTime returnDate = DateTime.now().add(const Duration(days: 30));
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          final effectivePerson = selectedPerson;
-          final effectiveName = effectivePerson != null
-              ? (effectivePerson.lentPersonName ?? effectivePerson.name)
-              : null;
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(child: Container(width: 46, height: 5,
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(999)))),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF1A7A4A), Color(0xFF2DAE6B)], begin: Alignment.topRight, end: Alignment.bottomLeft),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Row(children: [
-                      Container(width: 48, height: 48,
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                          child: const Center(child: Icon(Icons.person_rounded, color: Colors.white, size: 26))),
-                      const SizedBox(width: 14),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(effectiveName != null ? 'سلفة جديدة لـ $effectiveName' : 'تسجيل سلفة',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
-                        const Text('المبلغ يُخصم من المحفظة فوراً',
-                            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 12)),
-                      ])),
-                    ]),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // ── اختيار الشخص ─────────────────────────────────────────
-                  if (allLentPersons.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: _lentAccent.withValues(alpha: 0.4)),
-                        borderRadius: BorderRadius.circular(16),
-                        color: _lentAccent.withValues(alpha: 0.04),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String?>(
-                          value: selectedPerson?.id,
-                          isExpanded: true,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _lentAccent),
-                          hint: const Row(children: [
-                            Icon(Icons.person_add_outlined, size: 18, color: _lentAccent),
-                            SizedBox(width: 8),
-                            Text('شخص جديد', style: TextStyle(fontWeight: FontWeight.w700, color: _lentAccent)),
-                          ]),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Row(children: [
-                                Icon(Icons.person_add_outlined, size: 18, color: _lentAccent),
-                                SizedBox(width: 8),
-                                Text('شخص جديد', style: TextStyle(fontWeight: FontWeight.w700, color: _lentAccent)),
-                              ]),
-                            ),
-                            ...allLentPersons.map((p) {
-                              final name = p.lentPersonName ?? p.name;
-                              return DropdownMenuItem<String?>(
-                                value: p.id,
-                                child: Row(children: [
-                                  const Icon(Icons.person_rounded, size: 18, color: _lentAccent),
-                                  const SizedBox(width: 8),
-                                  Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                ]),
-                              );
-                            }),
-                          ],
-                          onChanged: (val) {
-                            setS(() {
-                              if (val == null) {
-                                selectedPerson = null;
-                                nameCtrl.text = '';
-                                walletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
-                              } else {
-                                selectedPerson = allLentPersons.firstWhere((p) => p.id == val);
-                                walletId = selectedPerson!.walletId;
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // اسم الشخص (شخص جديد فقط)
-                  if (effectivePerson == null)
-                    TextField(
-                      controller: nameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم الشخص',
-                        prefixIcon: Icon(Icons.person_outline_rounded),
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: _lentAccent.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(14)),
-                      child: Row(children: [
-                        const Icon(Icons.person_rounded, color: _lentAccent, size: 20),
-                        const SizedBox(width: 10),
-                        Text(effectiveName ?? '', style: const TextStyle(fontWeight: FontWeight.w800, color: _lentAccent)),
-                      ]),
-                    ),
-                  const SizedBox(height: 12),
-
-                  // المبلغ
-                  TextField(controller: amountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'المبلغ', prefixIcon: Icon(Icons.payments_outlined))),
-                  const SizedBox(height: 12),
-
-                  // المحفظة
-                  if (state.wallets.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(16)),
-                      child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                        value: walletId.isEmpty ? null : walletId, isExpanded: true, hint: const Text('اختر المحفظة'),
-                        items: state.wallets.map((w) => DropdownMenuItem(value: w.id, child: Text(w.name))).toList(),
-                        onChanged: (v) { if (v != null) setS(() => walletId = v); },
-                      )),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // تاريخ السلفة
-                  _datePicker(ctx: ctx, label: 'تاريخ السلفة', date: lentDate,
-                      firstDate: DateTime(2020), lastDate: DateTime.now(),
-                      onPicked: (d) => setS(() => lentDate = d)),
-                  const SizedBox(height: 10),
-
-                  // تاريخ الاسترداد
-                  _datePicker(ctx: ctx, label: 'تاريخ الاسترداد المتوقع', date: returnDate,
-                      firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                      onPicked: (d) => setS(() => returnDate = d)),
-                  const SizedBox(height: 12),
-
-                  // ملاحظة
-                  TextField(controller: notesCtrl, maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)', prefixIcon: Icon(Icons.notes_outlined))),
-                  const SizedBox(height: 20),
-
-                  SizedBox(width: double.infinity, child: FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: _lentAccent, padding: const EdgeInsets.symmetric(vertical: 14)),
-                    onPressed: () async {
-                      final name = effectivePerson != null
-                          ? (effectivePerson.lentPersonName ?? effectivePerson.name)
-                          : nameCtrl.text.trim();
-                      final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
-                      if (name.isEmpty || amount <= 0 || walletId.isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('أدخل الاسم والمبلغ والمحفظة')));
-                        return;
-                      }
-                      Navigator.pop(ctx);
-                      await widget.cubit.addLentRecord(
-                        personName: name, amount: amount, walletId: walletId,
-                        lentDate: lentDate, expectedReturnDate: returnDate,
-                        existingPersonId: effectivePerson?.id,
-                        notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-                      );
-                    },
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('تسجيل السلفة', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  )),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-    nameCtrl.dispose();
-    amountCtrl.dispose();
-    notesCtrl.dispose();
-  }
+  // (تم حذف _openLentForm المخصص بطلب من المستخدم)
 
   Widget _datePicker({
     required BuildContext ctx,
@@ -1174,7 +978,7 @@ class _DebtsAndSubscriptionsScreenState
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setS) {
-          // Re-fetch the current state of this record to handle updates (like payments)
+          final theme = Theme.of(sheetContext);
           final currentState = widget.cubit.state;
           final currentRecord = currentState.recurringTransactions
                   .where((r) => r.id == record.id)
@@ -1184,21 +988,33 @@ class _DebtsAndSubscriptionsScreenState
 
           final isDebt = currentRecord.expensePlanKind == 'installment';
 
+          final historyTxs = currentState.transactions
+                  .where((t) =>
+                      ((t.notes?.contains('سداد دين: ${currentRecord.name}') ??
+                              false) ||
+                          (t.notes?.contains(
+                                  'تأكيد استحقاق اشتراك: ${currentRecord.name}') ??
+                              false) ||
+                          (t.notes?.contains('خصم تلقائي دين: ${currentRecord.name}') ??
+                              false)))
+                  .toList()
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
           return SizedBox(
-            height: MediaQuery.of(sheetContext).size.height * 0.88,
+            height: MediaQuery.of(sheetContext).size.height * 0.9,
             child: Column(
               children: [
                 // ── Hero Header ──────────────────────────────────────────
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [accent, accent.withValues(alpha: 0.7)],
                       begin: Alignment.topRight,
                       end: Alignment.bottomLeft,
                     ),
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
                         color: accent.withValues(alpha: 0.3),
@@ -1210,8 +1026,8 @@ class _DebtsAndSubscriptionsScreenState
                   child: Row(
                     children: [
                       Container(
-                        width: 72,
-                        height: 72,
+                        width: 76,
+                        height: 76,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(20),
@@ -1222,11 +1038,11 @@ class _DebtsAndSubscriptionsScreenState
                           child: AppIconPickerDialog.iconWidgetForName(
                             currentRecord.icon,
                             color: Colors.white,
-                            size: 34,
+                            size: 38,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 18),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1236,15 +1052,15 @@ class _DebtsAndSubscriptionsScreenState
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
-                                fontSize: 20,
+                                fontSize: 22,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               '${_typeLabel(currentRecord)} · ${_executionLabel(currentRecord.executionType)}',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.8),
-                                fontWeight: FontWeight.w700,
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w800,
                                 fontSize: 13,
                               ),
                             ),
@@ -1261,13 +1077,13 @@ class _DebtsAndSubscriptionsScreenState
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
-                              fontSize: 22,
+                              fontSize: 24,
                             ),
                           ),
                           Text(
                             'ج.م',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
+                              color: Colors.white.withValues(alpha: 0.75),
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
@@ -1314,6 +1130,15 @@ class _DebtsAndSubscriptionsScreenState
                       const SizedBox(height: 10),
                       _DetailsTable(rows: _detailsRows(currentState, currentRecord)),
                       const SizedBox(height: 24),
+
+                      // ── سجل المعاملات ─────────────────────────────────────────
+                      _sectionTitle(context, 'سجل المعاملات', Icons.history_rounded),
+                      const SizedBox(height: 10),
+                      if (historyTxs.isEmpty)
+                        _emptyCard('لا توجد معاملات مسجلة لهذا البند.')
+                      else
+                        ...historyTxs.map((t) => _transactionTile(sheetContext, theme, t)),
+                      const SizedBox(height: 28),
                     ],
                   ),
                 ),
@@ -1575,6 +1400,109 @@ class _DebtsAndSubscriptionsScreenState
       ),
     );
   }
+
+  Widget _transactionTile(
+    BuildContext sheetContext,
+    ThemeData theme,
+    TransactionEntity item,
+  ) {
+    final isIncome = item.type == 'income';
+    final isExpense = item.type == 'expense';
+    final amtColor = isIncome
+        ? const Color(0xFF0F9D7A)
+        : (isExpense ? theme.colorScheme.error : theme.colorScheme.primary);
+    final icon = isIncome
+        ? Icons.add_rounded
+        : (isExpense ? Icons.remove_rounded : Icons.swap_horiz_rounded);
+    final defaultTitle = isIncome ? 'دخل' : (isExpense ? 'مصروف' : 'تحويل');
+    final prefix = isIncome ? '+' : (isExpense ? '-' : '');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Navigator.pop(sheetContext);
+            final parentContext = context;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              openTransactionDetailsSheet(
+                parentContext,
+                cubit: widget.cubit,
+                transaction: item,
+              );
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: amtColor.withValues(alpha: 0.12),
+                  child: Icon(icon, color: amtColor, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.notes?.isNotEmpty == true
+                            ? item.notes!
+                            : defaultTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        DateFormat('d MMMM · h:mm a', 'ar')
+                            .format(item.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$prefix${item.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: amtColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _LentEntriesExpandingCard extends StatefulWidget {
@@ -1824,7 +1752,12 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
     );
   }
 
-  Widget _actionBtn({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
+  Widget _actionBtn({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -1841,7 +1774,14 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
             children: [
               Icon(icon, size: 16, color: color),
               const SizedBox(height: 2),
-              Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
             ],
           ),
         ),
@@ -1849,6 +1789,7 @@ class _LentEntriesExpandingCardState extends State<_LentEntriesExpandingCard> {
     );
   }
 }
+
 
 class _DebtInstallmentInteractiveCard extends StatefulWidget {
   const _DebtInstallmentInteractiveCard({
