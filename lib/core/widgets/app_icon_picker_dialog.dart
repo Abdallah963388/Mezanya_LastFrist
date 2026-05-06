@@ -555,7 +555,7 @@ class AppIconPickerDialog extends StatefulWidget {
     double size = 24,
   }) {
     final icon = iconForName(name);
-    final iconData = icon as IconData;
+    final iconData = icon as dynamic;
     if (iconData.fontPackage == 'font_awesome_flutter') {
       return FaIcon(iconData, color: color, size: size);
     }
@@ -605,11 +605,31 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   bool _useCustomPicker = false;
 
   static const _presetHexColors = [
-    '#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB',
-    '#1E88E5', '#039BE5', '#00ACC1', '#00897B', '#43A047',
-    '#7CB342', '#F9A825', '#FB8C00', '#F4511E', '#6D4C41',
-    '#165b47', '#0F766E', '#2F6F5E', '#546E7A', '#37474F',
-    '#C62828', '#283593', '#4527A0', '#558B2F', '#1A1A1A',
+    '#E53935',
+    '#D81B60',
+    '#8E24AA',
+    '#5E35B1',
+    '#3949AB',
+    '#1E88E5',
+    '#039BE5',
+    '#00ACC1',
+    '#00897B',
+    '#43A047',
+    '#7CB342',
+    '#F9A825',
+    '#FB8C00',
+    '#F4511E',
+    '#6D4C41',
+    '#165b47',
+    '#0F766E',
+    '#2F6F5E',
+    '#546E7A',
+    '#37474F',
+    '#C62828',
+    '#283593',
+    '#4527A0',
+    '#558B2F',
+    '#1A1A1A',
   ];
 
   @override
@@ -624,7 +644,8 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
   Widget build(BuildContext context) {
     final icons = AppIconPickerDialog.iconsForCategory(_selectedCategoryId);
     const contentHeight = 460.0;
-    final dialogWidth = math.min(520.0, MediaQuery.of(context).size.width - 32.0);
+    final dialogWidth =
+        math.min(520.0, MediaQuery.of(context).size.width - 32.0);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
@@ -701,50 +722,52 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
                   height: contentHeight,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
-                    child: _step == 0 
-                      ? Column(
-                          key: const ValueKey('step0'),
-                          children: [
-                            _categoryChips(),
-                            const SizedBox(height: 12),
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: const Color(0xFFE0DED6)),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: _iconGrid(icons),
+                    child: _step == 0
+                        ? Column(
+                            key: const ValueKey('step0'),
+                            children: [
+                              _categoryChips(),
+                              const SizedBox(height: 12),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                        color: const Color(0xFFE0DED6)),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: _iconGrid(icons),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          key: const ValueKey('step1'),
-                          children: [
-                            _colorPickerToggle(),
-                            const SizedBox(height: 12),
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: const Color(0xFFE0DED6)),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: _colorStep(),
+                            ],
+                          )
+                        : Column(
+                            key: const ValueKey('step1'),
+                            children: [
+                              _colorPickerToggle(),
+                              const SizedBox(height: 12),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                        color: const Color(0xFFE0DED6)),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: _colorStep(),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                   ),
                 ),
 
@@ -911,12 +934,21 @@ class _AppIconPickerDialogState extends State<AppIconPickerDialog> {
           decoration: BoxDecoration(
             color: active ? Colors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
-            boxShadow: active ? [const BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))] : null,
+            boxShadow: active
+                ? [
+                    const BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 2))
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: active ? _selectedColor : const Color(0xFF888880)),
+              Icon(icon,
+                  size: 14,
+                  color: active ? _selectedColor : const Color(0xFF888880)),
               const SizedBox(width: 6),
               Text(
                 label,
