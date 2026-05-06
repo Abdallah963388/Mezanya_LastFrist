@@ -77,39 +77,18 @@ class _DebtsAndSubscriptionsScreenState
               _typeSwitcher(),
               const SizedBox(height: 14),
               if (_tab == 'subscriptions') ...[
-                _actionButton(
-                  label: 'إضافة اشتراك جديد',
-                  icon: Icons.subscriptions_rounded,
-                  color: _subscriptionAccent,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SubscriptionPresetSelectionScreen(
-                          cubit: widget.cubit,
-                        ),
-                        fullscreenDialog: true,
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
                 if (subscriptionRecords.isEmpty)
                   _emptyCard('لا توجد اشتراكات مسجلة حالياً.')
                 else
                   ...subscriptionRecords
                       .map((r) => _recurringCard(state, r)),
               ] else ...[
-                // ── زرار الإضافة ─────────────────────────────────────────
+                // ── زرار الإضافة الموحّد ──────────────────────────────────
                 _actionButton(
-                  label: 'دين أو قسط',
-                  icon: Icons.account_balance_outlined,
+                  label: 'إضافة دين أو سلفة',
+                  icon: Icons.add_rounded,
                   color: _debtAccent,
-                  onTap: () => _openRecurringComposer(
-                    mode: 'expense',
-                    initialExpensePlanKind: 'installment',
-                    debtOnlyMode: true,
-                  ),
+                  onTap: () => _openAddDebtOrLentSheet(state),
                 ),
                 const SizedBox(height: 20),
 
@@ -135,17 +114,6 @@ class _DebtsAndSubscriptionsScreenState
                         label: 'سلّفت للناس',
                         color: _lentAccent,
                         icon: Icons.handshake_outlined,
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: () => _openLentForm(state, existingPersonId: null),
-                      icon: const Icon(Icons.add_rounded, size: 16),
-                      label: const Text('سلفة جديدة'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _lentAccent,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                   ],
@@ -686,6 +654,114 @@ class _DebtsAndSubscriptionsScreenState
     );
   }
 
+  // ── شيت اختيار نوع الإضافة (دين أو سلفة) ────────────────────────────────
+  Future<void> _openAddDebtOrLentSheet(AppStateEntity state) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'إضافة جديدة',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'اختار نوع الإضافة',
+              style: TextStyle(
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // ── دين عليّا ─────────────────────────────────────────────
+            InkWell(
+              onTap: () {
+                Navigator.pop(ctx);
+                _openRecurringComposer(
+                  mode: 'expense',
+                  initialExpensePlanKind: 'installment',
+                  debtOnlyMode: true,
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: _debtAccent.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _debtAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      color: _debtAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Center(child: Icon(Icons.account_balance_outlined, color: _debtAccent, size: 26)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('دين عليّا', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _debtAccent)),
+                      Text('قسط أو دين بيتخصم منك كل دورة', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _debtAccent.withValues(alpha: 0.7))),
+                    ],
+                  )),
+                  const Icon(Icons.chevron_left_rounded, color: _debtAccent),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // ── سلف لحد ────────────────────────────────────────────────
+            InkWell(
+              onTap: () {
+                Navigator.pop(ctx);
+                _openLentForm(state, existingPersonId: null);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: _lentAccent.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _lentAccent.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      color: _lentAccent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(child: Icon(Icons.person_rounded, color: _lentAccent, size: 26)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('سلف لحد', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: _lentAccent)),
+                      Text('سلفت مبلغ لشخص وبتنتظر رده', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _lentAccent.withValues(alpha: 0.7))),
+                    ],
+                  )),
+                  const Icon(Icons.chevron_left_rounded, color: _lentAccent),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<bool> _confirmDialog({required String title, required String content}) async {
     final result = await showDialog<bool>(
       context: context,
@@ -1210,6 +1286,18 @@ class _DebtsAndSubscriptionsScreenState
                       // ── Interactive Fulfillment Card (for Debts) ──────────
                       if (isDebt) ...[
                         _DebtInstallmentInteractiveCard(
+                          record: currentRecord,
+                          state: currentState,
+                          accent: accent,
+                          onPaid: () => setS(() {}),
+                          cubit: widget.cubit,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // ── Interactive Card (for Subscriptions) ──────────────
+                      if (!isDebt && currentRecord.expensePlanKind == 'subscription') ...[
+                        _SubscriptionInteractiveCard(
                           record: currentRecord,
                           state: currentState,
                           accent: accent,
@@ -1901,6 +1989,272 @@ class _DebtInstallmentInteractiveCardState
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
+            crossFadeState:
+                _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription Interactive Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SubscriptionInteractiveCard extends StatefulWidget {
+  const _SubscriptionInteractiveCard({
+    required this.record,
+    required this.state,
+    required this.accent,
+    required this.onPaid,
+    required this.cubit,
+  });
+
+  final RecurringTransactionEntity record;
+  final AppStateEntity state;
+  final Color accent;
+  final VoidCallback onPaid;
+  final AppCubit cubit;
+
+  @override
+  State<_SubscriptionInteractiveCard> createState() =>
+      _SubscriptionInteractiveCardState();
+}
+
+class _SubscriptionInteractiveCardState
+    extends State<_SubscriptionInteractiveCard> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final record = widget.record;
+    final state = widget.state;
+
+    // دفعات الاشتراك ده من سجل المعاملات
+    final payments = state.transactions
+        .where((t) =>
+            t.notes?.contains('دفع اشتراك: ${record.name}') == true ||
+            t.notes?.contains('سداد اشتراك: ${record.name}') == true ||
+            t.notes?.contains('سداد قسط: ${record.name}') == true)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    final totalPaid = payments.fold(0.0, (s, t) => s + t.amount);
+    final paymentsCount = payments.length;
+
+    // هل دُفع هذا الشهر؟
+    final now = DateTime.now();
+    final thisMonthStart = DateTime(now.year, now.month, 1);
+    final paidThisMonth = payments.any((t) => t.createdAt.isAfter(thisMonthStart));
+
+    final subscriptionAmt = record.amount;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(22),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: widget.accent.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.subscriptions_rounded,
+                            color: widget.accent, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'دفعات هذا الاشتراك',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 14),
+                            ),
+                            Text(
+                              '$paymentsCount دفعة · إجمالي ${totalPaid.toStringAsFixed(0)} ج.م',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(Icons.keyboard_arrow_down_rounded,
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                  // ── حالة دفع الشهر الحالي ─────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: paidThisMonth
+                          ? Colors.green.withValues(alpha: 0.08)
+                          : theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: paidThisMonth
+                            ? Colors.green.withValues(alpha: 0.3)
+                            : theme.colorScheme.outlineVariant
+                                .withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: paidThisMonth
+                                ? Colors.green.withValues(alpha: 0.15)
+                                : theme.colorScheme.primaryContainer
+                                    .withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            paidThisMonth
+                                ? Icons.check_rounded
+                                : Icons.calendar_today_rounded,
+                            color: paidThisMonth
+                                ? Colors.green
+                                : theme.colorScheme.primary,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                paidThisMonth
+                                    ? 'تم الدفع هذا الشهر'
+                                    : 'اشتراك هذا الشهر',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  color: paidThisMonth
+                                      ? Colors.green.shade800
+                                      : null,
+                                ),
+                              ),
+                              Text(
+                                paidThisMonth
+                                    ? 'تم الدفع بنجاح'
+                                    : 'مستحق بقيمة ${subscriptionAmt.toStringAsFixed(2)} ج.م',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!paidThisMonth)
+                          FilledButton(
+                            onPressed: () async {
+                              await widget.cubit.addTransaction(
+                                walletId: record.walletId,
+                                amount: subscriptionAmt,
+                                type: 'expense',
+                                budgetScope: record.budgetScope,
+                                createdAt: DateTime.now(),
+                                notes: 'دفع اشتراك: ${record.name}',
+                                details: 'دفع اشتراك من صفحة الاشتراكات: ${record.name}',
+                              );
+                              widget.onPaid();
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: widget.accent,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('دفع',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800, fontSize: 13)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // ── سجل الدفعات السابقة ────────────────────────────────
+                  if (payments.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ...payments.take(5).map((tx) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(children: [
+                        Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: widget.accent.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.check_rounded, size: 14, color: widget.accent),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${tx.createdAt.day}/${tx.createdAt.month}/${tx.createdAt.year}',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                        Text(
+                          '${tx.amount.toStringAsFixed(2)} ج.م',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: widget.accent),
+                        ),
+                      ]),
+                    )),
+                    if (payments.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '+${payments.length - 5} دفعة سابقة',
+                          style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
