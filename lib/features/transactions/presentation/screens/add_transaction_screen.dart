@@ -108,6 +108,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             : 'outside-budget';
         _incomeJarId = t.toWalletId ?? '';
       }
+      // تحميل الفئة المحددة
+      _selectedCategoryId = t.categoryId;
     }
   }
 
@@ -758,6 +760,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     notes: _notesController.text.trim().isEmpty
                                         ? null
                                         : _notesController.text.trim(),
+                                    categoryId: _selectedCategoryId,
                                   );
                                 }
                                 if (!context.mounted) return;

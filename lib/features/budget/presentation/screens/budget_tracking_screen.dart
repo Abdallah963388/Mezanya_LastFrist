@@ -4837,128 +4837,6 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 }
 
-class _BudgetLentPendingCard extends StatelessWidget {
-  const _BudgetLentPendingCard({
-    super.key,
-    required this.theme,
-    required this.accent,
-    required this.person,
-    required this.cubit,
-    required this.sheetCtx,
-  });
-
-  final ThemeData theme;
-  final Color accent;
-  final RecurringTransactionEntity person;
-  final AppCubit cubit;
-  final BuildContext sheetCtx;
-
-  @override
-  Widget build(BuildContext context) {
-    final pendingEntries = person.lentEntries
-        .where((entry) => entry['isSettled'] != true)
-        .toList();
-    final pendingCount = pendingEntries.length;
-    final overdueCount = pendingEntries.where((entry) {
-      final date =
-          DateTime.tryParse(entry['expectedReturnDate'] as String? ?? '');
-      return date != null && date.isBefore(DateTime.now());
-    }).length;
-    final totalPending = pendingEntries.fold<double>(0, (sum, entry) {
-      final amount = entry['amount'];
-      if (amount is num) return sum + amount.toDouble();
-      if (amount is String) return sum + (double.tryParse(amount) ?? 0);
-      return sum;
-    });
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'السلفات المعلقة',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (overdueCount > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFC65D2E).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'متأخر $overdueCount',
-                    style: const TextStyle(
-                      color: Color(0xFFC65D2E),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '$pendingCount سلفة معلقة · غير مسترد ${totalPending.toStringAsFixed(2)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (pendingEntries.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: pendingEntries.take(3).map((entry) {
-                final amount = entry['amount'];
-                final amountText = amount is num
-                    ? amount.toStringAsFixed(2)
-                    : (amount is String ? amount : '0.00');
-                final retDate = entry['expectedReturnDate'] as String?;
-                final dateText = retDate != null && retDate.isNotEmpty
-                    ? 'استحقاق ${retDate.split('T').first}'
-                    : 'بدون موعد';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.pending_outlined,
-                          size: 18, color: Color(0xFF165B47)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '$amountText ج.م · $dateText',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // ── ويدجت قسم الدفعات القابل للتوسع ──────────────────────────────────────
 
 class _InstallmentPaymentsCard extends StatefulWidget {
@@ -5729,6 +5607,371 @@ class _DraggableFilterableTxSheetState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// كارت السلفات المعلقة القابل للتوسيع – يُستخدم داخل شيت تفاصيل السلف
+// في صفحة متابعة الميزانية
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BudgetLentPendingCard extends StatefulWidget {
+  const _BudgetLentPendingCard({
+    required this.theme,
+    required this.accent,
+    required this.person,
+    required this.cubit,
+    required this.sheetCtx,
+  });
+
+  final ThemeData theme;
+  final Color accent;
+  final RecurringTransactionEntity person;
+  final AppCubit cubit;
+  final BuildContext sheetCtx;
+
+  @override
+  State<_BudgetLentPendingCard> createState() => _BudgetLentPendingCardState();
+}
+
+class _BudgetLentPendingCardState extends State<_BudgetLentPendingCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final accent = widget.accent;
+    final allEntries = widget.person.lentEntries.toList();
+    final pendingEntries =
+        allEntries.where((e) => e['isSettled'] != true).toList();
+    final pendingCount = pendingEntries.length;
+    final hasOverdue = pendingEntries.any((e) {
+      final retStr = e['expectedReturnDate'] as String?;
+      if (retStr == null) return false;
+      final d = DateTime.tryParse(retStr);
+      return d != null && d.isBefore(DateTime.now());
+    });
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasOverdue
+              ? Colors.red.withValues(alpha: 0.3)
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        children: [
+          // ── Header (قابل للضغط للتوسيع) ───────────────────────────────
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: (hasOverdue ? Colors.red : accent)
+                          .withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.receipt_long_rounded,
+                      color: hasOverdue ? Colors.red : accent,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'السلفات المعلقة',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                        Text(
+                          pendingCount == 0
+                              ? 'لا توجد سلفات معلقة'
+                              : '$pendingCount معلق${hasOverdue ? ' · يوجد متأخرات ⚠' : ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: hasOverdue
+                                ? Colors.red
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── المحتوى القابل للتوسيع ────────────────────────────────────
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: _buildPendingList(theme, accent, pendingEntries),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 220),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingList(
+    ThemeData theme,
+    Color accent,
+    List<dynamic> pendingEntries,
+  ) {
+    if (pendingEntries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+          ),
+          child: Row(children: [
+            const Icon(Icons.check_circle_outline_rounded,
+                color: Colors.green, size: 18),
+            const SizedBox(width: 10),
+            Text(
+              'تم استرداد كل السلفات 🎉',
+              style: TextStyle(
+                color: Colors.green.shade700,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        children: [
+          Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+          const SizedBox(height: 12),
+          ...pendingEntries.map((entry) {
+            final amount = (entry['amount'] as num?)?.toDouble() ?? 0;
+            final lentDateStr = entry['lentDate'] as String?;
+            final returnStr = entry['expectedReturnDate'] as String?;
+            final lentDate =
+                lentDateStr != null ? DateTime.tryParse(lentDateStr) : null;
+            final returnDate =
+                returnStr != null ? DateTime.tryParse(returnStr) : null;
+            final isOverdue =
+                returnDate != null && returnDate.isBefore(DateTime.now());
+            final entryId = entry['id'] as String;
+            final notesStr = entry['notes'] as String?;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isOverdue
+                    ? const Color(0xFFFFF5F5)
+                    : const Color(0xFFF0FAF4),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isOverdue
+                      ? Colors.red.withValues(alpha: 0.25)
+                      : accent.withValues(alpha: 0.22),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── رأس الكارت: Status + المبلغ ─────────────────────
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (isOverdue ? Colors.red : accent)
+                            .withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        isOverdue ? '⚠ متأخر' : 'معلق',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: isOverdue ? Colors.red : accent,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${amount.toStringAsFixed(2)} ج.م',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+
+                  // ── التواريخ ────────────────────────────────────────
+                  if (lentDate != null)
+                    Text(
+                      'تاريخ السلفة: ${lentDate.day}/${lentDate.month}/${lentDate.year}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  if (returnDate != null)
+                    Text(
+                      'الاسترداد المتوقع: ${returnDate.day}/${returnDate.month}/${returnDate.year}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isOverdue ? Colors.red : Colors.grey,
+                        fontWeight:
+                            isOverdue ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  if (notesStr != null && notesStr.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      notesStr,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+
+                  // ── أزرار الإجراءات ──────────────────────────────────
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    _lentActionBtn(
+                      label: 'استرداد',
+                      icon: Icons.check_circle_outline_rounded,
+                      color: accent,
+                      onTap: () async {
+                        await widget.cubit
+                            .settleLentEntry(widget.person.id, entryId);
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _lentActionBtn(
+                      label: 'تأجيل',
+                      icon: Icons.update_rounded,
+                      color: Colors.blueGrey,
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: widget.sheetCtx,
+                          initialDate:
+                              DateTime.now().add(const Duration(days: 7)),
+                          firstDate: DateTime.now(),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365 * 5)),
+                        );
+                        if (d != null) {
+                          await widget.cubit
+                              .postponeLentEntry(widget.person.id, entryId, d);
+                          if (mounted) setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _lentActionBtn(
+                      label: 'تنازل',
+                      icon: Icons.heart_broken_outlined,
+                      color: Colors.redAccent,
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                              context: widget.sheetCtx,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('تنازل عن السلفة'),
+                                content: const Text(
+                                    'هل أنت متأكد من التنازل عن هذا المبلغ؟ سيتم اعتباره مصروفاً نهائياً ولن يطالب به.'),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('إلغاء')),
+                                  FilledButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.red),
+                                    child: const Text('تنازل'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                            false;
+                        if (confirm) {
+                          await widget.cubit
+                              .writeOffLentEntry(widget.person.id, entryId);
+                          if (mounted) setState(() {});
+                        }
+                      },
+                    ),
+                  ]),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _lentActionBtn({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w800, color: color),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -999,8 +999,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
         ? DateTime.tryParse(record.anchorDate!)
         : null;
     final isOverdue = returnDate != null &&
-        DateTime(returnDate.year, returnDate.month, returnDate.day)
-            .isBefore(DateTime(
+        DateTime(returnDate.year, returnDate.month, returnDate.day).isBefore(
+            DateTime(
                 DateTime.now().year, DateTime.now().month, DateTime.now().day));
 
     await showModalBottomSheet<void>(
@@ -1022,7 +1022,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1a7a4a).withValues(alpha: 0.12),
+                          color:
+                              const Color(0xFF1a7a4a).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Icon(Icons.handshake_rounded,
@@ -1049,7 +1050,9 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                                 fontWeight: FontWeight.w700,
                                 color: isOverdue
                                     ? const Color(0xFFC65D2E)
-                                    : Theme.of(ctx).colorScheme.onSurfaceVariant,
+                                    : Theme.of(ctx)
+                                        .colorScheme
+                                        .onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -1071,12 +1074,10 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                                 'هل استردّيت السلفة من $personName؟\nسيتم إضافة المبلغ لمحفظتك.'),
                             actions: [
                               TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dCtx, false),
+                                  onPressed: () => Navigator.pop(dCtx, false),
                                   child: const Text('إلغاء')),
                               FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dCtx, true),
+                                  onPressed: () => Navigator.pop(dCtx, true),
                                   child: const Text('تم الاسترداد')),
                             ],
                           ),
@@ -1104,8 +1105,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                             final picked = await showDatePicker(
                               context: context,
                               initialDate: returnDate ??
-                                  DateTime.now()
-                                      .add(const Duration(days: 7)),
+                                  DateTime.now().add(const Duration(days: 7)),
                               firstDate: DateTime.now(),
                               lastDate: DateTime.now()
                                   .add(const Duration(days: 365 * 5)),
@@ -1140,8 +1140,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                                           Navigator.pop(dCtx, false),
                                       child: const Text('إلغاء')),
                                   FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(dCtx, true),
+                                    onPressed: () => Navigator.pop(dCtx, true),
                                     style: FilledButton.styleFrom(
                                         backgroundColor:
                                             const Color(0xFF7B4FBF)),
@@ -1158,13 +1157,11 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                           icon: const Icon(Icons.remove_circle_outline_rounded,
                               color: Color(0xFF7B4FBF)),
                           label: const Text('تنازل',
-                              style:
-                                  TextStyle(color: Color(0xFF7B4FBF))),
+                              style: TextStyle(color: Color(0xFF7B4FBF))),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(44),
                             side: const BorderSide(
-                                color: Color(0xFF7B4FBF),
-                                width: 1),
+                                color: Color(0xFF7B4FBF), width: 1),
                           ),
                         ),
                       ),
@@ -1713,9 +1710,8 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
             final installments = _visibleDebtsForDisplayCycle
                 .where((d) => d.isInstallment)
                 .toList();
-            final lents = appState.recurringTransactions
-                .where((r) => r.isLent)
-                .toList();
+            final lents =
+                appState.recurringTransactions.where((r) => r.isLent).toList();
 
             return _plannerSection(
               title: 'الديون والأقساط',
@@ -1778,9 +1774,7 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
                       amountText: record.amount.toStringAsFixed(2),
                       detailText: dateText,
                       leadingWidget: _iconBadge(
-                          iconName: 'handshake',
-                          colorHex: '#1a7a4a',
-                          size: 42),
+                          iconName: 'handshake', colorHex: '#1a7a4a', size: 42),
                       tint: overdue
                           ? const Color(0xFFC65D2E)
                           : const Color(0xFF1a7a4a),
