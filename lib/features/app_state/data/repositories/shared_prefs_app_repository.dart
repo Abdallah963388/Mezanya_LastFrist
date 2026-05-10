@@ -69,11 +69,20 @@ class SharedPrefsAppRepository implements AppRepository {
       // Check Jars
       final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
       if (jarIdx != -1) {
-        final jar = linkedWallets[jarIdx];
+        var jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
         if (physicalWalletId != null) {
           nextBalances[physicalWalletId] =
               (nextBalances[physicalWalletId] ?? 0) + delta;
+              
+          // Update walletSources as well
+          final existingSourceIdx = jar.walletSources.indexWhere((s) => s.walletId == physicalWalletId);
+          double currentSourceAmount = 0;
+          if (existingSourceIdx != -1) {
+            currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
+          }
+          final nextSourceAmount = currentSourceAmount + delta;
+          jar = jar.withUpdatedSource(physicalWalletId, nextSourceAmount);
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance + delta,

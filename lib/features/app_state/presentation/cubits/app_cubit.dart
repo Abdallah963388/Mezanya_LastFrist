@@ -1098,6 +1098,25 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  Future<void> recordRecurringPostpone({
+    required RecurringTransactionEntity recurring,
+    required DateTime snoozedUntil,
+    required String logDetails,
+  }) async {
+    final updatedRecurring = recurring.copyWith(
+      snoozedUntil: snoozedUntil.toIso8601String(),
+    );
+
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'recurring-transaction',
+      entityId: recurring.id,
+      details: logDetails,
+      titleOverride: recurring.name,
+      apply: () async => _applyRecurringSync(state, updatedRecurring),
+    );
+  }
+
   Future<void> recordRecurringSkip({
     required RecurringTransactionEntity recurring,
     required DateTime occurrence,

@@ -24,6 +24,7 @@ class NotificationsCenterScreen extends StatefulWidget {
 
 class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
   String _selectedTab = 'new';
+  final Set<String> _processingIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -117,12 +118,30 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
               PendingNotificationAction(
                 label: 'بكر',
                 filled: false,
-                onPressed: () => _recordIncome(source, early: true),
+                onPressed: _processingIds.contains('early_${source.id}')
+                    ? () {}
+                    : () async {
+                        setState(() => _processingIds.add('early_${source.id}'));
+                        try {
+                          await _recordIncome(source, early: true);
+                        } finally {
+                          if (mounted) setState(() => _processingIds.remove('early_${source.id}'));
+                        }
+                      },
               ),
             if (pendingMeta.isDueOrLate)
               PendingNotificationAction(
                 label: 'نزول',
-                onPressed: () => _recordIncome(source),
+                onPressed: _processingIds.contains('due_${source.id}')
+                    ? () {}
+                    : () async {
+                        setState(() => _processingIds.add('due_${source.id}'));
+                        try {
+                          await _recordIncome(source);
+                        } finally {
+                          if (mounted) setState(() => _processingIds.remove('due_${source.id}'));
+                        }
+                      },
               ),
             if (pendingMeta.isDueOrLate)
               PendingNotificationAction(
@@ -189,6 +208,81 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
           ],
         ),
       );
+    }
+
+    for (final jar in budget.linkedWallets) {
+      if (jar.pendingDistribution > 0) {
+        final hasPhysical = jar.pendingDistributionWalletId.isNotEmpty;
+        cards.add(
+          PendingNotificationCard(
+            accent: const Color(0xFF0F766E),
+            title: jar.name,
+            subtitle: hasPhysical
+                ? 'خصم فعلي: ${jar.pendingDistribution.toStringAsFixed(2)} من ${_walletName(jar.pendingDistributionWalletId)}'
+                : 'تخصيص افتراضي: ${jar.pendingDistribution.toStringAsFixed(2)}',
+            amount: jar.pendingDistribution,
+            badge: 'حصالة ادخار',
+            meta: hasPhysical ? _walletName(jar.pendingDistributionWalletId) : 'تخصيص',
+            icon: Icons.savings_outlined,
+            actions: [
+              PendingNotificationAction(
+                label: hasPhysical ? 'تأكيد الخصم' : 'تأكيد التخصيص',
+                onPressed: _processingIds.contains('jar_${jar.id}')
+                    ? () {}
+                    : () async {
+                        setState(() => _processingIds.add('jar_${jar.id}'));
+                        try {
+                          await _confirmJarDistribution(jar);
+                        } finally {
+                          if (mounted) setState(() => _processingIds.remove('jar_${jar.id}'));
+                        }
+                      },
+              ),
+              PendingNotificationAction(
+                label: 'تأجيل',
+                filled: false,
+                onPressed: () => _postponeJarDistribution(jar),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    for (final alloc in budget.allocations) {
+      if (alloc.pendingDistribution > 0) {
+        cards.add(
+          PendingNotificationCard(
+            accent: const Color(0xFF165B47),
+            title: alloc.name,
+            subtitle: 'تخصيص: ${alloc.pendingDistribution.toStringAsFixed(2)}',
+            amount: alloc.pendingDistribution,
+            badge: 'مخصص شهري',
+            meta: 'تخصيص',
+            icon: Icons.category_outlined,
+            actions: [
+              PendingNotificationAction(
+                label: 'تأكيد النزول',
+                onPressed: _processingIds.contains('alloc_${alloc.id}')
+                    ? () {}
+                    : () async {
+                        setState(() => _processingIds.add('alloc_${alloc.id}'));
+                        try {
+                          await _confirmAllocationDistribution(alloc);
+                        } finally {
+                          if (mounted) setState(() => _processingIds.remove('alloc_${alloc.id}'));
+                        }
+                      },
+              ),
+              PendingNotificationAction(
+                label: 'تأجيل',
+                filled: false,
+                onPressed: () => _postponeAllocationDistribution(alloc),
+              ),
+            ],
+          ),
+        );
+      }
     }
 
     return cards;
@@ -543,10 +637,107 @@ class _NotificationsCenterScreenState extends State<NotificationsCenterScreen> {
     required double amount,
     required DateTime until,
   }) async {
-    await widget.cubit.updateRecurringTransaction(
-      recurring.copyWith(snoozedUntil: until.toIso8601String()),
-      detailsOverride:
-          'تأجيل معاملة متكررة: $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(until)}',
+    await widget.cubit.recordRecurringPostpone(
+      recurring: recurring,
+      snoozedUntil: until,
+      logDetails:
+          'تأجيل $name بقيمة ${amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy', 'ar').format(until)}',
+    );
+  }
+
+  Future<void> _confirmJarDistribution(LinkedWalletEntity jar) async {
+    final setup = widget.cubit.state.budgetSetup;
+    final amount = jar.pendingDistribution;
+    final walletId = jar.pendingDistributionWalletId;
+
+    if (amount <= 0) return;
+
+    if (walletId.isNotEmpty) {
+      // Physical deduction: Create an expense transaction
+      await widget.cubit.addTransaction(
+        walletId: walletId,
+        toWalletId: jar.id,
+        amount: amount,
+        type: 'transfer',
+        budgetScope: 'within-budget',
+        notes: 'تأكيد الخصم المجدول: ${jar.name}',
+      );
+    } else {
+      // Virtual funding only: No transaction, just clear the pending state
+      final jars = setup.linkedWallets.map((j) {
+        if (j.id == jar.id) {
+          return j.copyWith(
+            pendingDistribution: 0,
+            pendingDistributionWalletId: '',
+            pendingDistributionSourceId: '',
+          );
+        }
+        return j;
+      }).toList();
+      await widget.cubit.updateBudgetSetup(
+        setup.copyWith(linkedWallets: jars),
+        detailsOverride: 'تأكيد التخصيص لـ: ${jar.name}',
+      );
+    }
+  }
+
+  Future<void> _postponeJarDistribution(LinkedWalletEntity jar) async {
+    // For now, we will just dismiss the pending distribution by resetting it.
+    // In a full implementation, we might want to schedule it.
+    final setup = widget.cubit.state.budgetSetup;
+    final jars = setup.linkedWallets.map((j) {
+      if (j.id == jar.id) {
+        return j.copyWith(
+          pendingDistribution: 0,
+          pendingDistributionWalletId: '',
+          pendingDistributionSourceId: '',
+        );
+      }
+      return j;
+    }).toList();
+    await widget.cubit.updateBudgetSetup(
+      setup.copyWith(linkedWallets: jars),
+      detailsOverride: 'تخطي التخصيص لـ: ${jar.name}',
+    );
+  }
+
+  Future<void> _confirmAllocationDistribution(AllocationEntity alloc) async {
+    final setup = widget.cubit.state.budgetSetup;
+    final amount = alloc.pendingDistribution;
+
+    if (amount <= 0) return;
+
+    final allocations = setup.allocations.map((a) {
+      if (a.id == alloc.id) {
+        return a.copyWith(
+          pendingDistribution: 0,
+          pendingDistributionWalletId: '',
+          pendingDistributionSourceId: '',
+        );
+      }
+      return a;
+    }).toList();
+    await widget.cubit.updateBudgetSetup(
+      setup.copyWith(allocations: allocations),
+      detailsOverride: 'تأكيد النزول لـ: ${alloc.name}',
+    );
+  }
+
+  Future<void> _postponeAllocationDistribution(AllocationEntity alloc) async {
+    final setup = widget.cubit.state.budgetSetup;
+    final allocations = setup.allocations.map((a) {
+      if (a.id == alloc.id) {
+        return a.copyWith(
+          pendingDistribution: 0,
+          pendingDistributionWalletId: '',
+          pendingDistributionSourceId: '',
+        );
+      }
+      return a;
+    }).toList();
+    await widget.cubit.updateBudgetSetup(
+      setup.copyWith(allocations: allocations),
+      detailsOverride: 'تخطي النزول لـ: ${alloc.name}',
     );
   }
 

@@ -349,14 +349,33 @@ class RecurringScheduleEngine {
 
     if (dueOccurrence != null &&
         !wasOccurrenceHandled(recurring, dueOccurrence)) {
-      return RecurringExpensePrompt(
-        occurrence: dueOccurrence,
-        reminderAt: dueOccurrence.subtract(reminderDuration(recurring)),
-        state: isSameCalendarDay(dueOccurrence, now)
-            ? RecurringExpensePromptState.due
-            : RecurringExpensePromptState.overdue,
-        catchUpFromAuto: false,
-      );
+      
+      // If it has never been handled (newly created), and the most recent past occurrence is too old,
+      // the user probably doesn't want to be nagged about it. We should just wait for the next one.
+      bool ignoreDue = false;
+      if (recurring.lastHandledOccurrenceAt == null || recurring.lastHandledOccurrenceAt!.isEmpty) {
+        final ageDays = now.difference(dueOccurrence).inDays;
+        if (recurring.recurrencePattern == 'yearly' && ageDays > 30) {
+          ignoreDue = true;
+        } else if (recurring.recurrencePattern.contains('month') && ageDays > 15) {
+          ignoreDue = true;
+        } else if (recurring.recurrencePattern.contains('week') && ageDays > 7) {
+          ignoreDue = true;
+        } else if (recurring.recurrencePattern == 'daily' && ageDays > 2) {
+          ignoreDue = true;
+        }
+      }
+
+      if (!ignoreDue) {
+        return RecurringExpensePrompt(
+          occurrence: dueOccurrence,
+          reminderAt: dueOccurrence.subtract(reminderDuration(recurring)),
+          state: isSameCalendarDay(dueOccurrence, now)
+              ? RecurringExpensePromptState.due
+              : RecurringExpensePromptState.overdue,
+          catchUpFromAuto: false,
+        );
+      }
     }
 
     if (next == null) return null;

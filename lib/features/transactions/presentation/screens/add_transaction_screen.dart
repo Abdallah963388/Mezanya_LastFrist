@@ -615,6 +615,38 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                                 if (!widget.recurringMode &&
                                     _type == 'expense' &&
+                                    _walletId == 'no-wallet' &&
+                                    _budgetTargetId.startsWith('jar:')) {
+                                  final selectedJarId =
+                                      _budgetTargetId.replaceFirst('jar:', '');
+                                  final jar = budget.linkedWallets.firstWhere(
+                                      (j) => j.id == selectedJarId,
+                                      orElse: () => const LinkedWalletEntity(
+                                            id: '',
+                                            name: '',
+                                            monthlyAmount: 0,
+                                            executionDay: 1,
+                                            fundingSource: '',
+                                            funding: [],
+                                            icon: '',
+                                            iconColor: '',
+                                            automationType: '',
+                                            categories: [],
+                                          ));
+                                  if (jar.id.isNotEmpty) {
+                                    final fundedAmount = jar.walletSources.fold<double>(
+                                        0, (sum, source) => sum + source.amount);
+                                    final unfundedAmount = jar.balance - fundedAmount;
+                                    if (amount > unfundedAmount) {
+                                      _showValidationError(
+                                          'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
+                                      return;
+                                    }
+                                  }
+                                }
+
+                                if (!widget.recurringMode &&
+                                    _type == 'expense' &&
                                     _walletId != 'no-wallet') {
                                   final currentWallet = wallets
                                       .where((wallet) => wallet.id == _walletId)

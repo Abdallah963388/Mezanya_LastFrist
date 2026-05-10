@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mezanya_app/features/categories/domain/entities/category_entity.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/wallet_entity.dart';
 import 'jar_editor_screen.dart';
@@ -818,9 +820,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 onTap: () =>
                                     _openWalletAllocateToJarDialog(wallet),
                                 tooltip: 'تخصيص للحصالة',
-                              ),     const SizedBox(width: 6),
-                                // Expand arrow
-                        
+                              ),
+                              const SizedBox(width: 6),
+                              // Expand arrow
                             ],
                           ),
                         ),
@@ -1080,8 +1082,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ...walletTx.take(30).map(
                           (t) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: _TransactionTile(
+                            child: SharedTransactionCard(
                               transaction: t,
+                              appState: widget.cubit.state,
                               onTap: () => openTransactionDetailsSheet(
                                 ctx,
                                 cubit: widget.cubit,
@@ -1512,8 +1515,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ...relevantTransactions.map(
                       (t) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _TransactionTile(
+                        child: SharedTransactionCard(
                           transaction: t,
+                          appState: widget.cubit.state,
                           onTap: () => openTransactionDetailsSheet(
                             ctx,
                             cubit: widget.cubit,
@@ -3997,89 +4001,6 @@ class _SimpleValueTile extends StatelessWidget {
   }
 }
 
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({
-    required this.transaction,
-    required this.onTap,
-  });
-
-  final TransactionEntity transaction;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isNegative = transaction.type == 'expense' ||
-        transaction.transferType == 'jar-allocation-cancel' ||
-        transaction.transferType == 'jar-allocation-spend';
-    final label = switch (transaction.transferType) {
-      'jar-allocation' => 'تخصيص للحصالة',
-      'jar-allocation-cancel' => 'إلغاء تخصيص',
-      'jar-allocation-spend' => 'سحب من المحجوز',
-      'jar-funding' => 'تمويل تلقائي للحصالة',
-      'wallet-to-wallet' => 'تحويل بين المحافظ',
-      _ => transaction.notes ??
-          switch (transaction.type) {
-            'income' => 'دخل',
-            'expense' => 'مصروف',
-            _ => 'تحويل',
-          },
-    };
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE4DCCF)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${isNegative ? '-' : '+'}${transaction.amount.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 20,
-                      color: isNegative
-                          ? const Color(0xFFB3261E)
-                          : const Color(0xFF165B47),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${transaction.createdAt.day}/${transaction.createdAt.month}/${transaction.createdAt.year}',
-                    style: const TextStyle(color: Color(0xFF7D7461)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                textAlign: TextAlign.right,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_left_rounded),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _WalletReservationsPanel extends StatelessWidget {
   const _WalletReservationsPanel({

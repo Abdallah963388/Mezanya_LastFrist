@@ -6,6 +6,7 @@ import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import 'all_transactions_screen.dart';
 import 'transaction_charts_screen.dart';
@@ -112,14 +113,15 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   : Column(
                       children: monthTx
                           .take(5)
-                          .map((t) => _TxTile(
-                                tx: t,
-                                categories: state.categories,
-                                onTap: () => openTransactionDetailsSheet(
-                                    context,
-                                    cubit: widget.cubit,
-                                    transaction: t),
-                              ))
+                          .map((t) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: SharedTransactionCard(
+                              transaction: t,
+                              appState: state,
+                              onTap: () => openTransactionDetailsSheet(context,
+                                  cubit: widget.cubit, transaction: t),
+                            ),
+                          ))
                           .toList(),
                     ),
             ),
@@ -784,110 +786,7 @@ class _EmptyHint extends StatelessWidget {
   }
 }
 
-// ── Transaction Tile ───────────────────────────────────────────────────────
 
-class _TxTile extends StatelessWidget {
-  const _TxTile({
-    required this.tx,
-    required this.categories,
-    required this.onTap,
-  });
-
-  final TransactionEntity tx;
-  final List<CategoryEntity> categories;
-  final VoidCallback onTap;
-
-  Color _typeColor() {
-    if (tx.type == 'income') return const Color(0xFF16A34A);
-    if (tx.type == 'expense') return const Color(0xFFDC2626);
-    return const Color(0xFF2563EB);
-  }
-
-  String _typeLabel() {
-    if (tx.type == 'income') return 'دخل';
-    if (tx.type == 'expense') return 'مصروف';
-    return 'تحويل';
-  }
-
-  IconData _typeIcon() {
-    if (tx.type == 'income') return Icons.arrow_downward_rounded;
-    if (tx.type == 'expense') return Icons.arrow_upward_rounded;
-    return Icons.swap_horiz_rounded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _typeColor();
-    final catName = tx.categoryId == null
-        ? null
-        : categories
-            .where((c) => c.id == tx.categoryId)
-            .map((c) => c.name)
-            .firstOrNull;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.14)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Icon(_typeIcon(), color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tx.notes?.isNotEmpty == true ? tx.notes! : _typeLabel(),
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      DateFormat('d MMM', 'ar').format(tx.createdAt),
-                      if (catName != null) catName,
-                    ].join(' • '),
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF8A7F72),
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${tx.type == 'expense' ? '-' : '+'}${tx.amount.toStringAsFixed(2)}',
-              style: TextStyle(
-                color: color,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ── Mini Chart Preview ─────────────────────────────────────────────────────
 

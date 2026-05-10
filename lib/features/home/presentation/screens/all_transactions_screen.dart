@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/presentation/widgets/shared_transaction_card.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 
 // ── Period types ────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ class AllTransactionsScreen extends StatefulWidget {
 class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   _Period _period = _Period.month;
   String _typeTab = 'all';
+  bool _sortAscending = false;
 
   late DateTime _anchor; // start of current period window
   DateTime? _customFrom;
@@ -150,7 +152,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         }
     }
 
-    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (_sortAscending) {
+      out.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    } else {
+      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
     return out;
   }
 
@@ -412,7 +418,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       final key = DateFormat('yyyy-MM-dd').format(t.createdAt);
       grouped.putIfAbsent(key, () => []).add(t);
     }
-    final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    final sortedKeys = grouped.keys.toList()..sort((a, b) => _sortAscending ? a.compareTo(b) : b.compareTo(a));
 
     return Scaffold(
         backgroundColor: _beige,
@@ -425,8 +431,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 showArrows: _period != _Period.custom,
                 onPrev: _prev,
                 onNext: _next,
-                onFilter: _openFilterSheet,
-                typeTab: _typeTab,
               ),
 
               // ── Content ────────────────────────────────────────────────
@@ -440,7 +444,77 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         totalIn: totalIn,
                         totalOut: totalOut,
                         count: filtered.length),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
+
+                    // Sort and Filter Bar
+                    Row(
+                      children: [
+                        // Sort Button
+                        InkWell(
+                          onTap: () => setState(() => _sortAscending = !_sortAscending),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Ink(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.15)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _sortAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                  size: 18,
+                                  color: const Color(0xFF165b47),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _sortAscending ? 'تصاعدي' : 'تنازلي',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF165b47),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        // Filter Button
+                        InkWell(
+                          onTap: _openFilterSheet,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Ink(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _typeTab != 'all' ? const Color(0xFF165b47) : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF165b47).withValues(alpha: 0.15)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.tune_rounded,
+                                  size: 18,
+                                  color: _typeTab != 'all' ? Colors.white : const Color(0xFF165b47),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'تصفية',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _typeTab != 'all' ? Colors.white : const Color(0xFF165b47),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
 
                     // Empty state
                     if (filtered.isEmpty)
@@ -483,31 +557,14 @@ class _PeriodTopBar extends StatelessWidget {
     required this.showArrows,
     required this.onPrev,
     required this.onNext,
-    required this.onFilter,
-    required this.typeTab,
   });
 
   final String label;
   final bool showArrows;
-  final VoidCallback onPrev, onNext, onFilter;
-  final String typeTab;
-
-  Color _typeColor() {
-    switch (typeTab) {
-      case 'income':
-        return const Color(0xFF16A34A);
-      case 'expense':
-        return const Color(0xFFDC2626);
-      case 'transfer':
-        return const Color(0xFF2563EB);
-      default:
-        return const Color(0xFF165b47);
-    }
-  }
+  final VoidCallback onPrev, onNext;
 
   @override
   Widget build(BuildContext context) {
-    final accent = _typeColor();
     return Container(
       color: const Color(0xFFFFFBF1),
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
@@ -530,24 +587,21 @@ class _PeriodTopBar extends StatelessWidget {
 
           // Period label
           Expanded(
-            child: GestureDetector(
-              onTap: onFilter,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: accent,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF165b47),
                   ),
-                ],
-              ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
 
@@ -558,31 +612,6 @@ class _PeriodTopBar extends StatelessWidget {
               icon: const Icon(Icons.chevron_left_rounded, size: 26),
               color: const Color(0xFF165b47),
             ),
-
-          // Filter button
-          Stack(
-            alignment: Alignment.topLeft,
-            children: [
-              IconButton(
-                onPressed: onFilter,
-                icon: const Icon(Icons.tune_rounded, size: 22),
-                color: const Color(0xFF165b47),
-              ),
-              if (typeTab != 'all')
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
         ],
       ),
     );
@@ -873,197 +902,82 @@ class _DayGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
+              const Expanded(
+                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
+              ),
+              const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 5),
+                    horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
-                  color:
-                      const Color(0xFF165b47).withValues(alpha: 0.10),
+                  color: const Color(0xFFF3EEDF),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  _dateLabel(),
-                  style: const TextStyle(
-                      color: Color(0xFF165b47),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700),
+                child: Row(
+                  children: [
+                    Text(
+                      _dateLabel(),
+                      style: const TextStyle(
+                          color: Color(0xFF7D7461),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800),
+                    ),
+                    if (dayIncome > 0 || dayExpense > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFB5A99A),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (dayIncome > 0)
+                      Text('+${dayIncome.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              color: Color(0xFF16A34A),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                    if (dayIncome > 0 && dayExpense > 0)
+                      const Text('  ',
+                          style: TextStyle(fontSize: 11)),
+                    if (dayExpense > 0)
+                      Text('-${dayExpense.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              if (dayIncome > 0)
-                Text('+${dayIncome.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                        color: Color(0xFF16A34A),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
-              if (dayIncome > 0 && dayExpense > 0)
-                const Text('  ',
-                    style: TextStyle(fontSize: 11)),
-              if (dayExpense > 0)
-                Text('-${dayExpense.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                        color: Color(0xFFDC2626),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Divider(color: Color(0xFFE4DCCF), thickness: 1),
+              ),
             ],
           ),
         ),
-        ...transactions.map((t) => _TxCard(
-              tx: t,
-              categories: categories,
-              onTap: () => openTransactionDetailsSheet(
-                context,
-                cubit: cubit,
+        ...transactions.map((t) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: SharedTransactionCard(
                 transaction: t,
+                appState: cubit.state,
+                onTap: () => openTransactionDetailsSheet(
+                  context,
+                  cubit: cubit,
+                  transaction: t,
+                ),
               ),
             )),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
       ],
     );
   }
 }
 
-// ── Transaction Card ────────────────────────────────────────────────────────
 
-class _TxCard extends StatelessWidget {
-  const _TxCard({
-    required this.tx,
-    required this.categories,
-    required this.onTap,
-  });
-
-  final TransactionEntity tx;
-  final List<CategoryEntity> categories;
-  final VoidCallback onTap;
-
-  Color _color() {
-    if (tx.type == 'income') return const Color(0xFF16A34A);
-    if (tx.type == 'expense') return const Color(0xFFDC2626);
-    return const Color(0xFF2563EB);
-  }
-
-  IconData _icon() {
-    if (tx.type == 'income') return Icons.arrow_downward_rounded;
-    if (tx.type == 'expense') return Icons.arrow_upward_rounded;
-    return Icons.swap_horiz_rounded;
-  }
-
-  String _typeLabel() {
-    if (tx.type == 'income') return 'دخل';
-    if (tx.type == 'expense') return 'مصروف';
-    return 'تحويل';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _color();
-    final cat = tx.categoryId == null
-        ? null
-        : categories.where((c) => c.id == tx.categoryId).firstOrNull;
-    final time = DateFormat('HH:mm').format(tx.createdAt);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.15)),
-          boxShadow: [
-            BoxShadow(
-                color: color.withValues(alpha: 0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 3)),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Icon bubble
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(_icon(), color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tx.notes?.isNotEmpty == true
-                        ? tx.notes!
-                        : _typeLabel(),
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(time,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF9A9181),
-                              fontWeight: FontWeight.w500)),
-                      if (cat != null) ...[
-                        const Text(' • ',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF9A9181))),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(cat.name,
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: color,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Amount + chevron
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${tx.type == 'expense' ? '-' : '+'}${tx.amount.toStringAsFixed(2)}',
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Icon(Icons.chevron_left_rounded,
-                    size: 16, color: color.withValues(alpha: 0.45)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
