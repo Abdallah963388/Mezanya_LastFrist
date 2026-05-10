@@ -2155,29 +2155,88 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Widget _jarSummaryTile(AppStateEntity state, LinkedWalletEntity jar,
       List<TransactionEntity> monthTx) {
+    final hasPending = jar.pendingDistribution > 0;
+
+    // ── شيب تأجيل لو في توزيع معلّق ──────────────────────────────────────
+    Widget? pendingChip;
+    if (hasPending) {
+      pendingChip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.schedule_rounded,
+                size: 13, color: Color(0xFFF5A623)),
+            const SizedBox(width: 4),
+            Text(
+              'ينتظر تأكيد تحويل ${jar.pendingDistribution.toStringAsFixed(0)} ج.م',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFFF5A623),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return _entityTile(
       title: jar.name,
-      leading: _iconBadge(jar.icon, jar.iconColor, size: 54),
+      leading: _iconBadge(jar.icon, jar.iconColor, size: hasPending ? 44 : 54),
       amountText: jar.balance.toStringAsFixed(2),
       metaText: 'المخصص الشهري ${jar.monthlyAmount.toStringAsFixed(2)}',
-      supportingText: 'إجمالي رصيد الحصالة',
-      progress: jar.monthlyAmount <= 0
+      supportingText: hasPending ? null : 'إجمالي رصيد الحصالة',
+      supportingCustom: pendingChip,
+      compactMeta: hasPending,
+      progress: hasPending
           ? null
-          : (monthTx
-                      .where((t) => t.type == 'expense' && t.walletId == jar.id)
-                      .fold<double>(0, (s, t) => s + t.amount) /
-                  jar.monthlyAmount)
-              .clamp(0.0, 1.0)
-              .toDouble(),
-      progressColor: jar.monthlyAmount <= 0
+          : jar.monthlyAmount <= 0
+              ? null
+              : (monthTx
+                          .where(
+                              (t) => t.type == 'expense' && t.walletId == jar.id)
+                          .fold<double>(0, (s, t) => s + t.amount) /
+                      jar.monthlyAmount)
+                  .clamp(0.0, 1.0)
+                  .toDouble(),
+      progressColor: hasPending
           ? null
-          : _usageProgressColor((monthTx
-                      .where((t) => t.type == 'expense' && t.walletId == jar.id)
-                      .fold<double>(0, (s, t) => s + t.amount) /
-                  jar.monthlyAmount)
-              .clamp(0.0, 1.0)
-              .toDouble()),
+          : jar.monthlyAmount <= 0
+              ? null
+              : _usageProgressColor((monthTx
+                          .where(
+                              (t) => t.type == 'expense' && t.walletId == jar.id)
+                          .fold<double>(0, (s, t) => s + t.amount) /
+                      jar.monthlyAmount)
+                  .clamp(0.0, 1.0)
+                  .toDouble()),
+      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
       onTap: () => _openJarDetailsSheet(jar),
+      actions: hasPending
+          ? [
+              _compactActionButton(
+                label: 'تأكيد التحويل',
+                onPressed: () async {
+                  await widget.cubit.confirmJarDistribution(jar.id);
+                },
+              ),
+              _compactActionButton(
+                label: 'تأجيل',
+                filled: false,
+                onPressed: () async {
+                  await widget.cubit.postponeJarDistribution(jar.id);
+                },
+              ),
+            ]
+          : [],
     );
   }
 

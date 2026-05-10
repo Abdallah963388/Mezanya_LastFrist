@@ -260,6 +260,9 @@ class LinkedWalletEntity {
     this.walletBalances = const {},
     this.walletSources = const [],
     this.isHighlighted = false,
+    this.pendingDistribution = 0,
+    this.pendingDistributionWalletId = '',
+    this.pendingDistributionSourceId = '',
   });
 
   final String id;
@@ -282,6 +285,15 @@ class LinkedWalletEntity {
 
   /// هل الكارت مُلوَّن (شفايفه)
   final bool isHighlighted;
+
+  /// مبلغ معلّق ينتظر تأكيد اليوزر (لحصالات automationType='confirm')
+  final double pendingDistribution;
+
+  /// المحفظة التي سيُخصم منها المبلغ المعلّق (لو isPhysical)
+  final String pendingDistributionWalletId;
+
+  /// مصدر الدخل الذي أطلق التوزيع المعلّق
+  final String pendingDistributionSourceId;
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -315,6 +327,9 @@ class LinkedWalletEntity {
         'walletBalances': walletBalances,
         'walletSources': walletSources.map((s) => s.toMap()).toList(),
         'isHighlighted': isHighlighted,
+        'pendingDistribution': pendingDistribution,
+        'pendingDistributionWalletId': pendingDistributionWalletId,
+        'pendingDistributionSourceId': pendingDistributionSourceId,
       };
 
   factory LinkedWalletEntity.fromMap(Map<String, dynamic> map) =>
@@ -344,6 +359,12 @@ class LinkedWalletEntity {
             .map(JarWalletSource.fromMap)
             .toList(),
         isHighlighted: map['isHighlighted'] as bool? ?? false,
+        pendingDistribution:
+            (map['pendingDistribution'] as num?)?.toDouble() ?? 0,
+        pendingDistributionWalletId:
+            map['pendingDistributionWalletId'] as String? ?? '',
+        pendingDistributionSourceId:
+            map['pendingDistributionSourceId'] as String? ?? '',
       );
 
   LinkedWalletEntity copyWith({
@@ -361,6 +382,9 @@ class LinkedWalletEntity {
     Map<String, double>? walletBalances,
     List<JarWalletSource>? walletSources,
     bool? isHighlighted,
+    double? pendingDistribution,
+    String? pendingDistributionWalletId,
+    String? pendingDistributionSourceId,
   }) {
     return LinkedWalletEntity(
       id: id ?? this.id,
@@ -377,6 +401,11 @@ class LinkedWalletEntity {
       walletBalances: walletBalances ?? this.walletBalances,
       walletSources: walletSources ?? this.walletSources,
       isHighlighted: isHighlighted ?? this.isHighlighted,
+      pendingDistribution: pendingDistribution ?? this.pendingDistribution,
+      pendingDistributionWalletId:
+          pendingDistributionWalletId ?? this.pendingDistributionWalletId,
+      pendingDistributionSourceId:
+          pendingDistributionSourceId ?? this.pendingDistributionSourceId,
     );
   }
 }

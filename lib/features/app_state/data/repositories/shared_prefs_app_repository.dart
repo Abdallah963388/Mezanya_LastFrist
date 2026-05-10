@@ -140,29 +140,56 @@ class SharedPrefsAppRepository implements AppRepository {
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
-      // Handle Automatic Distribution to Jars (VIRTUAL ONLY - no real transactions)
+      // Handle Distribution to Jars based on automationType and isPhysical
       if (transaction.incomeSourceId != null) {
         final sourceId = transaction.incomeSourceId!;
         var remaining = transaction.amount;
 
         for (var i = 0; i < linkedWallets.length; i++) {
           final jar = linkedWallets[i];
-          final jarPlan = jar.funding
-              .where((f) => f.incomeSourceId == sourceId)
-              .fold<double>(0, (s, f) => s + f.plannedAmount);
+          final matchingFunding =
+              jar.funding.where((f) => f.incomeSourceId == sourceId).toList();
+          if (matchingFunding.isEmpty || remaining <= 0) continue;
 
-          if (jarPlan <= 0 || remaining <= 0) continue;
+          final jarPlan = matchingFunding.fold<double>(
+              0, (s, f) => s + f.plannedAmount);
+          if (jarPlan <= 0) continue;
 
           final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
           remaining -= transferAmount;
 
-          // Virtual reservation label — NO physical deduction, NO transaction created
-          updateVirtualBalance(
-            id: jar.id,
-            delta: transferAmount,
-            physicalWalletId: transaction.walletId,
-          );
-          // ✖ لا يُضاف أي transaction حقيقي هنا — التوزيع على الحصالات virtual بحت
+          // هل يوجد مصدر تمويل بـ isPhysical لهذا الدخل؟
+          final hasPhysicalFunding =
+              matchingFunding.any((f) => f.isPhysical);
+
+          if (jar.automationType == 'auto') {
+            // توزيع فوري
+            updateVirtualBalance(
+              id: jar.id,
+              delta: transferAmount,
+              physicalWalletId: transaction.walletId,
+            );
+            // لو isPhysical: خصم المبلغ فعلياً من المحفظة
+            if (hasPhysicalFunding && transaction.walletId != null) {
+              final wIdx =
+                  wallets.indexWhere((w) => w.id == transaction.walletId);
+              if (wIdx != -1) {
+                wallets[wIdx] = wallets[wIdx].copyWith(
+                  balance: wallets[wIdx].balance - transferAmount,
+                );
+              }
+            }
+          } else if (jar.automationType == 'confirm') {
+            // معلّق — ينتظر تأكيد اليوزر
+            linkedWallets[i] = jar.copyWith(
+              pendingDistribution:
+                  jar.pendingDistribution + transferAmount,
+              pendingDistributionWalletId:
+                  hasPhysicalFunding ? (transaction.walletId ?? '') : '',
+              pendingDistributionSourceId: sourceId,
+            );
+          }
+          // manual: لا شيء يحدث تلقائياً
         }
       }
     } else if (transaction.type == 'expense') {

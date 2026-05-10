@@ -98,7 +98,8 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
     });
   }
 
-  void _updateFunding(String id, {String? incomeSourceId, double? amount}) {
+  void _updateFunding(String id,
+      {String? incomeSourceId, double? amount, bool? isPhysical}) {
     setState(() {
       _funding = _funding
           .map(
@@ -107,6 +108,7 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                     id: item.id,
                     incomeSourceId: incomeSourceId ?? item.incomeSourceId,
                     plannedAmount: amount ?? item.plannedAmount,
+                    isPhysical: isPhysical ?? item.isPhysical,
                   )
                 : item,
           )
@@ -499,11 +501,13 @@ class _JarEditorScreenState extends State<JarEditorScreen> {
                               onChanged: ({
                                 String? incomeSourceId,
                                 double? amount,
+                                bool? isPhysical,
                               }) {
                                 _updateFunding(
                                   item.id,
                                   incomeSourceId: incomeSourceId,
                                   amount: amount,
+                                  isPhysical: isPhysical,
                                 );
                               },
                               onDelete: () => _removeFunding(item.id),
@@ -623,12 +627,13 @@ class _JarFundingCard extends StatelessWidget {
   final LinkedWalletEntityFunding item;
   final List<IncomeSourceEntity> incomeSources;
   final bool canDelete;
-  final void Function({String? incomeSourceId, double? amount}) onChanged;
+  final void Function({String? incomeSourceId, double? amount, bool? isPhysical}) onChanged;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isValidValue = incomeSources.any(
       (income) => income.id == item.incomeSourceId,
     );
@@ -674,7 +679,68 @@ class _JarFundingCard extends StatelessWidget {
             onChanged: (value) =>
                 onChanged(amount: double.tryParse(value) ?? 0),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          // ── سويتش: خصم فعلي من المحفظة ─────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: item.isPhysical
+                  ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: item.isPhysical
+                    ? colorScheme.primary.withValues(alpha: 0.4)
+                    : colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  item.isPhysical
+                      ? Icons.account_balance_wallet_rounded
+                      : Icons.bookmark_outline_rounded,
+                  size: 20,
+                  color: item.isPhysical
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.isPhysical
+                            ? 'خصم فعلي من المحفظة'
+                            : 'تخصيص افتراضي فقط',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: item.isPhysical
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        item.isPhysical
+                            ? 'المبلغ يُخصم من المحفظة عند توزيع الراتب'
+                            : 'المبلغ يُحجز افتراضياً بدون خصم من المحفظة',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: item.isPhysical,
+                  onChanged: (v) => onChanged(isPhysical: v),
+                  activeColor: colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(

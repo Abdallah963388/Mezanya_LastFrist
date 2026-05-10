@@ -720,8 +720,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    final accent = _parseColor(wallet.iconColor ?? '#165b47');
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2753,65 +2751,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     );
   }
 
-  Widget _glassMetric({
-    required String label,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.white.withValues(alpha: 0.82),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _iconAction(
-    IconData icon, {
-    required VoidCallback onTap,
-    required String tooltip,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Tooltip(
-        message: tooltip,
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.20),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(icon, color: Colors.white, size: 18),
-        ),
-      ),
-    );
-  }
-
   MapEntry<String, String> _heroMetric(String label, String value) {
     return MapEntry(label, value);
   }
@@ -4406,4 +4345,27 @@ class _TransferItemTile extends StatelessWidget {
       ),
     );
   }
+}
+String txDisplayName(dynamic transaction, List<dynamic> categories) {
+  final notes = transaction.notes as String?;
+  if (notes != null && notes.isNotEmpty) return notes;
+  final type = transaction.type as String? ?? '';
+  return switch (type) {
+    'income' => 'دخل',
+    'expense' => 'مصروف',
+    'transfer' => 'تحويل',
+    _ => 'معاملة',
+  };
+}
+
+String? txSubtitle(dynamic transaction) {
+  final type = transaction.type as String? ?? '';
+  final notes = transaction.notes as String?;
+  if (notes != null && notes.isNotEmpty && type != 'income') return null;
+  return switch (type) {
+    'income' => 'دخل مسجل',
+    'expense' => 'مصروف',
+    'transfer' => 'تحويل داخلي',
+    _ => null,
+  };
 }

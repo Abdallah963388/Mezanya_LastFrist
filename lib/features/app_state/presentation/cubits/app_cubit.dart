@@ -584,6 +584,78 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  /// تأكيد توزيع الراتب على حصالة "يحتاج تأكيد"
+  Future<void> confirmJarDistribution(String jarId) async {
+    final jars = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    var wallets = List<WalletEntity>.from(state.wallets);
+    final idx = jars.indexWhere((j) => j.id == jarId);
+    if (idx == -1) return;
+    final jar = jars[idx];
+    final amount = jar.pendingDistribution;
+    if (amount <= 0) return;
+
+    // أضف المبلغ لرصيد الحصالة
+    final nextBalances = Map<String, double>.from(jar.walletBalances);
+    if (jar.pendingDistributionWalletId.isNotEmpty) {
+      nextBalances[jar.pendingDistributionWalletId] =
+          (nextBalances[jar.pendingDistributionWalletId] ?? 0) + amount;
+    }
+    jars[idx] = jar.copyWith(
+      balance: jar.balance + amount,
+      walletBalances: nextBalances,
+      pendingDistribution: 0,
+      pendingDistributionWalletId: '',
+      pendingDistributionSourceId: '',
+    );
+
+    // لو كانت تخصيص فعلي: خصم من المحفظة
+    if (jar.pendingDistributionWalletId.isNotEmpty) {
+      final wIdx =
+          wallets.indexWhere((w) => w.id == jar.pendingDistributionWalletId);
+      if (wIdx != -1) {
+        wallets[wIdx] =
+            wallets[wIdx].copyWith(balance: wallets[wIdx].balance - amount);
+      }
+    }
+
+    final next = state.copyWith(
+      wallets: wallets,
+      budgetSetup: state.budgetSetup.copyWith(linkedWallets: jars),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'jar',
+      entityId: jarId,
+      details: 'تم تأكيد تحويل ${amount.toStringAsFixed(2)} لحصالة ${jar.name}',
+      apply: () async => next,
+    );
+  }
+
+  /// تأجيل (إلغاء) توزيع معلّق على حصالة
+  Future<void> postponeJarDistribution(String jarId) async {
+    final jars = state.budgetSetup.linkedWallets
+        .map((j) => j.id == jarId
+            ? j.copyWith(
+                pendingDistribution: 0,
+                pendingDistributionWalletId: '',
+                pendingDistributionSourceId: '',
+              )
+            : j)
+        .toList();
+    final jar = state.budgetSetup.linkedWallets.firstWhere((j) => j.id == jarId,
+        orElse: () => state.budgetSetup.linkedWallets.first);
+    final next = state.copyWith(
+      budgetSetup: state.budgetSetup.copyWith(linkedWallets: jars),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'jar',
+      entityId: jarId,
+      details: 'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
+      apply: () async => next,
+    );
+  }
+
   /// تحديث مصادر الحصالة (label فقط — بدون تغيير الرصيد أو إنشاء transaction)
   Future<void> updateJarWalletSources({
     required String jarId,
