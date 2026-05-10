@@ -55,14 +55,36 @@ Future<void> openTransactionDetailsSheet(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          transaction.notes?.trim().isNotEmpty == true
-                              ? transaction.notes!.trim()
-                              : _typeLabel(transaction.type),
+                          transaction.categoryId != null &&
+                                  transaction.categoryId!.isNotEmpty
+                              ? (cubit.state.categories
+                                      .where((c) =>
+                                          c.id == transaction.categoryId)
+                                      .firstOrNull
+                                      ?.name ??
+                                  transaction.notes?.trim() ??
+                                  _typeLabel(transaction.type))
+                              : transaction.notes?.trim().isNotEmpty == true
+                                  ? transaction.notes!.trim()
+                                  : _typeLabel(transaction.type),
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                         const SizedBox(height: 5),
+                        // ملاحظات تفصيلية تحت الاسم لو الاسم من الفئة
+                        if (transaction.categoryId != null &&
+                            transaction.categoryId!.isNotEmpty &&
+                            transaction.notes?.trim().isNotEmpty == true) ...[
+                          Text(
+                            transaction.notes!.trim(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: accent.withValues(alpha: 0.75),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                        ],
                         Text(
                           '${_typeLabel(transaction.type)} - ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(transaction.createdAt)}',
                           style: theme.textTheme.bodySmall?.copyWith(
