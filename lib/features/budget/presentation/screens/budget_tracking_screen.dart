@@ -1288,6 +1288,25 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final defaultTitle = isIncome ? 'دخل' : (isExpense ? 'مصروف' : 'تحويل');
     final prefix = isIncome ? '+' : (isExpense ? '-' : '');
 
+    // اسم المعاملة: الفئة أولاً → الملاحظات → النوع
+    final categories = widget.cubit.state.categories;
+    String txTitle = defaultTitle;
+    String? txNotes;
+    if (item.categoryId != null && item.categoryId!.isNotEmpty) {
+      try {
+        final cat =
+            categories.firstWhere((c) => c.id == item.categoryId);
+        txTitle = cat.name;
+        if (item.notes != null && item.notes!.isNotEmpty) {
+          txNotes = item.notes;
+        }
+      } catch (_) {
+        txTitle = item.notes?.isNotEmpty == true ? item.notes! : defaultTitle;
+      }
+    } else if (item.notes?.isNotEmpty == true) {
+      txTitle = item.notes!;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -1328,9 +1347,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.notes?.isNotEmpty == true
-                            ? item.notes!
-                            : defaultTitle,
+                        txTitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -1338,6 +1355,19 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           fontSize: 14,
                         ),
                       ),
+                      if (txNotes != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          txNotes,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 2),
                       Text(
                         DateFormat('d MMMM · h:mm a', 'ar')
@@ -2302,12 +2332,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final relevantTransactions = state.transactions
         .where((t) => t.toWalletId == jar.id || t.walletId == jar.id)
         .where((t) =>
+            // تحويلات الحصالة الداخلية
             t.transferType == 'jar-allocation' ||
             t.transferType == 'jar-allocation-cancel' ||
             t.transferType == 'jar-allocation-spend' ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
-            (t.type == 'income' && t.budgetScope == 'within-budget'))
+            (t.type == 'income' && t.budgetScope == 'within-budget') ||
+            // مصروفات حقيقية مخصومة من الحصالة
+            (t.type == 'expense' && t.walletId == jar.id &&
+                t.transferType == null))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
