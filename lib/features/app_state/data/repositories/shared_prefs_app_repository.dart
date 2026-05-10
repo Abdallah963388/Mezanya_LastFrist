@@ -41,7 +41,8 @@ class SharedPrefsAppRepository implements AppRepository {
   @override
   Future<AppStateEntity> addWallet(WalletEntity wallet) async {
     final current = await loadState();
-    final next = current.copyWith(wallets: <WalletEntity>[...current.wallets, wallet]);
+    final next =
+        current.copyWith(wallets: <WalletEntity>[...current.wallets, wallet]);
     await saveState(next);
     return next;
   }
@@ -50,9 +51,14 @@ class SharedPrefsAppRepository implements AppRepository {
   Future<AppStateEntity> addTransaction(TransactionEntity transaction) async {
     final current = await loadState();
     var wallets = List<WalletEntity>.from(current.wallets);
-    var linkedWallets = List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
-    var allocations = List<AllocationEntity>.from(current.budgetSetup.allocations);
-    var transactions = <TransactionEntity>[...current.transactions, transaction];
+    var linkedWallets =
+        List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
+    var allocations =
+        List<AllocationEntity>.from(current.budgetSetup.allocations);
+    var transactions = <TransactionEntity>[
+      ...current.transactions,
+      transaction
+    ];
 
     // Helper to update virtual entity (Jar or Allocation)
     void updateVirtualBalance({
@@ -66,7 +72,8 @@ class SharedPrefsAppRepository implements AppRepository {
         final jar = linkedWallets[jarIdx];
         final nextBalances = Map<String, double>.from(jar.walletBalances);
         if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) + delta;
+          nextBalances[physicalWalletId] =
+              (nextBalances[physicalWalletId] ?? 0) + delta;
         }
         linkedWallets[jarIdx] = jar.copyWith(
           balance: jar.balance + delta,
@@ -80,7 +87,8 @@ class SharedPrefsAppRepository implements AppRepository {
         final alloc = allocations[allocIdx];
         final nextBalances = Map<String, double>.from(alloc.walletBalances);
         if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] = (nextBalances[physicalWalletId] ?? 0) + delta;
+          nextBalances[physicalWalletId] =
+              (nextBalances[physicalWalletId] ?? 0) + delta;
         }
         allocations[allocIdx] = alloc.copyWith(
           balance: alloc.balance + delta,
@@ -91,7 +99,8 @@ class SharedPrefsAppRepository implements AppRepository {
     }
 
     if (transaction.type == 'transfer') {
-      final isPhysicalFrom = wallets.any((w) => w.id == transaction.fromWalletId);
+      final isPhysicalFrom =
+          wallets.any((w) => w.id == transaction.fromWalletId);
       final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
 
       if (isPhysicalFrom && isPhysicalTo) {
@@ -131,7 +140,7 @@ class SharedPrefsAppRepository implements AppRepository {
         return w.copyWith(balance: w.balance + transaction.amount);
       }).toList();
 
-      // Handle Automatic Distribution to Jars
+      // Handle Automatic Distribution to Jars (VIRTUAL ONLY - no real transactions)
       if (transaction.incomeSourceId != null) {
         final sourceId = transaction.incomeSourceId!;
         var remaining = transaction.amount;
@@ -141,33 +150,19 @@ class SharedPrefsAppRepository implements AppRepository {
           final jarPlan = jar.funding
               .where((f) => f.incomeSourceId == sourceId)
               .fold<double>(0, (s, f) => s + f.plannedAmount);
-          
+
           if (jarPlan <= 0 || remaining <= 0) continue;
-          
+
           final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
           remaining -= transferAmount;
 
-          // Virtual reservation update (DO NOT deduct from physical wallet balance anymore as per user request)
+          // Virtual reservation label — NO physical deduction, NO transaction created
           updateVirtualBalance(
             id: jar.id,
             delta: transferAmount,
             physicalWalletId: transaction.walletId,
           );
-
-          transactions.add(
-            TransactionEntity(
-              id: 'txn-auto-jar-${DateTime.now().microsecondsSinceEpoch}-${jar.id}',
-              amount: transferAmount,
-              type: 'transfer',
-              fromWalletId: 'unallocated', // Virtual source
-              toWalletId: jar.id,
-              walletId: transaction.walletId,
-              transferType: 'jar-funding',
-              notes: 'توزيع تلقائي للحصالة: ${jar.name}',
-              createdAt: transaction.createdAt,
-              incomeSourceId: sourceId,
-            ),
-          );
+          // ✖ لا يُضاف أي transaction حقيقي هنا — التوزيع على الحصالات virtual بحت
         }
       }
     } else if (transaction.type == 'expense') {
@@ -178,7 +173,8 @@ class SharedPrefsAppRepository implements AppRepository {
       }).toList();
 
       // Deduct from Virtual Reservation if linked
-      final virtualTargetId = transaction.allocationId ?? transaction.toWalletId;
+      final virtualTargetId =
+          transaction.allocationId ?? transaction.toWalletId;
       if (virtualTargetId != null) {
         updateVirtualBalance(
           id: virtualTargetId,
@@ -200,9 +196,9 @@ class SharedPrefsAppRepository implements AppRepository {
     return next;
   }
 
-
   @override
-  Future<AppStateEntity> updateBudgetSetup(BudgetSetupEntity budgetSetup) async {
+  Future<AppStateEntity> updateBudgetSetup(
+      BudgetSetupEntity budgetSetup) async {
     final current = await loadState();
     final next = current.copyWith(budgetSetup: budgetSetup);
     await saveState(next);

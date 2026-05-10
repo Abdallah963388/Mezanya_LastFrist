@@ -130,23 +130,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   double _walletReservedAmount(String walletId) {
+    // الحجز الآن محسوب من walletSources في الحصالات (virtual labels) مش من transactions
     var reserved = 0.0;
-    for (final transaction in widget.cubit.state.transactions) {
-      if (transaction.fromWalletId == walletId &&
-          transaction.toWalletId != null) {
-        if (transaction.transferType == 'jar-allocation' ||
-            transaction.transferType == 'jar-funding') {
-          reserved += transaction.amount;
-        } else if (transaction.transferType == 'jar-allocation-cancel' ||
-            transaction.transferType == 'jar-allocation-spend') {
-          reserved -= transaction.amount;
-        }
-      }
-      if (transaction.type == 'income' &&
-          transaction.budgetScope == 'within-budget' &&
-          transaction.walletId == walletId &&
-          transaction.toWalletId != null) {
-        reserved += transaction.amount;
+    for (final jar in widget.cubit.state.budgetSetup.linkedWallets) {
+      final sources = jar.walletSources.isNotEmpty
+          ? jar.walletSources
+          : jar.walletBalances.entries
+              .map((e) => JarWalletSource(walletId: e.key, amount: e.value))
+              .toList();
+      for (final src in sources) {
+        if (src.walletId == walletId) reserved += src.amount;
       }
     }
     return reserved < 0 ? 0 : reserved;

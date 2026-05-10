@@ -161,8 +161,8 @@ class AllocationEntity {
             .whereType<Map<String, dynamic>>()
             .map(CategoryEntity.fromMap)
             .toList(),
-        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)
-                ?.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
+        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)?.map(
+                (k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
             const {},
       );
 
@@ -220,16 +220,19 @@ class LinkedWalletEntityFunding {
     required this.id,
     required this.incomeSourceId,
     required this.plannedAmount,
+    this.isPhysical = false,
   });
 
   final String id;
   final String incomeSourceId;
   final double plannedAmount;
+  final bool isPhysical;
 
   Map<String, dynamic> toMap() => {
         'id': id,
         'incomeSourceId': incomeSourceId,
         'plannedAmount': plannedAmount,
+        'isPhysical': isPhysical,
       };
 
   factory LinkedWalletEntityFunding.fromMap(Map<String, dynamic> map) =>
@@ -237,6 +240,7 @@ class LinkedWalletEntityFunding {
         id: map['id'] as String? ?? '',
         incomeSourceId: map['incomeSourceId'] as String? ?? '',
         plannedAmount: (map['plannedAmount'] as num?)?.toDouble() ?? 0,
+        isPhysical: map['isPhysical'] as bool? ?? false,
       );
 }
 
@@ -282,8 +286,7 @@ class LinkedWalletEntity {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   /// مجموع المبالغ المصنفة من المحافظ
-  double get labeledTotal =>
-      walletSources.fold(0.0, (s, e) => s + e.amount);
+  double get labeledTotal => walletSources.fold(0.0, (s, e) => s + e.amount);
 
   /// الجزء غير المصنف من رصيد الحصالة
   double get unlabeledAmount => (balance - labeledTotal).clamp(0.0, balance);
@@ -333,8 +336,8 @@ class LinkedWalletEntity {
             .whereType<Map<String, dynamic>>()
             .map(CategoryEntity.fromMap)
             .toList(),
-        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)
-                ?.map((k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
+        walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)?.map(
+                (k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
             const {},
         walletSources: (map['walletSources'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()

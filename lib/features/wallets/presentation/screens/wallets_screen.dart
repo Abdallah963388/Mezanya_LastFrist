@@ -708,8 +708,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final walletTx = state.transactions
         .where((t) =>
             t.walletId == wallet.id ||
-            t.toWalletId == wallet.id ||
-            t.fromWalletId == wallet.id)
+            (t.toWalletId == wallet.id && t.type != 'transfer') ||
+            (t.fromWalletId == wallet.id && t.type != 'transfer'))
+        .where((t) => !_isVirtualJarTransaction(t))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
