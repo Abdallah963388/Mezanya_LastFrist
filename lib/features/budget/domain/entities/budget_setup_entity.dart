@@ -121,6 +121,10 @@ class AllocationEntity {
     required this.funding,
     required this.categories,
     this.walletBalances = const {},
+    this.automationType = 'confirm',
+    this.pendingDistribution = 0,
+    this.pendingDistributionWalletId = '',
+    this.pendingDistributionSourceId = '',
   });
 
   final String id;
@@ -133,6 +137,14 @@ class AllocationEntity {
   final List<CategoryEntity> categories;
   final Map<String, double> walletBalances;
 
+  /// 'auto' | 'confirm' | 'manual'
+  final String automationType;
+
+  /// مبلغ معلّق ينتظر تأكيد اليوزر
+  final double pendingDistribution;
+  final String pendingDistributionWalletId;
+  final String pendingDistributionSourceId;
+
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
@@ -143,6 +155,10 @@ class AllocationEntity {
         'funding': funding.map((e) => e.toMap()).toList(),
         'categories': categories.map((e) => e.toMap()).toList(),
         'walletBalances': walletBalances,
+        'automationType': automationType,
+        'pendingDistribution': pendingDistribution,
+        'pendingDistributionWalletId': pendingDistributionWalletId,
+        'pendingDistributionSourceId': pendingDistributionSourceId,
       };
 
   factory AllocationEntity.fromMap(Map<String, dynamic> map) =>
@@ -164,6 +180,13 @@ class AllocationEntity {
         walletBalances: (map['walletBalances'] as Map<dynamic, dynamic>?)?.map(
                 (k, v) => MapEntry(k.toString(), (v as num).toDouble())) ??
             const {},
+        automationType: map['automationType'] as String? ?? 'confirm',
+        pendingDistribution:
+            (map['pendingDistribution'] as num?)?.toDouble() ?? 0,
+        pendingDistributionWalletId:
+            map['pendingDistributionWalletId'] as String? ?? '',
+        pendingDistributionSourceId:
+            map['pendingDistributionSourceId'] as String? ?? '',
       );
 
   AllocationEntity copyWith({
@@ -176,6 +199,10 @@ class AllocationEntity {
     List<AllocationFundingEntity>? funding,
     List<CategoryEntity>? categories,
     Map<String, double>? walletBalances,
+    String? automationType,
+    double? pendingDistribution,
+    String? pendingDistributionWalletId,
+    String? pendingDistributionSourceId,
   }) {
     return AllocationEntity(
       id: id ?? this.id,
@@ -187,6 +214,12 @@ class AllocationEntity {
       funding: funding ?? this.funding,
       categories: categories ?? this.categories,
       walletBalances: walletBalances ?? this.walletBalances,
+      automationType: automationType ?? this.automationType,
+      pendingDistribution: pendingDistribution ?? this.pendingDistribution,
+      pendingDistributionWalletId:
+          pendingDistributionWalletId ?? this.pendingDistributionWalletId,
+      pendingDistributionSourceId:
+          pendingDistributionSourceId ?? this.pendingDistributionSourceId,
     );
   }
 }

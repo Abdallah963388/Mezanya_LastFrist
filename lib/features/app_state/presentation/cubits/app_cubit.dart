@@ -656,6 +656,80 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
+  /// تأكيد توزيع الراتب على مخصصة "يحتاج تأكيد"
+  Future<void> confirmAllocationDistribution(String allocationId) async {
+    final allocations =
+        List<AllocationEntity>.from(state.budgetSetup.allocations);
+    var wallets = List<WalletEntity>.from(state.wallets);
+    final idx = allocations.indexWhere((a) => a.id == allocationId);
+    if (idx == -1) return;
+    final alloc = allocations[idx];
+    final amount = alloc.pendingDistribution;
+    if (amount <= 0) return;
+
+    final nextBalances = Map<String, double>.from(alloc.walletBalances);
+    if (alloc.pendingDistributionWalletId.isNotEmpty) {
+      nextBalances[alloc.pendingDistributionWalletId] =
+          (nextBalances[alloc.pendingDistributionWalletId] ?? 0) + amount;
+    }
+    allocations[idx] = alloc.copyWith(
+      balance: alloc.balance + amount,
+      walletBalances: nextBalances,
+      pendingDistribution: 0,
+      pendingDistributionWalletId: '',
+      pendingDistributionSourceId: '',
+    );
+
+    if (alloc.pendingDistributionWalletId.isNotEmpty) {
+      final wIdx = wallets
+          .indexWhere((w) => w.id == alloc.pendingDistributionWalletId);
+      if (wIdx != -1) {
+        wallets[wIdx] =
+            wallets[wIdx].copyWith(balance: wallets[wIdx].balance - amount);
+      }
+    }
+
+    final next = state.copyWith(
+      wallets: wallets,
+      budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'allocation',
+      entityId: allocationId,
+      details:
+          'تم تأكيد تحويل ${amount.toStringAsFixed(2)} لمخصصة ${alloc.name}',
+      apply: () async => next,
+    );
+  }
+
+  /// تأجيل (إلغاء) توزيع معلّق على مخصصة
+  Future<void> postponeAllocationDistribution(String allocationId) async {
+    final alloc = state.budgetSetup.allocations.firstWhere(
+        (a) => a.id == allocationId,
+        orElse: () => state.budgetSetup.allocations.first);
+    final allocations = state.budgetSetup.allocations
+        .map((a) => a.id == allocationId
+            ? a.copyWith(
+                pendingDistribution: 0,
+                pendingDistributionWalletId: '',
+                pendingDistributionSourceId: '',
+              )
+            : a)
+        .toList();
+    final next = state.copyWith(
+      budgetSetup: state.budgetSetup.copyWith(allocations: allocations),
+    );
+    await _applyAndLog(
+      action: 'edit',
+      entityType: 'allocation',
+      entityId: allocationId,
+      details:
+          'تم تأجيل تحويل ${alloc.pendingDistribution.toStringAsFixed(2)} لمخصصة ${alloc.name}',
+      apply: () async => next,
+    );
+  }
+
   /// تحديث مصادر الحصالة (label فقط — بدون تغيير الرصيد أو إنشاء transaction)
   Future<void> updateJarWalletSources({
     required String jarId,

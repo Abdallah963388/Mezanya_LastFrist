@@ -4347,8 +4347,19 @@ class _TransferItemTile extends StatelessWidget {
   }
 }
 String txDisplayName(dynamic transaction, List<dynamic> categories) {
+  // 1. الفئة أولاً — اسمها هو العنوان
+  final categoryId = transaction.categoryId as String?;
+  if (categoryId != null && categoryId.isNotEmpty && categories.isNotEmpty) {
+    try {
+      final cat = categories.firstWhere((c) => (c.id as String) == categoryId);
+      final catName = cat.name as String?;
+      if (catName != null && catName.isNotEmpty) return catName;
+    } catch (_) {}
+  }
+  // 2. الملاحظات
   final notes = transaction.notes as String?;
   if (notes != null && notes.isNotEmpty) return notes;
+  // 3. نوع المعاملة
   final type = transaction.type as String? ?? '';
   return switch (type) {
     'income' => 'دخل',
@@ -4359,13 +4370,12 @@ String txDisplayName(dynamic transaction, List<dynamic> categories) {
 }
 
 String? txSubtitle(dynamic transaction) {
-  final type = transaction.type as String? ?? '';
+  // لو في فئة → الملاحظات تظهر subtitle
+  final categoryId = transaction.categoryId as String?;
   final notes = transaction.notes as String?;
-  if (notes != null && notes.isNotEmpty && type != 'income') return null;
-  return switch (type) {
-    'income' => 'دخل مسجل',
-    'expense' => 'مصروف',
-    'transfer' => 'تحويل داخلي',
-    _ => null,
-  };
+  if (categoryId != null && categoryId.isNotEmpty) {
+    return (notes != null && notes.isNotEmpty) ? notes : null;
+  }
+  // مافيش فئة → الملاحظات كانت هي العنوان، مافيش subtitle
+  return null;
 }

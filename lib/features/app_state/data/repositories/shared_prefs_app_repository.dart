@@ -191,6 +191,44 @@ class SharedPrefsAppRepository implements AppRepository {
           }
           // manual: لا شيء يحدث تلقائياً
         }
+
+        // Handle Distribution to Allocations based on automationType
+        for (var i = 0; i < allocations.length; i++) {
+          final alloc = allocations[i];
+          final matchingFunding = alloc.funding
+              .where((f) => f.incomeSourceId == sourceId)
+              .toList();
+          if (matchingFunding.isEmpty || remaining <= 0) continue;
+
+          final allocPlan =
+              matchingFunding.fold<double>(0, (s, f) => s + f.plannedAmount);
+          if (allocPlan <= 0) continue;
+
+          final transferAmount =
+              allocPlan <= remaining ? allocPlan : remaining;
+          remaining -= transferAmount;
+
+          if (alloc.automationType == 'auto') {
+            final nextBalances =
+                Map<String, double>.from(alloc.walletBalances);
+            if (transaction.walletId != null) {
+              nextBalances[transaction.walletId!] =
+                  (nextBalances[transaction.walletId!] ?? 0) + transferAmount;
+            }
+            allocations[i] = alloc.copyWith(
+              balance: alloc.balance + transferAmount,
+              walletBalances: nextBalances,
+            );
+          } else if (alloc.automationType == 'confirm') {
+            allocations[i] = alloc.copyWith(
+              pendingDistribution:
+                  alloc.pendingDistribution + transferAmount,
+              pendingDistributionWalletId: transaction.walletId ?? '',
+              pendingDistributionSourceId: sourceId,
+            );
+          }
+          // manual: لا شيء يحدث
+        }
       }
     } else if (transaction.type == 'expense') {
       // 4. Physical Expense

@@ -2140,16 +2140,70 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final remaining = funded - spent;
     final ratio = funded <= 0 ? 0.0 : (remaining / funded).clamp(0.0, 1.0);
     final color = _usageProgressColor(1 - ratio);
+    final hasPending = allocation.pendingDistribution > 0;
+
+    Widget? pendingChip;
+    if (hasPending) {
+      pendingChip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5A623).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFF5A623).withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.schedule_rounded,
+                size: 13, color: Color(0xFFF5A623)),
+            const SizedBox(width: 4),
+            Text(
+              'ينتظر تأكيد تحويل ${allocation.pendingDistribution.toStringAsFixed(0)} ج.م',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFFF5A623),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return _entityTile(
       title: allocation.name,
-      leading: _iconBadge(allocation.icon, allocation.iconColor, size: 54),
-      amountText: remaining.toStringAsFixed(2),
+      leading: _iconBadge(allocation.icon, allocation.iconColor,
+          size: hasPending ? 44 : 54),
+      amountText: hasPending
+          ? allocation.pendingDistribution.toStringAsFixed(2)
+          : remaining.toStringAsFixed(2),
       metaText: 'المخطط ${planned.toStringAsFixed(2)}',
-      supportingText: 'المتاح ${funded.toStringAsFixed(2)}',
-      progress: ratio,
-      progressColor: color,
+      supportingText: hasPending ? null : 'المتاح ${funded.toStringAsFixed(2)}',
+      supportingCustom: pendingChip,
+      compactMeta: hasPending,
+      progress: hasPending ? null : ratio,
+      progressColor: hasPending ? null : color,
+      tint: hasPending ? const Color(0xFFF5A623).withValues(alpha: 0.6) : null,
       onTap: () => _openAllocationSheet(state, allocation, monthTx),
+      actions: hasPending
+          ? [
+              _compactActionButton(
+                label: 'تأكيد التحويل',
+                onPressed: () async {
+                  await widget.cubit.confirmAllocationDistribution(allocation.id);
+                },
+              ),
+              _compactActionButton(
+                label: 'تأجيل',
+                filled: false,
+                onPressed: () async {
+                  await widget.cubit.postponeAllocationDistribution(allocation.id);
+                },
+              ),
+            ]
+          : [],
     );
   }
 
