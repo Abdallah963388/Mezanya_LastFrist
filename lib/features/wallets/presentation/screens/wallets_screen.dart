@@ -503,7 +503,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       _softIconAction(
                         Icons.add_circle_outline_rounded,
                         onTap: () => _openWalletAllocateToJarDialog(wallet),
-                        tooltip: 'تخصيص مبلغ',
+                        tooltip: 'تمويل حصالة',
                         accent: accent,
                       ),
                       const SizedBox(width: 6),
@@ -540,7 +540,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _softMetric(
-                        label: 'محجوز',
+                        label: 'تمويل حصالات',
                         value: reserved.toStringAsFixed(2),
                         accent: accent,
                       ),
@@ -627,7 +627,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           jar: jar,
                           mode: _JarAdjustmentMode.allocate,
                         ),
-                        tooltip: 'تخصيص للحصالة',
+                        tooltip: 'تمييز مصدر',
                         accent: accent,
                       ),
                       const SizedBox(width: 6),
@@ -705,7 +705,9 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final reserved = _walletReservedAmount(state, wallet.id);
     final available = wallet.balance - reserved;
     final reservations =
-        _walletReservations(state, wallet.id); // jarId -> amount
+        _walletReservations(state, wallet.id); // jarId -> amount (virtual only)
+    final physicalJars =
+        _walletPhysicalJars(state, wallet.id); // jarId -> amount (physical)
 
     final walletTx = state.transactions
         .where((t) =>
@@ -819,7 +821,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 Icons.add_circle_outline_rounded,
                                 onTap: () =>
                                     _openWalletAllocateToJarDialog(wallet),
-                                tooltip: 'تخصيص للحصالة',
+                                tooltip: 'تمويل حصالة',
                               ),
                               const SizedBox(width: 6),
                               // Expand arrow
@@ -850,7 +852,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: _glassMetric(
-                                  label: 'الحصالات',
+                                  label: 'تمويل افتراضي',
                                   value: reservations.length.toString(),
                                   accent: accent,
                                 ),
@@ -887,8 +889,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showJars
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات للحصالات',
+                                      ? 'إخفاء التمويل'
+                                      : 'عرض التمويل الافتراضي للحصالات',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -903,7 +905,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ),
                   ),
 
-                  // ── Jar allocations panel (below card) ─────────────────
+                  // ── Virtual jar funding panel (below card) ─────────────
                   AnimatedSize(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
@@ -937,12 +939,29 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 10),
-                                    Text(
-                                      'التخصيصات للحصالات',
-                                      style: TextStyle(
-                                        color: accent,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'التمويل الافتراضي للحصالات',
+                                            style: TextStyle(
+                                              color: accent,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          Text(
+                                            'مبالغ مرصودة افتراضياً — لم تُخصم من الرصيد الفعلي',
+                                            style: TextStyle(
+                                              color:
+                                                  accent.withValues(alpha: 0.7),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -959,7 +978,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                       ),
                                     ),
                                     child: const Text(
-                                      'لا يوجد تخصيص لأي حصالة من هذه المحفظة حتى الآن.',
+                                      'لا يوجد تمويل افتراضي لأي حصالة من هذه المحفظة حتى الآن.',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: Color(0xFF8A7F72),
@@ -1069,6 +1088,93 @@ class _WalletsScreenState extends State<WalletsScreen> {
                           )
                         : const SizedBox.shrink(),
                   ),
+
+                  // ── Physical jars info section ────────────────────────
+                  if (physicalJars.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                color: accent,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'تمويل فعلي للحصالات — مطروح من الرصيد',
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          ...physicalJars.entries.map((e) {
+                            final jar = state.budgetSetup.linkedWallets
+                                .where((j) => j.id == e.key)
+                                .firstOrNull;
+                            final jarName = jar?.name ?? 'حصالة';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: AppIconPickerDialog.iconWidgetForName(
+                                        jar?.icon ?? 'savings',
+                                        color: accent,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      jarName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    e.value.toStringAsFixed(2),
+                                    style: TextStyle(
+                                      color: accent,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 20),
                   // ── Transactions ───────────────────────────────────────
@@ -1224,7 +1330,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                   jar: jar,
                                   mode: _JarAdjustmentMode.allocate,
                                 ),
-                                tooltip: 'تخصيص للحصالة',
+                                tooltip: 'تمييز مصدر',
                               ),
                             ],
                           ),
@@ -1291,8 +1397,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   showWallets
-                                      ? 'إخفاء التخصيصات'
-                                      : 'عرض التخصيصات من المحافظ',
+                                      ? 'إخفاء مصادر التمويل'
+                                      : 'عرض مصادر التمويل من المحافظ',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w800,
@@ -1342,7 +1448,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                     ),
                                     const SizedBox(width: 10),
                                     Text(
-                                      'التخصيصات من المحافظ',
+                                      'مصادر التمويل من المحافظ',
                                       style: TextStyle(
                                         color: accent,
                                         fontWeight: FontWeight.w900,
@@ -1363,7 +1469,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                       ),
                                     ),
                                     child: const Text(
-                                      'لا يوجد تخصيص من أي محفظة لهذه الحصالة حتى الآن.',
+                                      'لا توجد مصادر تمويل مرتبطة بهذه الحصالة حتى الآن.',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: Color(0xFF8A7F72),
@@ -2333,7 +2439,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('تخصيص من المحفظة إلى حصالة'),
+          title: const Text('تمويل حصالة من المحفظة'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2387,7 +2493,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   amount: amount,
                   transferType: 'jar-allocation',
                   notes: notesController.text.trim().isEmpty
-                      ? 'تخصيص ${amount.toStringAsFixed(2)} من ${wallet.name} إلى ${targetJar.name}'
+                      ? 'تمويل ${amount.toStringAsFixed(2)} من ${wallet.name} إلى ${targetJar.name}'
                       : notesController.text.trim(),
                 );
                 if (targetJar.id == 'linked-savings-default') {
@@ -2825,11 +2931,33 @@ class _WalletsScreenState extends State<WalletsScreen> {
     });
   }
 
-  /// المبالغ المحجوزة من محفظة معينة لكل حصالة — مبني على walletSources (label فقط)
+  /// المبالغ المموَّلة افتراضياً من محفظة معينة لكل حصالة — مبني على walletSources
+  /// تُعيد فقط الحصالات ذات التمويل الافتراضي (isPhysical=false)
+  /// الحصالات الفعلية (isPhysical=true) مطروحة فعلاً من رصيد المحفظة فلا تُحسب مرة ثانية
   Map<String, double> _walletReservations(
       AppStateEntity state, String walletId) {
     final result = <String, double>{};
     for (final jar in state.budgetSetup.linkedWallets) {
+      // تجاهل الحصالات التي لها تمويل فعلي — رصيد المحفظة انخفض فعلاً بسببها
+      final hasPhysicalFunding = jar.funding.any((f) => f.isPhysical);
+      if (hasPhysicalFunding) continue;
+
+      for (final src in jar.walletSources) {
+        if (src.walletId == walletId && src.amount > 0) {
+          result[jar.id] = src.amount;
+        }
+      }
+    }
+    return result;
+  }
+
+  /// الحصالات الفعلية (isPhysical=true) المرتبطة بمحفظة معينة — لإظهارها في القسم المنفصل
+  Map<String, double> _walletPhysicalJars(
+      AppStateEntity state, String walletId) {
+    final result = <String, double>{};
+    for (final jar in state.budgetSetup.linkedWallets) {
+      final hasPhysicalFunding = jar.funding.any((f) => f.isPhysical);
+      if (!hasPhysicalFunding) continue;
       for (final src in jar.walletSources) {
         if (src.walletId == walletId && src.amount > 0) {
           result[jar.id] = src.amount;
