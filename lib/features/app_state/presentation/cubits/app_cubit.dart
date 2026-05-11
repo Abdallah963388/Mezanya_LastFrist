@@ -247,14 +247,15 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: type == 'transfer' ? 'transfer' : 'add',
       entityType: 'transaction',
       entityId: transaction.id,
-      details: details ?? _transactionDetails(
-        type: type,
-        amount: amount,
-        walletName: walletName,
-        incomeName: incomeName,
-        allocationName: allocationName,
-        budgetScope: budgetScope,
-      ),
+      details: details ??
+          _transactionDetails(
+            type: type,
+            amount: amount,
+            walletName: walletName,
+            incomeName: incomeName,
+            allocationName: allocationName,
+            budgetScope: budgetScope,
+          ),
       titleOverride: notes?.isNotEmpty == true
           ? notes
           : incomeName ?? walletName ?? (type == 'income' ? 'دخل' : 'مصروف'),
@@ -651,7 +652,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'jar',
       entityId: jarId,
-      details: 'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
+      details:
+          'تم تأجيل تحويل ${jar.pendingDistribution.toStringAsFixed(2)} لحصالة ${jar.name}',
       apply: () async => next,
     );
   }
@@ -681,8 +683,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
 
     if (alloc.pendingDistributionWalletId.isNotEmpty) {
-      final wIdx = wallets
-          .indexWhere((w) => w.id == alloc.pendingDistributionWalletId);
+      final wIdx =
+          wallets.indexWhere((w) => w.id == alloc.pendingDistributionWalletId);
       if (wIdx != -1) {
         wallets[wIdx] =
             wallets[wIdx].copyWith(balance: wallets[wIdx].balance - amount);
@@ -1073,7 +1075,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       type: 'expense',
       budgetScope: recurring.budgetScope,
       allocationId: recurring.allocationId,
-      categoryId: recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
+      categoryId:
+          recurring.categoryIds.isNotEmpty ? recurring.categoryIds.first : null,
       notes: transactionNotes,
       createdAt: DateTime.now(),
     );
@@ -1220,7 +1223,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'add',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'سلفة لـ $personName بمبلغ ${amount.toStringAsFixed(2)} من ${walletName ?? walletId}',
+      details:
+          'سلفة لـ $personName بمبلغ ${amount.toStringAsFixed(2)} من ${walletName ?? walletId}',
       titleOverride: personName,
       apply: () async {
         final stateAfterTx = await _repository.addTransaction(txn);
@@ -1250,7 +1254,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     final allSettled = updatedEntries.every((e) => e['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
 
@@ -1271,7 +1276,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'استرداد سلفة من ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
+      details:
+          'استرداد سلفة من ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async {
         final stateAfterTx = await _repository.addTransaction(txn);
@@ -1289,10 +1295,11 @@ class AppCubit extends Cubit<AppStateEntity> {
     if (person == null) return;
 
     final entryAmount = (person.lentEntries
-            .where((e) => e['id'] == entryId)
-            .cast<Map<String, dynamic>?>()
-            .firstWhere((_) => true, orElse: () => null)?['amount'] as num?)
-        ?.toDouble() ?? 0;
+                .where((e) => e['id'] == entryId)
+                .cast<Map<String, dynamic>?>()
+                .firstWhere((_) => true, orElse: () => null)?['amount'] as num?)
+            ?.toDouble() ??
+        0;
 
     final updatedEntries = person.lentEntries
         .map((e) => e['id'] == entryId ? {...e, 'isSettled': true} : e)
@@ -1300,7 +1307,8 @@ class AppCubit extends Cubit<AppStateEntity> {
     final allSettled = updatedEntries.every((e) => e['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
     final next = state.copyWith(
@@ -1312,7 +1320,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'تنازل عن سلفة ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
+      details:
+          'تنازل عن سلفة ${person.lentPersonName ?? person.name} بمبلغ ${entryAmount.toStringAsFixed(2)}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async => next,
     );
@@ -1341,7 +1350,8 @@ class AppCubit extends Cubit<AppStateEntity> {
       action: 'edit',
       entityType: 'lent-record',
       entityId: personId,
-      details: 'تأجيل سلفة ${person.lentPersonName ?? person.name} إلى ${newDate.day}/${newDate.month}/${newDate.year}',
+      details:
+          'تأجيل سلفة ${person.lentPersonName ?? person.name} إلى ${newDate.day}/${newDate.month}/${newDate.year}',
       titleOverride: person.lentPersonName ?? person.name,
       apply: () async => next,
     );
@@ -1376,7 +1386,6 @@ class AppCubit extends Cubit<AppStateEntity> {
   Future<void> settleLentRecord(String id) async {}
   Future<void> writeOffLentRecord(String id) async {}
   Future<void> postponeLentRecord(String id, DateTime d) async {}
-
 
   Future<void> deleteRecurringTransaction(String id) async {
     final target =

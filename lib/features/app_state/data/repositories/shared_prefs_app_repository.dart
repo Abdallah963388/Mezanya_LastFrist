@@ -233,6 +233,13 @@ class SharedPrefsAppRepository implements AppRepository {
           }
           // manual: لا شيء يحدث
         }
+      } else if (transaction.toWalletId != null) {
+        // Direct deposit into a Jar (without a specific income source, or "wallet-only" which goes to a jar directly)
+        updateVirtualBalance(
+          id: transaction.toWalletId!,
+          delta: transaction.amount,
+          physicalWalletId: transaction.walletId,
+        );
       }
     } else if (transaction.type == 'expense') {
       // 4. Physical Expense

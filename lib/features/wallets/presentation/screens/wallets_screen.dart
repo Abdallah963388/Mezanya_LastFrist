@@ -1213,10 +1213,11 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final state = widget.cubit.state;
     final distribution = _jarDistribution(state, jar.id);
     final relevantTransactions = state.transactions
-        .where((t) =>
-            t.toWalletId == jar.id ||
-            t.walletId == jar.id ||
-            (t.type == 'income' && t.toWalletId == jar.id))
+        .where((t) {
+          final isDirectlyLinked = t.toWalletId == jar.id || t.walletId == jar.id || t.allocationId == jar.id;
+          final isFundingSource = t.type == 'income' && t.incomeSourceId != null && jar.funding.any((f) => f.incomeSourceId == t.incomeSourceId);
+          return isDirectlyLinked || isFundingSource;
+        })
         .where((t) =>
             t.transferType == 'jar-allocation' ||
             t.transferType == 'jar-allocation-cancel' ||
@@ -1224,7 +1225,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
             t.transferType == 'jar-funding' ||
             t.transferType == 'allocation-to-jar' ||
             t.transferType == 'jar-to-allocation' ||
-            (t.type == 'income' && t.budgetScope == 'within-budget'))
+            (t.type == 'income') ||
+            (t.type == 'expense'))
         .toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
