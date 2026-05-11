@@ -1142,7 +1142,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Center(
-                                      child: AppIconPickerDialog.iconWidgetForName(
+                                      child:
+                                          AppIconPickerDialog.iconWidgetForName(
                                         jar?.icon ?? 'savings',
                                         color: accent,
                                         size: 14,
@@ -4128,7 +4129,6 @@ class _SimpleValueTile extends StatelessWidget {
     );
   }
 }
-
 
 class _WalletReservationsPanel extends StatelessWidget {
   const _WalletReservationsPanel({

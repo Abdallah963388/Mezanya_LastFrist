@@ -634,9 +634,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             categories: [],
                                           ));
                                   if (jar.id.isNotEmpty) {
-                                    final fundedAmount = jar.walletSources.fold<double>(
-                                        0, (sum, source) => sum + source.amount);
-                                    final unfundedAmount = jar.balance - fundedAmount;
+                                    final fundedAmount = jar.walletSources
+                                        .fold<double>(
+                                            0,
+                                            (sum, source) =>
+                                                sum + source.amount);
+                                    final unfundedAmount =
+                                        jar.balance - fundedAmount;
                                     if (amount > unfundedAmount) {
                                       _showValidationError(
                                           'المبلغ أكبر من الرصيد غير الممول في الحصالة (${unfundedAmount.toStringAsFixed(2)}). اختر محفظة البنك الممول للخصم منها.');
