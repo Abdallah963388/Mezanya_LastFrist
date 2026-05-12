@@ -37,6 +37,18 @@ class BudgetController extends ChangeNotifier {
 
   double get unallocatedAmount => budgetSetup.unallocatedAmount;
 
+  bool get hasAllocations => allocations.isNotEmpty;
+
+  bool get hasLinkedWallets => linkedWallets.isNotEmpty;
+
+  bool get hasDebts => debts.isNotEmpty;
+
+  int get allocationCount => allocations.length;
+
+  int get linkedWalletCount => linkedWallets.length;
+
+  int get debtCount => debts.length;
+
   Future<void> initialize() async {
     _budgetSetup = await _repository.loadBudget();
     notifyListeners();
