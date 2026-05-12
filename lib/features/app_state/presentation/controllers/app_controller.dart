@@ -7,6 +7,12 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
 
+/// Temporary orchestration layer.
+///
+/// سيتم تفكيكه لاحقاً إلى:
+/// - WalletController
+/// - TransactionController
+/// - BudgetController
 class AppController extends ChangeNotifier {
   AppController(this._repository);
 
@@ -33,6 +39,7 @@ class AppController extends ChangeNotifier {
       icon: icon,
       iconColor: iconColor,
     );
+
     _state = await _repository.addWallet(wallet);
     notifyListeners();
   }
@@ -66,6 +73,7 @@ class AppController extends ChangeNotifier {
       notes: notes,
       createdAt: createdAt ?? DateTime.now(),
     );
+
     _state = await _repository.addTransaction(transaction);
     notifyListeners();
   }
@@ -85,26 +93,35 @@ class AppController extends ChangeNotifier {
     final wallets = _state.wallets
         .map((wallet) => wallet.id == id ? wallet.copyWith(name: name, balance: balance, icon: icon, iconColor: iconColor) : wallet)
         .toList();
+
     _state = _state.copyWith(wallets: wallets);
+
     await _repository.saveState(_state);
     notifyListeners();
   }
 
   Future<void> deleteWallet(String id) async {
-    _state = _state.copyWith(wallets: _state.wallets.where((wallet) => wallet.id != id).toList());
+    _state = _state.copyWith(
+      wallets: _state.wallets.where((wallet) => wallet.id != id).toList(),
+    );
+
     await _repository.saveState(_state);
     notifyListeners();
   }
 
   Future<void> addLinkedWallet(LinkedWalletEntity linkedWallet) async {
     final budget = _state.budgetSetup;
+
     await updateBudgetSetup(
-      budget.copyWith(linkedWallets: [...budget.linkedWallets, linkedWallet]),
+      budget.copyWith(
+        linkedWallets: [...budget.linkedWallets, linkedWallet],
+      ),
     );
   }
 
   Future<void> updateLinkedWallet(LinkedWalletEntity linkedWallet) async {
     final budget = _state.budgetSetup;
+
     await updateBudgetSetup(
       budget.copyWith(
         linkedWallets: budget.linkedWallets
@@ -116,15 +133,19 @@ class AppController extends ChangeNotifier {
 
   Future<void> deleteLinkedWallet(String id) async {
     final budget = _state.budgetSetup;
+
     await updateBudgetSetup(
       budget.copyWith(
-        linkedWallets: budget.linkedWallets.where((wallet) => wallet.id != id).toList(),
+        linkedWallets: budget.linkedWallets
+            .where((wallet) => wallet.id != id)
+            .toList(),
       ),
     );
   }
 
   Future<void> setCategories(List<CategoryEntity> categories) async {
     _state = _state.copyWith(categories: categories);
+
     await _repository.saveState(_state);
     notifyListeners();
   }
@@ -134,12 +155,16 @@ class AppController extends ChangeNotifier {
     required List<CategoryEntity> categories,
   }) async {
     final budget = _state.budgetSetup;
+
     final allocations = budget.allocations
         .map((item) => item.id == allocationId
             ? item.copyWith(categories: categories)
             : item)
         .toList();
-    await updateBudgetSetup(budget.copyWith(allocations: allocations));
+
+    await updateBudgetSetup(
+      budget.copyWith(allocations: allocations),
+    );
   }
 
   Future<void> updateLinkedWalletCategories({
@@ -147,11 +172,15 @@ class AppController extends ChangeNotifier {
     required List<CategoryEntity> categories,
   }) async {
     final budget = _state.budgetSetup;
+
     final linkedWallets = budget.linkedWallets
         .map((item) => item.id == linkedWalletId
             ? item.copyWith(categories: categories)
             : item)
         .toList();
-    await updateBudgetSetup(budget.copyWith(linkedWallets: linkedWallets));
+
+    await updateBudgetSetup(
+      budget.copyWith(linkedWallets: linkedWallets),
+    );
   }
 }
