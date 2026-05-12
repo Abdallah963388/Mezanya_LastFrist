@@ -13,6 +13,22 @@ class WalletController extends ChangeNotifier {
 
   List<WalletEntity> get wallets => _wallets;
 
+  int get walletCount => _wallets.length;
+
+  double get totalBalance =>
+      _wallets.fold(0, (sum, wallet) => sum + wallet.balance);
+
+  List<WalletEntity> get positiveBalanceWallets =>
+      _wallets.where((wallet) => wallet.balance > 0).toList();
+
+  WalletEntity? walletById(String id) {
+    try {
+      return _wallets.firstWhere((wallet) => wallet.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> initialize() async {
     _wallets = await _repository.loadWallets();
     notifyListeners();
@@ -59,6 +75,7 @@ class WalletController extends ChangeNotifier {
           icon: icon,
           iconColor: iconColor,
         );
+
     _wallets = WalletMutationService.updateWallet(
       wallets: _wallets,
       wallet: wallet,
