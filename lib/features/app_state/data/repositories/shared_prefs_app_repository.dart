@@ -53,219 +53,244 @@ class SharedPrefsAppRepository implements AppRepository {
     var wallets = List<WalletEntity>.from(current.wallets);
     var linkedWallets =
         List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
-    var allocations =
-        List<AllocationEntity>.from(current.budgetSetup.allocations);
     var transactions = <TransactionEntity>[
       ...current.transactions,
       transaction
     ];
 
-    // Helper to update virtual entity (Jar or Allocation)
-    void updateVirtualBalance({
-      required String id,
-      required double delta,
-      String? physicalWalletId,
-    }) {
-      // Check Jars
-      final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
-      if (jarIdx != -1) {
-        var jar = linkedWallets[jarIdx];
-        final nextBalances = Map<String, double>.from(jar.walletBalances);
-        if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] =
-              (nextBalances[physicalWalletId] ?? 0) + delta;
-
-          // Update walletSources as well
-          final existingSourceIdx = jar.walletSources
-              .indexWhere((s) => s.walletId == physicalWalletId);
-          double currentSourceAmount = 0;
-          if (existingSourceIdx != -1) {
-            currentSourceAmount = jar.walletSources[existingSourceIdx].amount;
-          }
-          final nextSourceAmount = currentSourceAmount + delta;
-          jar = jar.withUpdatedSource(physicalWalletId, nextSourceAmount);
-        }
-        linkedWallets[jarIdx] = jar.copyWith(
-          balance: jar.balance + delta,
-          walletBalances: nextBalances,
+    if (transaction.transferType == 'allocation-to-jar') {
+      linkedWallets = linkedWallets.map((wallet) {
+        if (wallet.id != transaction.toWalletId) return wallet;
+        return LinkedWalletEntity(
+          id: wallet.id,
+          name: wallet.name,
+          balance: wallet.balance + transaction.amount,
+          monthlyAmount: wallet.monthlyAmount,
+          executionDay: wallet.executionDay,
+          fundingSource: wallet.fundingSource,
+          funding: wallet.funding,
+          icon: wallet.icon,
+          iconColor: wallet.iconColor,
+          automationType: wallet.automationType,
+          categories: wallet.categories,
         );
-        return;
-      }
-      // Check Allocations
-      final allocIdx = allocations.indexWhere((a) => a.id == id);
-      if (allocIdx != -1) {
-        final alloc = allocations[allocIdx];
-        final nextBalances = Map<String, double>.from(alloc.walletBalances);
-        if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] =
-              (nextBalances[physicalWalletId] ?? 0) + delta;
-        }
-        allocations[allocIdx] = alloc.copyWith(
-          balance: alloc.balance + delta,
-          walletBalances: nextBalances,
+      }).toList();
+    } else if (transaction.transferType == 'jar-to-allocation') {
+      linkedWallets = linkedWallets.map((wallet) {
+        if (wallet.id != transaction.walletId) return wallet;
+        return LinkedWalletEntity(
+          id: wallet.id,
+          name: wallet.name,
+          balance: wallet.balance - transaction.amount,
+          monthlyAmount: wallet.monthlyAmount,
+          executionDay: wallet.executionDay,
+          fundingSource: wallet.fundingSource,
+          funding: wallet.funding,
+          icon: wallet.icon,
+          iconColor: wallet.iconColor,
+          automationType: wallet.automationType,
+          categories: wallet.categories,
         );
-        return;
-      }
-    }
+      }).toList();
+    } else if (transaction.transferType == 'jar-allocation' ||
+        transaction.transferType == 'jar-funding' ||
+        transaction.transferType == 'jar-allocation-cancel' ||
+        transaction.transferType == 'jar-allocation-spend') {
+      linkedWallets = linkedWallets.map((wallet) {
+        if (wallet.id != transaction.toWalletId &&
+            wallet.id != transaction.walletId) {
+          return wallet;
+        }
+        final delta = transaction.transferType == 'jar-allocation' ||
+                transaction.transferType == 'jar-funding'
+            ? transaction.amount
+            : -transaction.amount;
+        return LinkedWalletEntity(
+          id: wallet.id,
+          name: wallet.name,
+          balance: wallet.balance + delta,
+          monthlyAmount: wallet.monthlyAmount,
+          executionDay: wallet.executionDay,
+          fundingSource: wallet.fundingSource,
+          funding: wallet.funding,
+          icon: wallet.icon,
+          iconColor: wallet.iconColor,
+          automationType: wallet.automationType,
+          categories: wallet.categories,
+        );
+      }).toList();
+    } else if (transaction.type == 'transfer' &&
+        transaction.fromWalletId != null &&
+        transaction.toWalletId != null) {
+      wallets = wallets.map((wallet) {
+        if (wallet.id == transaction.fromWalletId) {
+          return wallet.copyWith(balance: wallet.balance - transaction.amount);
+        }
+        if (wallet.id == transaction.toWalletId) {
+          return wallet.copyWith(balance: wallet.balance + transaction.amount);
+        }
+        return wallet;
+      }).toList();
 
-    if (transaction.type == 'transfer') {
-      final isPhysicalFrom =
-          wallets.any((w) => w.id == transaction.fromWalletId);
-      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
+      linkedWallets = linkedWallets.map((wallet) {
+        if (wallet.id == transaction.toWalletId) {
+          return LinkedWalletEntity(
+            id: wallet.id,
+            name: wallet.name,
+            balance: wallet.balance + transaction.amount,
+            monthlyAmount: wallet.monthlyAmount,
+            executionDay: wallet.executionDay,
+            fundingSource: wallet.fundingSource,
+            funding: wallet.funding,
+            icon: wallet.icon,
+            iconColor: wallet.iconColor,
+            automationType: wallet.automationType,
+            categories: wallet.categories,
+          );
+        }
+        return wallet;
+      }).toList();
+    } else if (transaction.type == 'income' &&
+        transaction.incomeSourceId != null) {
+      // Income is first deposited to the selected wallet.
+      wallets = wallets.map((wallet) {
+        if (wallet.id != transaction.walletId) return wallet;
+        final nextBalance = wallet.balance + transaction.amount;
+        return wallet.copyWith(balance: nextBalance);
+      }).toList();
 
-      if (isPhysicalFrom && isPhysicalTo) {
-        // 1. Real money transfer between wallets
-        wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId) {
-            return w.copyWith(balance: w.balance - transaction.amount);
+      final sourceId = transaction.incomeSourceId!;
+      var remaining = transaction.amount;
+
+      // Then planned jar funding is recorded against the source wallet without
+      // moving real money out of that wallet.
+      for (final jar in linkedWallets) {
+        final jarPlan = jar.funding
+            .where((f) => f.incomeSourceId == sourceId)
+            .fold<double>(0, (s, f) => s + f.plannedAmount);
+        if (jarPlan <= 0 || remaining <= 0) {
+          continue;
+        }
+        final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
+        remaining -= transferAmount;
+
+        linkedWallets = linkedWallets.map((wallet) {
+          if (wallet.id != jar.id) {
+            return wallet;
           }
-          if (w.id == transaction.toWalletId) {
-            return w.copyWith(balance: w.balance + transaction.amount);
-          }
-          return w;
+          return LinkedWalletEntity(
+            id: wallet.id,
+            name: wallet.name,
+            balance: wallet.balance + transferAmount,
+            monthlyAmount: wallet.monthlyAmount,
+            executionDay: wallet.executionDay,
+            fundingSource: wallet.fundingSource,
+            funding: wallet.funding,
+            icon: wallet.icon,
+            iconColor: wallet.iconColor,
+            automationType: wallet.automationType,
+            categories: wallet.categories,
+          );
         }).toList();
-      } else {
-        // 2. Virtual transfer (Internal)
-        // Deduct from 'from'
-        if (transaction.fromWalletId != null) {
-          updateVirtualBalance(
-            id: transaction.fromWalletId!,
-            delta: -transaction.amount,
-            physicalWalletId: transaction.walletId, // Optional physical link
-          );
-        }
-        // Add to 'to'
-        if (transaction.toWalletId != null) {
-          updateVirtualBalance(
-            id: transaction.toWalletId!,
-            delta: transaction.amount,
-            physicalWalletId: transaction.walletId, // Optional physical link
-          );
-        }
-      }
-    } else if (transaction.type == 'income') {
-      // 3. Physical Income
-      wallets = wallets.map((w) {
-        if (w.id != transaction.walletId) return w;
-        return w.copyWith(balance: w.balance + transaction.amount);
-      }).toList();
 
-      // Handle Distribution to Jars based on automationType and isPhysical
-      if (transaction.incomeSourceId != null) {
-        final sourceId = transaction.incomeSourceId!;
-        var remaining = transaction.amount;
-
-        for (var i = 0; i < linkedWallets.length; i++) {
-          final jar = linkedWallets[i];
-          final matchingFunding =
-              jar.funding.where((f) => f.incomeSourceId == sourceId).toList();
-          if (matchingFunding.isEmpty || remaining <= 0) continue;
-
-          final jarPlan =
-              matchingFunding.fold<double>(0, (s, f) => s + f.plannedAmount);
-          if (jarPlan <= 0) continue;
-
-          final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
-          remaining -= transferAmount;
-
-          // هل يوجد مصدر تمويل بـ isPhysical لهذا الدخل؟
-          final hasPhysicalFunding = matchingFunding.any((f) => f.isPhysical);
-
-          if (jar.automationType == 'auto') {
-            // توزيع فوري
-            updateVirtualBalance(
-              id: jar.id,
-              delta: transferAmount,
-              physicalWalletId: transaction.walletId,
-            );
-            // لو isPhysical: خصم المبلغ فعلياً من المحفظة
-            if (hasPhysicalFunding && transaction.walletId != null) {
-              final wIdx =
-                  wallets.indexWhere((w) => w.id == transaction.walletId);
-              if (wIdx != -1) {
-                wallets[wIdx] = wallets[wIdx].copyWith(
-                  balance: wallets[wIdx].balance - transferAmount,
-                );
-              }
-            }
-          } else if (jar.automationType == 'confirm') {
-            // معلّق — ينتظر تأكيد اليوزر
-            linkedWallets[i] = jar.copyWith(
-              pendingDistribution: jar.pendingDistribution + transferAmount,
-              pendingDistributionWalletId:
-                  hasPhysicalFunding ? (transaction.walletId ?? '') : '',
-              pendingDistributionSourceId: sourceId,
-            );
-          }
-          // manual: لا شيء يحدث تلقائياً
-        }
-
-        // Handle Distribution to Allocations based on automationType
-        for (var i = 0; i < allocations.length; i++) {
-          final alloc = allocations[i];
-          final matchingFunding =
-              alloc.funding.where((f) => f.incomeSourceId == sourceId).toList();
-          if (matchingFunding.isEmpty || remaining <= 0) continue;
-
-          final allocPlan =
-              matchingFunding.fold<double>(0, (s, f) => s + f.plannedAmount);
-          if (allocPlan <= 0) continue;
-
-          final transferAmount = allocPlan <= remaining ? allocPlan : remaining;
-          remaining -= transferAmount;
-
-          if (alloc.automationType == 'auto') {
-            final nextBalances = Map<String, double>.from(alloc.walletBalances);
-            if (transaction.walletId != null) {
-              nextBalances[transaction.walletId!] =
-                  (nextBalances[transaction.walletId!] ?? 0) + transferAmount;
-            }
-            allocations[i] = alloc.copyWith(
-              balance: alloc.balance + transferAmount,
-              walletBalances: nextBalances,
-            );
-          } else if (alloc.automationType == 'confirm') {
-            allocations[i] = alloc.copyWith(
-              pendingDistribution: alloc.pendingDistribution + transferAmount,
-              pendingDistributionWalletId: transaction.walletId ?? '',
-              pendingDistributionSourceId: sourceId,
-            );
-          }
-          // manual: لا شيء يحدث
-        }
-      } else if (transaction.toWalletId != null) {
-        // Direct deposit into a Jar (without a specific income source, or "wallet-only" which goes to a jar directly)
-        updateVirtualBalance(
-          id: transaction.toWalletId!,
-          delta: transaction.amount,
-          physicalWalletId: transaction.walletId,
+        transactions.add(
+          TransactionEntity(
+            id: 'txn-auto-jar-${DateTime.now().microsecondsSinceEpoch}',
+            amount: transferAmount,
+            type: 'transfer',
+            fromWalletId: transaction.walletId,
+            toWalletId: jar.id,
+            transferType: 'jar-funding',
+            notes: 'تحويل تلقائي للحصالة: ${jar.name}',
+            createdAt: transaction.createdAt,
+            incomeSourceId: sourceId,
+          ),
         );
       }
-    } else if (transaction.type == 'expense') {
-      // 4. Physical Expense
-      wallets = wallets.map((w) {
-        if (w.id != transaction.walletId) return w;
-        return w.copyWith(balance: w.balance - transaction.amount);
-      }).toList();
 
-      // Deduct from Virtual Reservation if linked
-      final virtualTargetId =
-          transaction.allocationId ?? transaction.toWalletId;
-      if (virtualTargetId != null) {
-        updateVirtualBalance(
-          id: virtualTargetId,
-          delta: -transaction.amount,
-          physicalWalletId: transaction.walletId,
+      // Recurring debts and subscriptions are handled by the recurring engine,
+      // so income deposit should not trigger any debt deduction here.
+      remaining = 0;
+
+      // Then planned debt deductions execute from the same deposited amount.
+      for (final debt in current.budgetSetup.debts
+          .where((d) => d.fundingSource == sourceId)) {
+        if (remaining <= 0) {
+          break;
+        }
+        final debtAmount = debt.amount <= remaining ? debt.amount : remaining;
+        remaining -= debtAmount;
+
+        wallets = wallets.map((wallet) {
+          if (wallet.id != transaction.walletId) {
+            return wallet;
+          }
+          return wallet.copyWith(balance: wallet.balance - debtAmount);
+        }).toList();
+
+        transactions.add(
+          TransactionEntity(
+            id: 'txn-auto-debt-${DateTime.now().microsecondsSinceEpoch}',
+            amount: debtAmount,
+            type: 'expense',
+            walletId: transaction.walletId,
+            budgetScope: 'outside-budget',
+            notes: 'سداد تلقائي للدين: ${debt.name}',
+            createdAt: transaction.createdAt,
+            incomeSourceId: sourceId,
+          ),
         );
+      }
+    } else {
+      // Regular expense/income without linked source behavior.
+      wallets = wallets.map((wallet) {
+        if (wallet.id != transaction.walletId) return wallet;
+        final nextBalance = transaction.type == 'income'
+            ? wallet.balance + transaction.amount
+            : wallet.balance - transaction.amount;
+        return wallet.copyWith(balance: nextBalance);
+      }).toList();
+      if (transaction.type == 'income' && transaction.toWalletId != null) {
+        linkedWallets = linkedWallets.map((wallet) {
+          if (wallet.id != transaction.toWalletId) return wallet;
+          return LinkedWalletEntity(
+            id: wallet.id,
+            name: wallet.name,
+            balance: wallet.balance + transaction.amount,
+            monthlyAmount: wallet.monthlyAmount,
+            executionDay: wallet.executionDay,
+            fundingSource: wallet.fundingSource,
+            funding: wallet.funding,
+            icon: wallet.icon,
+            iconColor: wallet.iconColor,
+            automationType: wallet.automationType,
+            categories: wallet.categories,
+          );
+        }).toList();
+      }
+      if (transaction.type == 'expense' && transaction.toWalletId != null) {
+        linkedWallets = linkedWallets.map((wallet) {
+          if (wallet.id != transaction.toWalletId) return wallet;
+          return LinkedWalletEntity(
+            id: wallet.id,
+            name: wallet.name,
+            balance: wallet.balance - transaction.amount,
+            monthlyAmount: wallet.monthlyAmount,
+            executionDay: wallet.executionDay,
+            fundingSource: wallet.fundingSource,
+            funding: wallet.funding,
+            icon: wallet.icon,
+            iconColor: wallet.iconColor,
+            automationType: wallet.automationType,
+            categories: wallet.categories,
+          );
+        }).toList();
       }
     }
 
     final next = current.copyWith(
       wallets: wallets,
-      budgetSetup: current.budgetSetup.copyWith(
-        linkedWallets: linkedWallets,
-        allocations: allocations,
-      ),
+      budgetSetup: current.budgetSetup.copyWith(linkedWallets: linkedWallets),
       transactions: transactions,
     );
     await saveState(next);
