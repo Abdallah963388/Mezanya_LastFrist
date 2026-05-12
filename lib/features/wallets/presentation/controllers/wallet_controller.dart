@@ -12,6 +12,7 @@ class WalletController extends ChangeNotifier {
   AppStateEntity _state = AppStateEntity.initial();
 
   AppStateEntity get state => _state;
+  List<WalletEntity> get wallets => _state.wallets;
 
   Future<void> initialize() async {
     _state = await _repository.loadState();
@@ -64,9 +65,7 @@ class WalletController extends ChangeNotifier {
 
   Future<void> deleteWallet(String id) async {
     _state = _state.copyWith(
-      wallets: _state.wallets
-          .where((wallet) => wallet.id != id)
-          .toList(),
+      wallets: _state.wallets.where((wallet) => wallet.id != id).toList(),
     );
 
     await _repository.saveState(_state);
