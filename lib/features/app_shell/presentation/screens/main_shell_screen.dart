@@ -80,17 +80,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingNotifications = _pendingNotificationCount(widget.cubit.state);
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: _showsAppBar
-          ? MainShellAppBar(
-              todayLabelFuture: _todayLabelFuture,
-              pendingNotifications: pendingNotifications,
-              onOpenNotifications: _openNotifications,
-            )
-          : null,
+      appBar: _showsAppBar ? _buildAppBar() : null,
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,
@@ -102,6 +94,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
         destinations: _destinations,
         onSelected: _handleDestinationSelected,
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return _PendingNotificationsAppBar(
+      cubit: widget.cubit,
+      todayLabelFuture: _todayLabelFuture,
+      pendingNotificationCount: _pendingNotificationCount,
+      onOpenNotifications: _openNotifications,
     );
   }
 
@@ -187,15 +188,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
             item.budgetScope == 'within-budget' &&
             item.incomeSourceId == income.id,
       );
-      final recurring = recurringTransactions.isEmpty
-          ? null
-          : recurringTransactions.first;
+      final recurring =
+          recurringTransactions.isEmpty ? null : recurringTransactions.first;
       final dueDate =
           DateTime(month.year, month.month, income.date.clamp(1, 28));
       final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
       final today = DateTime(now.year, now.month, now.day);
-      final reminderDate =
-          dueDate.subtract(Duration(days: reminderLeadDays));
+      final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
       final canRecordEarly = reminderLeadDays > 0 &&
           !today.isBefore(reminderDate) &&
           today.isBefore(dueDate);
@@ -215,7 +214,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
         continue;
       }
       final paidAmount = cycleTransactions
-          .where((transaction) => transaction.notes?.contains(debt.name) == true)
+          .where(
+              (transaction) => transaction.notes?.contains(debt.name) == true)
           .fold<double>(0, (sum, transaction) => sum + transaction.amount);
       final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
       final remaining = BudgetRecurringPlanService.pendingDecisionAmount(
@@ -230,5 +230,39 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
 
     return count;
+  }
+}
+
+class _PendingNotificationsAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _PendingNotificationsAppBar({
+    required this.cubit,
+    required this.todayLabelFuture,
+    required this.pendingNotificationCount,
+    required this.onOpenNotifications,
+  });
+
+  final AppCubit cubit;
+  final Future<String> todayLabelFuture;
+  final int Function(AppStateEntity state) pendingNotificationCount;
+  final VoidCallback onOpenNotifications;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AppStateEntity>(
+      stream: cubit.stream,
+      initialData: cubit.state,
+      builder: (context, snapshot) {
+        final state = snapshot.data ?? cubit.state;
+        return MainShellAppBar(
+          todayLabelFuture: todayLabelFuture,
+          pendingNotifications: pendingNotificationCount(state),
+          onOpenNotifications: onOpenNotifications,
+        );
+      },
+    );
   }
 }

@@ -1,8 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
-import 'features/app_state/domain/entities/app_state_entity.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
 
 class MezanyaApp extends StatelessWidget {
@@ -29,11 +28,7 @@ class MezanyaApp extends StatelessWidget {
       ],
       theme: AppTheme.tactileManuscript(),
       builder: (context, child) => _PaperAppBackground(child: child),
-      home: StreamBuilder<AppStateEntity>(
-        stream: cubit.stream,
-        initialData: cubit.state,
-        builder: (context, _) => MainShellScreen(cubit: cubit),
-      ),
+      home: MainShellScreen(cubit: cubit),
     );
   }
 }
@@ -106,4 +101,3 @@ class _PaperGrainPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/storage/shared_prefs_keys.dart';
+import '../../../budget/data/repositories/budget_shared_prefs_repository.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../budget/domain/repositories/budget_repository.dart';
+import '../../../transactions/data/repositories/transaction_shared_prefs_repository.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/domain/repositories/transaction_repository.dart';
+import '../../../wallets/data/repositories/wallet_shared_prefs_repository.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../../wallets/domain/repositories/wallet_repository.dart';
 import '../../domain/entities/app_state_entity.dart';
@@ -22,6 +25,12 @@ class SharedPrefsAppRepository
   SharedPrefsAppRepository(this._prefs);
 
   final SharedPreferences _prefs;
+  late final WalletRepository _walletRepository =
+      WalletSharedPrefsRepository(_prefs);
+  late final TransactionRepository _transactionRepository =
+      TransactionSharedPrefsRepository(_prefs);
+  late final BudgetRepository _budgetRepository =
+      BudgetSharedPrefsRepository(_prefs);
 
   @override
   Future<AppStateEntity> loadState() async {
@@ -36,73 +45,52 @@ class SharedPrefsAppRepository
 
     final base = legacy ?? AppStateEntity.initial();
     return base.copyWith(
-      wallets: _readWallets() ?? base.wallets,
-      transactions: _readTransactions() ?? base.transactions,
-      budgetSetup: _readBudget() ?? base.budgetSetup,
+      wallets: await loadWallets(),
+      transactions: await loadTransactions(),
+      budgetSetup: await loadBudget(),
     );
   }
 
   @override
   Future<void> saveState(AppStateEntity state) async {
     await _writeStatePayload(state);
-    await _writeWallets(state.wallets);
-    await _writeTransactions(state.transactions);
-    await _writeBudget(state.budgetSetup);
+    await _walletRepository.saveWallets(state.wallets);
+    await _transactionRepository.saveTransactions(state.transactions);
+    await _budgetRepository.saveBudget(state.budgetSetup);
   }
 
   @override
   Future<List<WalletEntity>> loadWallets() async {
-    final wallets = _readWallets();
-    if (wallets != null) {
-      return wallets;
-    }
-
-    final state = _readLegacyState() ?? AppStateEntity.initial();
-    await saveWallets(state.wallets);
-    return state.wallets;
+    return _walletRepository.loadWallets();
   }
 
   @override
   Future<void> saveWallets(List<WalletEntity> wallets) async {
-    await _writeWallets(wallets);
+    await _walletRepository.saveWallets(wallets);
     final state = await loadState();
     await _writeStatePayload(state.copyWith(wallets: wallets));
   }
 
   @override
   Future<List<TransactionEntity>> loadTransactions() async {
-    final transactions = _readTransactions();
-    if (transactions != null) {
-      return transactions;
-    }
-
-    final state = _readLegacyState() ?? AppStateEntity.initial();
-    await saveTransactions(state.transactions);
-    return state.transactions;
+    return _transactionRepository.loadTransactions();
   }
 
   @override
   Future<void> saveTransactions(List<TransactionEntity> transactions) async {
-    await _writeTransactions(transactions);
+    await _transactionRepository.saveTransactions(transactions);
     final state = await loadState();
     await _writeStatePayload(state.copyWith(transactions: transactions));
   }
 
   @override
   Future<BudgetSetupEntity> loadBudget() async {
-    final budget = _readBudget();
-    if (budget != null) {
-      return budget;
-    }
-
-    final state = _readLegacyState() ?? AppStateEntity.initial();
-    await saveBudget(state.budgetSetup);
-    return state.budgetSetup;
+    return _budgetRepository.loadBudget();
   }
 
   @override
   Future<void> saveBudget(BudgetSetupEntity budget) async {
-    await _writeBudget(budget);
+    await _budgetRepository.saveBudget(budget);
     final state = await loadState();
     await _writeStatePayload(state.copyWith(budgetSetup: budget));
   }
@@ -161,81 +149,10 @@ class SharedPrefsAppRepository
     }
   }
 
-  List<WalletEntity>? _readWallets() {
-    final payload = _prefs.getString(SharedPrefsKeys.wallets);
-    if (payload == null || payload.isEmpty) {
-      return null;
-    }
-
-    try {
-      final decoded = jsonDecode(payload) as List<dynamic>;
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .map(WalletEntity.fromMap)
-          .toList();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  List<TransactionEntity>? _readTransactions() {
-    final payload = _prefs.getString(SharedPrefsKeys.transactions);
-    if (payload == null || payload.isEmpty) {
-      return null;
-    }
-
-    try {
-      final decoded = jsonDecode(payload) as List<dynamic>;
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .map(TransactionEntity.fromMap)
-          .toList();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  BudgetSetupEntity? _readBudget() {
-    final payload = _prefs.getString(SharedPrefsKeys.budget);
-    if (payload == null || payload.isEmpty) {
-      return null;
-    }
-
-    try {
-      final decoded = jsonDecode(payload) as Map<String, dynamic>;
-      return BudgetSetupEntity.fromMap(decoded);
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _writeStatePayload(AppStateEntity state) {
     return _prefs.setString(
       SharedPrefsKeys.appState,
       jsonEncode(state.toMap()),
-    );
-  }
-
-  Future<void> _writeWallets(List<WalletEntity> wallets) {
-    return _prefs.setString(
-      SharedPrefsKeys.wallets,
-      jsonEncode(wallets.map((wallet) => wallet.toMap()).toList()),
-    );
-  }
-
-  Future<void> _writeTransactions(List<TransactionEntity> transactions) {
-    return _prefs.setString(
-      SharedPrefsKeys.transactions,
-      jsonEncode(
-        transactions.map((transaction) => transaction.toMap()).toList(),
-      ),
-    );
-  }
-
-  Future<void> _writeBudget(BudgetSetupEntity budget) {
-    return _prefs.setString(
-      SharedPrefsKeys.budget,
-      jsonEncode(budget.toMap()),
     );
   }
 }
