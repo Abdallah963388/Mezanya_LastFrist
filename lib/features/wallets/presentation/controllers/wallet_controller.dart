@@ -15,6 +15,8 @@ class WalletController extends ChangeNotifier {
 
   int get walletCount => _wallets.length;
 
+  bool get hasWallets => _wallets.isNotEmpty;
+
   double get totalBalance =>
       _wallets.fold(0, (sum, wallet) => sum + wallet.balance);
 
@@ -27,6 +29,10 @@ class WalletController extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  bool containsWallet(String id) {
+    return _wallets.any((wallet) => wallet.id == id);
   }
 
   Future<void> initialize() async {
