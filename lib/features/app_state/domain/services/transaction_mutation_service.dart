@@ -1,7 +1,21 @@
 import '../../../budget/domain/entities/budget_setup_entity.dart';
+import '../../../transactions/domain/automation/auto_jar_funding_service.dart';
+import '../../../transactions/domain/automation/debt_payment_service.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../entities/app_state_entity.dart';
+
+class TransactionMutationResult {
+  const TransactionMutationResult({
+    required this.wallets,
+    required this.transactions,
+    required this.budgetSetup,
+  });
+
+  final List<WalletEntity> wallets;
+  final List<TransactionEntity> transactions;
+  final BudgetSetupEntity budgetSetup;
+}
 
 class TransactionMutationService {
   const TransactionMutationService._();
@@ -10,11 +24,31 @@ class TransactionMutationService {
     required AppStateEntity current,
     required TransactionEntity transaction,
   }) {
-    var wallets = List<WalletEntity>.from(current.wallets);
+    final result = applyTransaction(
+      wallets: current.wallets,
+      transactions: current.transactions,
+      budgetSetup: current.budgetSetup,
+      transaction: transaction,
+    );
+
+    return current.copyWith(
+      wallets: result.wallets,
+      budgetSetup: result.budgetSetup,
+      transactions: result.transactions,
+    );
+  }
+
+  static TransactionMutationResult applyTransaction({
+    required List<WalletEntity> wallets,
+    required List<TransactionEntity> transactions,
+    required BudgetSetupEntity budgetSetup,
+    required TransactionEntity transaction,
+  }) {
+    var nextWallets = List<WalletEntity>.from(wallets);
     var linkedWallets =
-        List<LinkedWalletEntity>.from(current.budgetSetup.linkedWallets);
-    final transactions = <TransactionEntity>[
-      ...current.transactions,
+        List<LinkedWalletEntity>.from(budgetSetup.linkedWallets);
+    var nextTransactions = <TransactionEntity>[
+      ...transactions,
       transaction,
     ];
 
@@ -50,7 +84,7 @@ class TransactionMutationService {
     } else if (transaction.type == 'transfer' &&
         transaction.fromWalletId != null &&
         transaction.toWalletId != null) {
-      wallets = wallets.map((wallet) {
+      nextWallets = nextWallets.map((wallet) {
         if (wallet.id == transaction.fromWalletId) {
           return wallet.copyWith(balance: wallet.balance - transaction.amount);
         }
@@ -68,7 +102,7 @@ class TransactionMutationService {
       }).toList();
     } else if (transaction.type == 'income' &&
         transaction.incomeSourceId != null) {
-      wallets = wallets.map((wallet) {
+      nextWallets = nextWallets.map((wallet) {
         if (wallet.id != transaction.walletId) {
           return wallet;
         }
@@ -76,72 +110,32 @@ class TransactionMutationService {
       }).toList();
 
       final sourceId = transaction.incomeSourceId!;
-      var remaining = transaction.amount;
+      final jarResult = AutoJarFundingService.apply(
+        linkedWallets: linkedWallets,
+        transactions: nextTransactions,
+        transaction: transaction,
+        sourceId: sourceId,
+        amount: transaction.amount,
+      );
 
-      for (final jar in linkedWallets) {
-        final jarPlan = jar.funding
-            .where((funding) => funding.incomeSourceId == sourceId)
-            .fold<double>(0, (sum, funding) => sum + funding.plannedAmount);
-        if (jarPlan <= 0 || remaining <= 0) {
-          continue;
-        }
-        final transferAmount = jarPlan <= remaining ? jarPlan : remaining;
-        remaining -= transferAmount;
+      linkedWallets = jarResult.linkedWallets;
+      nextTransactions = jarResult.transactions;
 
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != jar.id) {
-            return wallet;
-          }
-          return wallet.copyWith(balance: wallet.balance + transferAmount);
-        }).toList();
+      // Keep the legacy behavior: debt automation currently receives no
+      // remaining income after jar funding in the existing flow.
+      final debtResult = DebtPaymentService.apply(
+        wallets: nextWallets,
+        transactions: nextTransactions,
+        debts: budgetSetup.debts,
+        transaction: transaction,
+        sourceId: sourceId,
+        amount: 0,
+      );
 
-        transactions.add(
-          TransactionEntity(
-            id: 'txn-auto-jar-${DateTime.now().microsecondsSinceEpoch}',
-            amount: transferAmount,
-            type: 'transfer',
-            fromWalletId: transaction.walletId,
-            toWalletId: jar.id,
-            transferType: 'jar-funding',
-            notes: 'تحويل تلقائي للحصالة: ${jar.name}',
-            createdAt: transaction.createdAt,
-            incomeSourceId: sourceId,
-          ),
-        );
-      }
-
-      remaining = 0;
-
-      for (final debt in current.budgetSetup.debts
-          .where((debt) => debt.fundingSource == sourceId)) {
-        if (remaining <= 0) {
-          break;
-        }
-        final debtAmount = debt.amount <= remaining ? debt.amount : remaining;
-        remaining -= debtAmount;
-
-        wallets = wallets.map((wallet) {
-          if (wallet.id != transaction.walletId) {
-            return wallet;
-          }
-          return wallet.copyWith(balance: wallet.balance - debtAmount);
-        }).toList();
-
-        transactions.add(
-          TransactionEntity(
-            id: 'txn-auto-debt-${DateTime.now().microsecondsSinceEpoch}',
-            amount: debtAmount,
-            type: 'expense',
-            walletId: transaction.walletId,
-            budgetScope: 'outside-budget',
-            notes: 'سداد تلقائي للدين: ${debt.name}',
-            createdAt: transaction.createdAt,
-            incomeSourceId: sourceId,
-          ),
-        );
-      }
+      nextWallets = debtResult.wallets;
+      nextTransactions = debtResult.transactions;
     } else {
-      wallets = wallets.map((wallet) {
+      nextWallets = nextWallets.map((wallet) {
         if (wallet.id != transaction.walletId) {
           return wallet;
         }
@@ -152,10 +146,10 @@ class TransactionMutationService {
       }).toList();
     }
 
-    return current.copyWith(
-      wallets: wallets,
-      budgetSetup: current.budgetSetup.copyWith(linkedWallets: linkedWallets),
-      transactions: transactions,
+    return TransactionMutationResult(
+      wallets: nextWallets,
+      budgetSetup: budgetSetup.copyWith(linkedWallets: linkedWallets),
+      transactions: nextTransactions,
     );
   }
 }

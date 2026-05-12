@@ -1,8 +1,10 @@
 import '../../../../core/results/result.dart';
+import '../../../app_state/domain/services/transaction_mutation_service.dart';
+import '../../../budget/domain/repositories/budget_repository.dart';
+import '../../../wallets/domain/repositories/wallet_repository.dart';
 import '../../../app_state/domain/failures/app_failure.dart';
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/domain/repositories/app_repository.dart';
 import '../entities/transaction_entity.dart';
+import '../repositories/transaction_repository.dart';
 import '../services/financial_transaction_engine.dart';
 import '../services/transaction_submission_service.dart';
 
@@ -10,15 +12,23 @@ class AddTransactionUseCase {
   const AddTransactionUseCase({
     required FinancialTransactionEngine engine,
   })  : _engine = engine,
-        _repository = null;
+        _walletRepository = null,
+        _transactionRepository = null,
+        _budgetRepository = null;
 
   const AddTransactionUseCase.repository(
-    AppRepository repository,
-  )   : _repository = repository,
+    WalletRepository walletRepository,
+    TransactionRepository transactionRepository,
+    BudgetRepository budgetRepository,
+  )   : _walletRepository = walletRepository,
+        _transactionRepository = transactionRepository,
+        _budgetRepository = budgetRepository,
         _engine = null;
 
   final FinancialTransactionEngine? _engine;
-  final AppRepository? _repository;
+  final WalletRepository? _walletRepository;
+  final TransactionRepository? _transactionRepository;
+  final BudgetRepository? _budgetRepository;
 
   Future<Result<void>> call(
     TransactionSubmissionRequest request,
@@ -36,7 +46,22 @@ class AddTransactionUseCase {
     return Result.success(null);
   }
 
-  Future<AppStateEntity> add(TransactionEntity transaction) {
-    return _repository!.addTransaction(transaction);
+  Future<List<TransactionEntity>> add(TransactionEntity transaction) async {
+    final wallets = await _walletRepository!.loadWallets();
+    final transactions = await _transactionRepository!.loadTransactions();
+    final budget = await _budgetRepository!.loadBudget();
+
+    final next = TransactionMutationService.applyTransaction(
+      wallets: wallets,
+      transactions: transactions,
+      budgetSetup: budget,
+      transaction: transaction,
+    );
+
+    await _walletRepository.saveWallets(next.wallets);
+    await _budgetRepository.saveBudget(next.budgetSetup);
+    await _transactionRepository.saveTransactions(next.transactions);
+
+    return next.transactions;
   }
 }

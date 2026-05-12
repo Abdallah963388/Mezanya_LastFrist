@@ -1,33 +1,39 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/domain/repositories/app_repository.dart';
+import '../../../budget/domain/repositories/budget_repository.dart';
+import '../../../wallets/domain/repositories/wallet_repository.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/add_transaction_usecase.dart';
 
 class TransactionController extends ChangeNotifier {
   TransactionController(
-    AppRepository repository, {
+    TransactionRepository transactionRepository,
+    WalletRepository walletRepository,
+    BudgetRepository budgetRepository, {
     AddTransactionUseCase? addTransactionUseCase,
-  })  : _repository = repository,
+  })  : _repository = transactionRepository,
         _addTransactionUseCase = addTransactionUseCase ??
-            AddTransactionUseCase.repository(repository);
+            AddTransactionUseCase.repository(
+              walletRepository,
+              transactionRepository,
+              budgetRepository,
+            );
 
-  final AppRepository _repository;
+  final TransactionRepository _repository;
   final AddTransactionUseCase _addTransactionUseCase;
 
-  AppStateEntity _state = AppStateEntity.initial();
+  List<TransactionEntity> _transactions = [];
 
-  AppStateEntity get state => _state;
-  List<TransactionEntity> get transactions => _state.transactions;
+  List<TransactionEntity> get transactions => _transactions;
 
   Future<void> initialize() async {
-    _state = await _repository.loadState();
+    _transactions = await _repository.loadTransactions();
     notifyListeners();
   }
 
   Future<void> refresh() async {
-    _state = await _repository.loadState();
+    _transactions = await _repository.loadTransactions();
     notifyListeners();
   }
 
@@ -63,7 +69,7 @@ class TransactionController extends ChangeNotifier {
       createdAt: createdAt ?? DateTime.now(),
     );
 
-    _state = await _addTransactionUseCase.add(transaction);
+    _transactions = await _addTransactionUseCase.add(transaction);
     notifyListeners();
   }
 }

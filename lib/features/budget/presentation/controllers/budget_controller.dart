@@ -1,39 +1,38 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/domain/repositories/app_repository.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/repositories/budget_repository.dart';
 import '../../domain/usecases/update_budget_setup_usecase.dart';
 
 class BudgetController extends ChangeNotifier {
   BudgetController(
-    AppRepository repository, {
+    BudgetRepository repository, {
     UpdateBudgetSetupUseCase? updateBudgetSetupUseCase,
   })  : _repository = repository,
         _updateBudgetSetupUseCase =
             updateBudgetSetupUseCase ?? UpdateBudgetSetupUseCase(repository);
 
-  final AppRepository _repository;
+  final BudgetRepository _repository;
   final UpdateBudgetSetupUseCase _updateBudgetSetupUseCase;
 
-  AppStateEntity _state = AppStateEntity.initial();
+  BudgetSetupEntity _budgetSetup =
+      BudgetSetupEntity.initial('wallet-cash-default');
 
-  AppStateEntity get state => _state;
-  BudgetSetupEntity get budgetSetup => _state.budgetSetup;
+  BudgetSetupEntity get budgetSetup => _budgetSetup;
 
   Future<void> initialize() async {
-    _state = await _repository.loadState();
+    _budgetSetup = await _repository.loadBudget();
     notifyListeners();
   }
 
   Future<void> refresh() async {
-    _state = await _repository.loadState();
+    _budgetSetup = await _repository.loadBudget();
     notifyListeners();
   }
 
   Future<void> updateBudgetSetup(BudgetSetupEntity setup) async {
-    _state = await _updateBudgetSetupUseCase(setup);
+    _budgetSetup = await _updateBudgetSetupUseCase(setup);
     notifyListeners();
   }
 

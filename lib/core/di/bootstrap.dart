@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/app_state/data/repositories/shared_prefs_app_repository.dart';
-import '../../features/app_state/domain/repositories/app_repository.dart';
 import '../../features/app_state/presentation/controllers/app_controller.dart';
 import '../../features/app_state/presentation/cubits/app_cubit.dart';
 import '../../features/budget/presentation/controllers/budget_controller.dart';
@@ -25,7 +24,7 @@ class AppControllers {
 class AppBootstrap {
   static Future<AppCubit> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    final AppRepository repository = SharedPrefsAppRepository(prefs);
+    final SharedPrefsAppRepository repository = SharedPrefsAppRepository(prefs);
     final cubit = AppCubit(repository);
     await cubit.initialize();
     return cubit;
@@ -33,11 +32,15 @@ class AppBootstrap {
 
   static Future<AppControllers> initializeControllers() async {
     final prefs = await SharedPreferences.getInstance();
-    final AppRepository repository = SharedPrefsAppRepository(prefs);
+    final SharedPrefsAppRepository repository = SharedPrefsAppRepository(prefs);
 
     final appController = AppController(repository);
     final walletController = WalletController(repository);
-    final transactionController = TransactionController(repository);
+    final transactionController = TransactionController(
+      repository,
+      repository,
+      repository,
+    );
     final budgetController = BudgetController(repository);
 
     await appController.initialize();

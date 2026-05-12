@@ -9,7 +9,11 @@ class BudgetMutationService {
     required BudgetSetupEntity budgetSetup,
   }) {
     return current.copyWith(
-      budgetSetup: budgetSetup,
+      budgetSetup: replaceBudgetSetup(budgetSetup),
     );
+  }
+
+  static BudgetSetupEntity replaceBudgetSetup(BudgetSetupEntity budgetSetup) {
+    return budgetSetup;
   }
 }

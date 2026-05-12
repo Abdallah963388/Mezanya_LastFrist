@@ -1,21 +1,20 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/domain/repositories/app_repository.dart';
+import '../../../app_state/domain/services/wallet_mutation_service.dart';
 import '../../domain/entities/wallet_entity.dart';
+import '../../domain/repositories/wallet_repository.dart';
 
 class WalletController extends ChangeNotifier {
   WalletController(this._repository);
 
-  final AppRepository _repository;
+  final WalletRepository _repository;
 
-  AppStateEntity _state = AppStateEntity.initial();
+  List<WalletEntity> _wallets = [];
 
-  AppStateEntity get state => _state;
-  List<WalletEntity> get wallets => _state.wallets;
+  List<WalletEntity> get wallets => _wallets;
 
   Future<void> initialize() async {
-    _state = await _repository.loadState();
+    _wallets = await _repository.loadWallets();
     notifyListeners();
   }
 
@@ -33,8 +32,12 @@ class WalletController extends ChangeNotifier {
       iconColor: iconColor,
     );
 
-    _state = await _repository.addWallet(wallet);
+    _wallets = WalletMutationService.appendWallet(
+      wallets: _wallets,
+      wallet: wallet,
+    );
 
+    await _repository.saveWallets(_wallets);
     notifyListeners();
   }
 
@@ -45,31 +48,28 @@ class WalletController extends ChangeNotifier {
     String? icon,
     String? iconColor,
   }) async {
-    final wallets = _state.wallets
-        .map((wallet) => wallet.id == id
-            ? wallet.copyWith(
-                name: name,
-                balance: balance,
-                icon: icon,
-                iconColor: iconColor,
-              )
-            : wallet)
-        .toList();
+    final wallet = _wallets.firstWhere((item) => item.id == id).copyWith(
+          name: name,
+          balance: balance,
+          icon: icon,
+          iconColor: iconColor,
+        );
+    _wallets = WalletMutationService.updateWallet(
+      wallets: _wallets,
+      wallet: wallet,
+    );
 
-    _state = _state.copyWith(wallets: wallets);
-
-    await _repository.saveState(_state);
-
+    await _repository.saveWallets(_wallets);
     notifyListeners();
   }
 
   Future<void> deleteWallet(String id) async {
-    _state = _state.copyWith(
-      wallets: _state.wallets.where((wallet) => wallet.id != id).toList(),
+    _wallets = WalletMutationService.deleteWallet(
+      wallets: _wallets,
+      id: id,
     );
 
-    await _repository.saveState(_state);
-
+    await _repository.saveWallets(_wallets);
     notifyListeners();
   }
 }
