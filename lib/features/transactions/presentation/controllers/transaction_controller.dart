@@ -27,6 +27,22 @@ class TransactionController extends ChangeNotifier {
 
   List<TransactionEntity> get transactions => _transactions;
 
+  List<TransactionEntity> get latestTransactions {
+    final items = [..._transactions];
+
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return items.take(10).toList();
+  }
+
+  double get totalIncome => _transactions
+      .where((transaction) => transaction.type == 'income')
+      .fold(0, (sum, transaction) => sum + transaction.amount);
+
+  double get totalExpenses => _transactions
+      .where((transaction) => transaction.type == 'expense')
+      .fold(0, (sum, transaction) => sum + transaction.amount);
+
   Future<void> initialize() async {
     _transactions = await _repository.loadTransactions();
     notifyListeners();
