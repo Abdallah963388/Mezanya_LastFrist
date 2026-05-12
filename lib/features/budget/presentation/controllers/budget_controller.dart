@@ -21,6 +21,22 @@ class BudgetController extends ChangeNotifier {
 
   BudgetSetupEntity get budgetSetup => _budgetSetup;
 
+  List<AllocationEntity> get allocations => budgetSetup.allocations;
+
+  List<LinkedWalletEntity> get linkedWallets =>
+      budgetSetup.linkedWallets;
+
+  List<DebtEntity> get debts => budgetSetup.debts;
+
+  List<IncomeSourceEntity> get incomeSources =>
+      budgetSetup.incomeSources;
+
+  double get totalIncome => budgetSetup.totalIncome;
+
+  double get totalAllocated => budgetSetup.totalAllocated;
+
+  double get unallocatedAmount => budgetSetup.unallocatedAmount;
+
   Future<void> initialize() async {
     _budgetSetup = await _repository.loadBudget();
     notifyListeners();
