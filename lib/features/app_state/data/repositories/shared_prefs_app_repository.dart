@@ -8,6 +8,7 @@ import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
+import '../../domain/services/app_state_mutation_service.dart';
 
 class SharedPrefsAppRepository implements AppRepository {
   SharedPrefsAppRepository(this._prefs);
@@ -152,7 +153,6 @@ class SharedPrefsAppRepository implements AppRepository {
       }).toList();
     } else if (transaction.type == 'income' &&
         transaction.incomeSourceId != null) {
-      // Income is first deposited to the selected wallet.
       wallets = wallets.map((wallet) {
         if (wallet.id != transaction.walletId) return wallet;
         final nextBalance = wallet.balance + transaction.amount;
@@ -162,8 +162,6 @@ class SharedPrefsAppRepository implements AppRepository {
       final sourceId = transaction.incomeSourceId!;
       var remaining = transaction.amount;
 
-      // Then planned jar funding is recorded against the source wallet without
-      // moving real money out of that wallet.
       for (final jar in linkedWallets) {
         final jarPlan = jar.funding
             .where((f) => f.incomeSourceId == sourceId)
@@ -208,11 +206,8 @@ class SharedPrefsAppRepository implements AppRepository {
         );
       }
 
-      // Recurring debts and subscriptions are handled by the recurring engine,
-      // so income deposit should not trigger any debt deduction here.
       remaining = 0;
 
-      // Then planned debt deductions execute from the same deposited amount.
       for (final debt in current.budgetSetup.debts
           .where((d) => d.fundingSource == sourceId)) {
         if (remaining <= 0) {
@@ -242,7 +237,6 @@ class SharedPrefsAppRepository implements AppRepository {
         );
       }
     } else {
-      // Regular expense/income without linked source behavior.
       wallets = wallets.map((wallet) {
         if (wallet.id != transaction.walletId) return wallet;
         final nextBalance = transaction.type == 'income'
@@ -250,42 +244,6 @@ class SharedPrefsAppRepository implements AppRepository {
             : wallet.balance - transaction.amount;
         return wallet.copyWith(balance: nextBalance);
       }).toList();
-      if (transaction.type == 'income' && transaction.toWalletId != null) {
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != transaction.toWalletId) return wallet;
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance + transaction.amount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
-          );
-        }).toList();
-      }
-      if (transaction.type == 'expense' && transaction.toWalletId != null) {
-        linkedWallets = linkedWallets.map((wallet) {
-          if (wallet.id != transaction.toWalletId) return wallet;
-          return LinkedWalletEntity(
-            id: wallet.id,
-            name: wallet.name,
-            balance: wallet.balance - transaction.amount,
-            monthlyAmount: wallet.monthlyAmount,
-            executionDay: wallet.executionDay,
-            fundingSource: wallet.fundingSource,
-            funding: wallet.funding,
-            icon: wallet.icon,
-            iconColor: wallet.iconColor,
-            automationType: wallet.automationType,
-            categories: wallet.categories,
-          );
-        }).toList();
-      }
     }
 
     final next = current.copyWith(
