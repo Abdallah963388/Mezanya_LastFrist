@@ -31,6 +31,10 @@ class AppCubit extends Cubit<AppStateEntity> {
     }
   }
 
+  Future<void> refreshFromRepository() async {
+    emit(await _repository.loadState());
+  }
+
   /// مزامنة الديون/الاشتراكات القديمة التي تُحفظ كـ RecurringTransaction
   /// بدون DebtEntity مقابلة في budget.debts
   Future<void> _migrateOrphanedDebtRecurring() async {

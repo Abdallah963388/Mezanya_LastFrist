@@ -18,5 +18,6 @@ Future<void> main() async {
   }
 
   final cubit = await AppBootstrap.initialize();
-  runApp(MezanyaApp(cubit: cubit));
+  final controllers = await AppBootstrap.initializeControllers();
+  runApp(MezanyaApp(cubit: cubit, controllers: controllers));
 }

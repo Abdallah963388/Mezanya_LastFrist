@@ -7,12 +7,18 @@ import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/wallet_entity.dart';
+import '../controllers/wallet_controller.dart';
 import 'jar_editor_screen.dart';
 
 class WalletsScreen extends StatefulWidget {
-  const WalletsScreen({super.key, required this.cubit});
+  const WalletsScreen({
+    super.key,
+    required this.cubit,
+    required this.walletController,
+  });
 
   final AppCubit cubit;
+  final WalletController walletController;
 
   @override
   State<WalletsScreen> createState() => _WalletsScreenState();
@@ -23,17 +29,32 @@ class _WalletsScreenState extends State<WalletsScreen> {
   static const _teal = Color(0xFF0F766E);
 
   @override
+  void initState() {
+    super.initState();
+    widget.walletController.addListener(_handleWalletsChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.walletController.removeListener(_handleWalletsChanged);
+    super.dispose();
+  }
+
+  void _handleWalletsChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppStateEntity>(
       stream: widget.cubit.stream,
       initialData: widget.cubit.state,
       builder: (context, snapshot) {
         final state = snapshot.data ?? widget.cubit.state;
-        final wallets = state.wallets;
+        final wallets = widget.walletController.wallets;
         final jars = _orderedJars(state.budgetSetup.linkedWallets);
-        final totalWalletsBalance =
-            wallets.fold<double>(0, (s, w) => s + w.balance);
-        final totalJarsBalance = jars.fold<double>(0, (s, j) => s + j.balance);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
@@ -239,6 +260,46 @@ class _WalletsScreenState extends State<WalletsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _refreshLegacyState() async {
+    await widget.cubit.refreshFromRepository();
+    await widget.walletController.refresh();
+  }
+
+  Future<void> _addTransactionAndRefresh({
+    String? walletId,
+    String? fromWalletId,
+    String? toWalletId,
+    required double amount,
+    required String type,
+    String? allocationId,
+    String? toAllocationId,
+    String? budgetScope,
+    String? incomeSourceId,
+    String? categoryId,
+    String? transferType,
+    String? notes,
+    DateTime? createdAt,
+    String? details,
+  }) async {
+    await widget.cubit.addTransaction(
+      walletId: walletId,
+      fromWalletId: fromWalletId,
+      toWalletId: toWalletId,
+      amount: amount,
+      type: type,
+      allocationId: allocationId,
+      toAllocationId: toAllocationId,
+      budgetScope: budgetScope,
+      incomeSourceId: incomeSourceId,
+      categoryId: categoryId,
+      transferType: transferType,
+      notes: notes,
+      createdAt: createdAt,
+      details: details,
+    );
+    await widget.walletController.refresh();
   }
 
   Widget _compactWalletTile(AppStateEntity state, WalletEntity wallet) {
@@ -680,6 +741,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
       MaterialPageRoute<void>(
         builder: (_) => _WalletsListPage(
           cubit: widget.cubit,
+          walletController: widget.walletController,
+          onWalletsChanged: _refreshLegacyState,
           onWalletTap: (w) => _openWalletDetailsSheet(w),
         ),
       ),
@@ -1825,7 +1888,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                               return;
                             }
 
-                            await widget.cubit.addTransaction(
+                            await _addTransactionAndRefresh(
                               type: isAllocate ? 'transfer' : 'expense',
                               walletId: !isAllocate ? jar.id : null,
                               fromWalletId: walletId,
@@ -2143,7 +2206,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       : notesController.text.trim();
 
                   if (mode == _InternalTransferMode.allocationToJar) {
-                    await widget.cubit.addTransaction(
+                    await _addTransactionAndRefresh(
                       type: 'transfer',
                       fromWalletId: walletId,
                       toWalletId: targetJar.id,
@@ -2160,7 +2223,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       );
                     }
                   } else if (mode == _InternalTransferMode.jarToAllocation) {
-                    await widget.cubit.addTransaction(
+                    await _addTransactionAndRefresh(
                       type: 'transfer',
                       walletId: transferSourceJar.id,
                       fromWalletId: walletId,
@@ -2177,7 +2240,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       );
                     }
                   } else {
-                    await widget.cubit.addTransaction(
+                    await _addTransactionAndRefresh(
                       type: 'expense',
                       walletId: transferSourceJar.id,
                       fromWalletId: walletId,
@@ -2194,7 +2257,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                       );
                     }
 
-                    await widget.cubit.addTransaction(
+                    await _addTransactionAndRefresh(
                       type: 'transfer',
                       fromWalletId: walletId,
                       toWalletId: targetJar.id,
@@ -2286,7 +2349,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   return;
                 }
                 final targetJar = jars.firstWhere((jar) => jar.id == jarId);
-                await widget.cubit.addTransaction(
+                await _addTransactionAndRefresh(
                   type: 'transfer',
                   fromWalletId: wallet.id,
                   toWalletId: targetJar.id,
@@ -2387,7 +2450,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 if (amount <= 0 || fromId == toId) {
                   return;
                 }
-                await widget.cubit.addTransaction(
+                await _addTransactionAndRefresh(
                   type: 'transfer',
                   amount: amount,
                   fromWalletId: fromId,
@@ -2467,7 +2530,8 @@ class _WalletsScreenState extends State<WalletsScreen> {
             if (current != null)
               TextButton(
                 onPressed: () async {
-                  await widget.cubit.deleteWallet(current.id);
+                  await widget.walletController.deleteWallet(current.id);
+                  await _refreshLegacyState();
                   if (!mounted) {
                     return;
                   }
@@ -2491,14 +2555,14 @@ class _WalletsScreenState extends State<WalletsScreen> {
                   return;
                 }
                 if (current == null) {
-                  await widget.cubit.addWallet(
+                  await widget.walletController.addWallet(
                     name: name,
                     openingBalance: balance,
                     icon: selectedIcon,
                     iconColor: selectedColor,
                   );
                 } else {
-                  await widget.cubit.updateWallet(
+                  await widget.walletController.updateWallet(
                     id: current.id,
                     name: name,
                     balance: balance,
@@ -2506,6 +2570,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     iconColor: selectedColor,
                   );
                 }
+                await _refreshLegacyState();
                 if (!mounted) {
                   return;
                 }
@@ -3068,8 +3133,16 @@ class _ActionBtn extends StatelessWidget {
 // ── Wallets full-page list with reorder + style toggle ─────────────────────
 
 class _WalletsListPage extends StatefulWidget {
-  const _WalletsListPage({required this.cubit, this.onWalletTap});
+  const _WalletsListPage({
+    required this.cubit,
+    required this.walletController,
+    required this.onWalletsChanged,
+    this.onWalletTap,
+  });
+
   final AppCubit cubit;
+  final WalletController walletController;
+  final Future<void> Function() onWalletsChanged;
   final void Function(WalletEntity)? onWalletTap;
   @override
   State<_WalletsListPage> createState() => _WalletsListPageState();
@@ -3078,6 +3151,24 @@ class _WalletsListPage extends StatefulWidget {
 class _WalletsListPageState extends State<_WalletsListPage> {
   bool _reorderMode = false;
   final Set<String> _coloredWallets = {};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.walletController.addListener(_handleWalletsChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.walletController.removeListener(_handleWalletsChanged);
+    super.dispose();
+  }
+
+  void _handleWalletsChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   Color _parseColor(String hex) {
     final cleaned = hex.replaceAll('#', '');
@@ -3253,7 +3344,7 @@ class _WalletsListPageState extends State<_WalletsListPage> {
           initialData: widget.cubit.state,
           builder: (ctx, snap) {
             final state = snap.data ?? widget.cubit.state;
-            final wallets = state.wallets;
+            final wallets = widget.walletController.wallets;
 
             if (_reorderMode) {
               return Column(
@@ -3287,12 +3378,13 @@ class _WalletsListPageState extends State<_WalletsListPage> {
                     child: ReorderableListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                       itemCount: wallets.length,
-                      onReorder: (oldIndex, newIndex) {
+                      onReorder: (oldIndex, newIndex) async {
                         if (newIndex > oldIndex) newIndex--;
                         final reordered = List<WalletEntity>.from(wallets);
                         final item = reordered.removeAt(oldIndex);
                         reordered.insert(newIndex, item);
-                        widget.cubit.reorderWallets(reordered);
+                        await widget.walletController.reorderWallets(reordered);
+                        await widget.onWalletsChanged();
                       },
                       itemBuilder: (ctx, i) => _buildCard(state, wallets[i]),
                     ),

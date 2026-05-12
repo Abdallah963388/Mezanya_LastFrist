@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/di/bootstrap.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
@@ -8,9 +9,11 @@ class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
     super.key,
     required this.cubit,
+    required this.controllers,
   });
 
   final AppCubit cubit;
+  final AppControllers controllers;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +31,7 @@ class MezanyaApp extends StatelessWidget {
       ],
       theme: AppTheme.tactileManuscript(),
       builder: (context, child) => _PaperAppBackground(child: child),
-      home: MainShellScreen(cubit: cubit),
+      home: MainShellScreen(cubit: cubit, controllers: controllers),
     );
   }
 }

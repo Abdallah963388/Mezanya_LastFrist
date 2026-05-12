@@ -43,4 +43,37 @@ void main() {
 
     expect(controller.wallets, isEmpty);
   });
+
+  test('refresh reloads wallets from repository after external sync', () async {
+    final repository = _MemoryWalletRepository(
+      const [WalletEntity(id: 'wallet-1', name: 'Cash', balance: 100)],
+    );
+    final controller = WalletController(repository);
+
+    await controller.initialize();
+    await repository.saveWallets(
+      const [WalletEntity(id: 'wallet-1', name: 'Cash', balance: 75)],
+    );
+    await controller.refresh();
+
+    expect(controller.wallets.single.balance, 75);
+  });
+
+  test('reorder wallets persists the new order', () async {
+    final repository = _MemoryWalletRepository(
+      const [
+        WalletEntity(id: 'wallet-1', name: 'Cash', balance: 100),
+        WalletEntity(id: 'wallet-2', name: 'Bank', balance: 200),
+      ],
+    );
+    final controller = WalletController(repository);
+
+    await controller.initialize();
+    await controller.reorderWallets(
+      controller.wallets.reversed.toList(),
+    );
+    await controller.refresh();
+
+    expect(controller.wallets.first.id, 'wallet-2');
+  });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/di/bootstrap.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../budget/domain/services/budget_recurring_plan_service.dart';
@@ -20,9 +21,11 @@ class MainShellScreen extends StatefulWidget {
   const MainShellScreen({
     super.key,
     required this.cubit,
+    required this.controllers,
   });
 
   final AppCubit cubit;
+  final AppControllers controllers;
 
   @override
   State<MainShellScreen> createState() => _MainShellScreenState();
@@ -72,7 +75,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   List<Widget> get _pages => [
         MoneyScreen(cubit: widget.cubit),
-        WalletsScreen(cubit: widget.cubit),
+        WalletsScreen(
+          cubit: widget.cubit,
+          walletController: widget.controllers.walletController,
+        ),
         const SizedBox.shrink(),
         BudgetTrackingScreen(cubit: widget.cubit),
         MoreTabContent(cubit: widget.cubit),

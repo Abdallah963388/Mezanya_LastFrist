@@ -18,6 +18,11 @@ class WalletController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refresh() async {
+    _wallets = await _repository.loadWallets();
+    notifyListeners();
+  }
+
   Future<void> addWallet({
     required String name,
     required double openingBalance,
@@ -69,6 +74,12 @@ class WalletController extends ChangeNotifier {
       id: id,
     );
 
+    await _repository.saveWallets(_wallets);
+    notifyListeners();
+  }
+
+  Future<void> reorderWallets(List<WalletEntity> wallets) async {
+    _wallets = wallets;
     await _repository.saveWallets(_wallets);
     notifyListeners();
   }
