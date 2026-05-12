@@ -1,23 +1,44 @@
-# Korassa Flutter App
+# Mezanya Flutter App
 
-This folder contains a Flutter mobile foundation for Korassa using:
+Financial management application built with Flutter.
 
-- SharedPreferences for local persistence.
-- Repository Pattern to separate storage from business logic.
-- Feature-based structure for scalable development.
+## Current Architecture
 
-## Folder Structure
+The project currently follows a feature-based structure with partial Clean Architecture separation:
 
-- `lib/core`: common setup and storage keys.
-- `lib/features`: feature-first modules (entities, repositories, presentation).
-- `lib/features/app_state/data/repositories/shared_prefs_app_repository.dart`: SharedPreferences implementation of `AppRepository`.
+- `domain` → entities and repository contracts
+- `data` → repository implementations and persistence
+- `presentation` → cubits, screens, and widgets
+- `core` → app-wide configuration and bootstrapping
+
+## Main Technologies
+
+- Flutter
+- Flutter Bloc
+- Firebase
+- SharedPreferences
+
+## Project Structure
+
+```txt
+lib/
+  core/
+  features/
+    app_state/
+    wallets/
+    transactions/
+    goals/
+    notifications/
+```
+
+## Notes
+
+The current application state is heavily centralized inside `AppCubit`.
+Future refactoring should move business logic into dedicated use cases and services for better scalability and maintainability.
 
 ## Run
 
-1. Install Flutter SDK.
-2. Open this folder:
-   - `cd flutter_app`
-3. Install packages:
-   - `flutter pub get`
-4. Run:
-   - `flutter run`
+```bash
+flutter pub get
+flutter run
+```
