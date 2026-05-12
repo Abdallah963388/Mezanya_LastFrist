@@ -16,7 +16,7 @@ class ProcessTransactionPipelineUseCase {
   final BuildTransactionRequestUseCase buildTransactionRequestUseCase;
   final AddTransactionUseCase addTransactionUseCase;
 
-  Future<Result<FinancialTransactionResult>> execute({
+  Future<Result<void>> execute({
     required ValidateTransactionParams validationParams,
     required BuildTransactionRequestParams requestParams,
   }) async {
@@ -40,18 +40,17 @@ class ProcessTransactionPipelineUseCase {
       );
     }
 
-    final executionResult = await addTransactionUseCase.execute(
+    final executionResult = await addTransactionUseCase(
       requestResult.data!,
     );
 
-    if (!executionResult.success) {
+    if (executionResult.isFailure) {
       return Result.failure(
-        TransactionFailure(
-          executionResult.errorMessage ?? 'Transaction execution failed',
-        ),
+        executionResult.failure ??
+            const TransactionFailure('Transaction execution failed'),
       );
     }
 
-    return Result.success(executionResult);
+    return Result.success(null);
   }
 }
