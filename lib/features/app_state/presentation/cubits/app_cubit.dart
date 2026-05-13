@@ -14,6 +14,11 @@ import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import '../../domain/services/transaction_mutation_service.dart';
+import 'extensions/app_cubit_wallets_extension.dart';
+import 'extensions/app_cubit_transactions_extension.dart';
+import 'extensions/app_cubit_spaces_extension.dart';
+import 'extensions/app_cubit_budget_extension.dart';
+import 'extensions/app_cubit_settings_extension.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(
