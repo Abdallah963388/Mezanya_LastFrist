@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/di/bootstrap.dart';
+import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
+import 'features/transactions/presentation/cubits/transaction_cubit.dart';
 
 class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
@@ -18,21 +21,29 @@ class MezanyaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Mezanya',
-      locale: const Locale('ar'),
-      supportedLocales: const [
-        Locale('ar'),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AppCubit>.value(value: cubit),
+        BlocProvider<TransactionCubit>(
+          create: (_) => sl<TransactionCubit>()..initialize(),
+        ),
       ],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: AppTheme.tactileManuscript(),
-      builder: (context, child) => _PaperAppBackground(child: child),
-      home: MainShellScreen(cubit: cubit, controllers: controllers),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Mezanya',
+        locale: const Locale('ar'),
+        supportedLocales: const [
+          Locale('ar'),
+        ],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.tactileManuscript(),
+        builder: (context, child) => _PaperAppBackground(child: child),
+        home: MainShellScreen(cubit: cubit, controllers: controllers),
+      ),
     );
   }
 }
