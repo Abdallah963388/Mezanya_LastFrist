@@ -25,6 +25,8 @@ class TransactionController extends ChangeNotifier {
 
   List<TransactionEntity> _transactions = [];
 
+  bool _isSubmittingTransaction = false;
+
   List<TransactionEntity> get transactions => _transactions;
 
   List<TransactionEntity> get latestTransactions {
@@ -86,24 +88,34 @@ class TransactionController extends ChangeNotifier {
     String? notes,
     DateTime? createdAt,
   }) async {
-    final transaction = TransactionEntity(
-      id: 'txn-${DateTime.now().millisecondsSinceEpoch}',
-      walletId: walletId,
-      fromWalletId: fromWalletId,
-      toWalletId: toWalletId,
-      allocationId: allocationId,
-      toAllocationId: toAllocationId,
-      budgetScope: budgetScope,
-      incomeSourceId: incomeSourceId,
-      categoryId: categoryId,
-      transferType: transferType,
-      amount: amount,
-      type: type,
-      notes: notes,
-      createdAt: createdAt ?? DateTime.now(),
-    );
+    if (_isSubmittingTransaction) {
+      return;
+    }
 
-    _transactions = await _addTransactionUseCase.add(transaction);
-    notifyListeners();
+    _isSubmittingTransaction = true;
+
+    try {
+      final transaction = TransactionEntity(
+        id: 'txn-${DateTime.now().millisecondsSinceEpoch}',
+        walletId: walletId,
+        fromWalletId: fromWalletId,
+        toWalletId: toWalletId,
+        allocationId: allocationId,
+        toAllocationId: toAllocationId,
+        budgetScope: budgetScope,
+        incomeSourceId: incomeSourceId,
+        categoryId: categoryId,
+        transferType: transferType,
+        amount: amount,
+        type: type,
+        notes: notes,
+        createdAt: createdAt ?? DateTime.now(),
+      );
+
+      _transactions = await _addTransactionUseCase.add(transaction);
+      notifyListeners();
+    } finally {
+      _isSubmittingTransaction = false;
+    }
   }
 }
