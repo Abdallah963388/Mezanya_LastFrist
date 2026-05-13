@@ -329,13 +329,13 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
     
 
-    await _transactionController.deleteTransaction(transactionId);
+    final refreshedState = await _repository.loadState();
 
-  final next = state.copyWith(
-  wallets: mutationResult.wallets,
-  budgetSetup: mutationResult.budgetSetup,
-  transactions: mutationResult.transactions,
-);
+    final next = refreshedState.copyWith(
+      wallets: mutationResult.wallets,
+      budgetSetup: mutationResult.budgetSetup,
+      transactions: refreshedState.transactions,
+    );
 
     await _applyAndLog(
       action: 'delete',
