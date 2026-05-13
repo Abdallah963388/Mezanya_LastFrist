@@ -8,6 +8,10 @@ import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
 import 'features/budget/presentation/cubits/budget_cubit.dart';
+import 'features/goals/presentation/cubits/goals_cubit.dart';
+import 'features/logs/presentation/cubits/logs_cubit.dart';
+import 'features/settings/presentation/cubits/settings_cubit.dart';
+import 'features/spaces/presentation/cubits/spaces_cubit.dart';
 import 'features/transactions/presentation/cubits/transaction_cubit.dart';
 import 'features/wallets/presentation/cubits/wallet_cubit.dart';
 
@@ -34,6 +38,18 @@ class MezanyaApp extends StatelessWidget {
         ),
         BlocProvider<BudgetCubit>(
           create: (_) => sl<BudgetCubit>()..initialize(),
+        ),
+        BlocProvider<GoalsCubit>(
+          create: (_) => sl<GoalsCubit>()..initialize(),
+        ),
+        BlocProvider<SpacesCubit>(
+          create: (_) => sl<SpacesCubit>()..initialize(),
+        ),
+        BlocProvider<LogsCubit>(
+          create: (_) => sl<LogsCubit>()..initialize(),
+        ),
+        BlocProvider<SettingsCubit>(
+          create: (_) => sl<SettingsCubit>()..initialize(),
         ),
       ],
       child: MaterialApp(
