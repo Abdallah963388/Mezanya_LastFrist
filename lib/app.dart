@@ -8,6 +8,7 @@ import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
 import 'features/transactions/presentation/cubits/transaction_cubit.dart';
+import 'features/wallets/presentation/cubits/wallet_cubit.dart';
 
 class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
@@ -26,6 +27,9 @@ class MezanyaApp extends StatelessWidget {
         BlocProvider<AppCubit>.value(value: cubit),
         BlocProvider<TransactionCubit>(
           create: (_) => sl<TransactionCubit>()..initialize(),
+        ),
+        BlocProvider<WalletCubit>(
+          create: (_) => sl<WalletCubit>()..initialize(),
         ),
       ],
       child: MaterialApp(
