@@ -1,197 +1,9 @@
-import 'dart:convert';
+import '../../../../transactions/domain/entities/recurring_transaction_entity.dart';
+import '../../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../../budget/domain/entities/budget_setup_entity.dart';
+import '../app_cubit.dart';
 
-import 'package:flutter_bloc/flutter_bloc.dart';
-
-import '../../../budget/domain/entities/budget_setup_entity.dart';
-import '../../../logs/domain/entities/log_entry_entity.dart';
-import '../../../notifications/domain/entities/notification_entity.dart';
-import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
-import '../../../transactions/domain/entities/transaction_entity.dart';
-import '../../domain/entities/app_state_entity.dart';
-import '../../domain/repositories/app_repository.dart';
-import '../../../transactions/presentation/controllers/transaction_controller.dart';
-import 'extensions/app_cubit_spaces_extension.dart';
-
-export 'extensions/app_cubit_backup_extension.dart';
-export 'extensions/app_cubit_budget_extension.dart';
-export 'extensions/app_cubit_goals_extension.dart';
-export 'extensions/app_cubit_lending_extension.dart';
-export 'extensions/app_cubit_logs_extension.dart';
-export 'extensions/app_cubit_settings_extension.dart';
-export 'extensions/app_cubit_spaces_extension.dart';
-export 'extensions/app_cubit_transactions_extension.dart';
-export 'extensions/app_cubit_wallets_extension.dart';
-
-class AppCubit extends Cubit<AppStateEntity> {
-  AppCubit(
-    this._repository,
-    this._transactionController,
-  ) : super(AppStateEntity.initial());
-
-  final AppRepository _repository;
-  final TransactionController _transactionController;
-
-  AppRepository get repository => _repository;
-  TransactionController get transactionController => _transactionController;
-  void emitState(AppStateEntity next) => emit(next);
-
-  Future<void> initialize() async {
-    emit(await _repository.loadState());
-    await ensureDefaultSavingsJar();
-    await syncSavingsJarWithReserved();
-    await _migrateOrphanedDebtRecurring();
-    final key = monthKey();
-    if (!state.monthlyBudgetSnapshots.containsKey(key)) {
-      final next = withMonthlySnapshot(state, state.budgetSetup);
-      await _repository.saveState(next);
-      emit(next);
-    }
-  }
-
-  Future<void> refreshFromRepository() async {
-    emit(await _repository.loadState());
-  }
-
-  Future<void> _migrateOrphanedDebtRecurring() async {
-    final linkedIds = state.budgetSetup.debts
-        .map((debt) => debt.recurringTransactionId)
-        .where((id) => id != null && id.isNotEmpty)
-        .toSet();
-
-    final orphaned = state.recurringTransactions.where(
-      (recurring) =>
-          recurring.isDebtOrSubscription &&
-          recurring.type == 'expense' &&
-          recurring.budgetScope == 'within-budget' &&
-          !linkedIds.contains(recurring.id),
-    );
-
-    if (orphaned.isEmpty) return;
-
-    final fallbackFundingSource = state.budgetSetup.incomeSources.isNotEmpty
-        ? state.budgetSetup.incomeSources.first.id
-        : '';
-
-    final newDebts = orphaned.map(
-      (recurring) => DebtEntity(
-        id: 'debt-${recurring.id}',
-        name: recurring.name,
-        amount: recurring.amount,
-        executionDay: recurring.dayOfMonth.clamp(1, 28),
-        type: recurring.executionType,
-        fundingSource: fallbackFundingSource,
-        recurringTransactionId: recurring.id,
-        kind: recurring.expensePlanKind == 'installment'
-            ? 'installment'
-            : 'subscription',
-        principalTotal: recurring.debtPrincipalTotal,
-        recurrencePattern: recurring.recurrencePattern,
-        monthOfYear: recurring.monthOfYear,
-      ),
-    );
-
-    final nextSetup = state.budgetSetup.copyWith(
-      debts: [...state.budgetSetup.debts, ...newDebts],
-    );
-    final next = state.copyWith(budgetSetup: nextSetup);
-    await _repository.saveState(next);
-    emit(next);
-  }
-
-  String generateId(String prefix) =>
-      '$prefix-${DateTime.now().microsecondsSinceEpoch}';
-
-  String monthKey([DateTime? at]) {
-    final date = at ?? DateTime.now();
-    final month = date.month.toString().padLeft(2, '0');
-    return '${date.year}-$month';
-  }
-
-  AppStateEntity withMonthlySnapshot(
-    AppStateEntity source,
-    BudgetSetupEntity setup, [
-    DateTime? month,
-  ]) {
-    final snapshots = Map<String, Map<String, dynamic>>.from(
-      source.monthlyBudgetSnapshots,
-    );
-    snapshots[monthKey(month)] = setup.toMap();
-    return source.copyWith(monthlyBudgetSnapshots: snapshots);
-  }
-
-  Map<String, dynamic> coreStateMap(AppStateEntity appState) {
-    final map = appState.toMap();
-    map.remove('logs');
-    return map;
-  }
-
-  AppStateEntity restoreStateFromCore(
-    String coreJson,
-    List<LogEntryEntity> logs,
-  ) {
-    final map = jsonDecode(coreJson) as Map<String, dynamic>;
-    return AppStateEntity.fromMap(map).copyWith(logs: logs);
-  }
-
-  Future<void> applyAndLog({
-    required String action,
-    required String entityType,
-    required String entityId,
-    required String details,
-    String? titleOverride,
-    required Future<AppStateEntity> Function() apply,
-  }) async {
-    final before = jsonEncode(coreStateMap(state));
-    final nextRaw = await apply();
-    final after = jsonEncode(coreStateMap(nextRaw));
-    final title = titleOverride ?? notificationTitle(action, entityType);
-    final log = LogEntryEntity(
-      id: generateId('log'),
-      action: action,
-      entityType: entityType,
-      entityId: entityId,
-      details: details,
-      timestamp: DateTime.now(),
-      beforeState: before,
-      afterState: after,
-      isReverted: false,
-    );
-    final notification = NotificationEntity(
-      id: generateId('notif'),
-      title: title,
-      message: details,
-      createdAt: DateTime.now(),
-      type: entityType,
-      relatedLogId: log.id,
-    );
-    final next = nextRaw.copyWith(
-      logs: [log, ...nextRaw.logs].take(600).toList(),
-      notifications:
-          [notification, ...nextRaw.notifications].take(800).toList(),
-    );
-    await _repository.saveState(next);
-    emit(next);
-  }
-
-  String notificationTitle(String action, String entityType) {
-    if (entityType == 'income' || entityType == 'transaction') {
-      return '????? ??????';
-    }
-    if (entityType == 'budget') {
-      return '????? ?????????';
-    }
-    if (entityType == 'recurring-transaction') {
-      return '????? ?????? ??????';
-    }
-    if (entityType == 'goal') {
-      return '????? ???';
-    }
-    if (action == 'delete') {
-      return '????? ???';
-    }
-    return '????? ????';
-  }
-
+extension AppCubitRecurringExtension on AppCubit {
   Future<void> addRecurringTransaction({
     String? id,
     required String name,
@@ -450,22 +262,13 @@ class AppCubit extends Cubit<AppStateEntity> {
     );
   }
 
-  String _recurringTransactionDetails(
-    String action,
-    RecurringTransactionEntity recurring,
-  ) {
-    final type = _transactionTypeLabel(recurring.type);
-    final amount = recurring.isVariableIncome
-        ? '??? ?????'
-        : recurring.amount.toStringAsFixed(2);
-    final debtLabel = recurring.isDebtOrSubscription
-        ? recurring.expensePlanKind == 'installment'
-            ? ' Â· ?????'
-            : recurring.expensePlanKind == 'subscription'
-                ? ' Â· ??????'
-                : ' Â· ??? ?? ??????'
-        : '';
-    return '$action: ${recurring.name} Â· ?????: $type Â· ??????: $amount Â· ???????: ${_recurrenceLabel(recurring.recurrencePattern)} Â· ???????: ${_executionTypeLabel(recurring.executionType)} Â· ${_budgetScopeLabel(recurring.budgetScope)}$debtLabel';
+  String _transactionTypeLabel(String type) {
+    return switch (type) {
+      'income' => '???',
+      'expense' => '?????',
+      'transfer' => '?????',
+      _ => type,
+    };
   }
 
   String _executionTypeLabel(String type) {
@@ -497,13 +300,23 @@ class AppCubit extends Cubit<AppStateEntity> {
     };
   }
 
-  String _transactionTypeLabel(String type) {
-    return switch (type) {
-      'income' => '???',
-      'expense' => '?????',
-      'transfer' => '?????',
-      _ => type,
-    };
+  String _recurringTransactionDetails(
+    String action,
+    RecurringTransactionEntity recurring,
+  ) {
+    final type = _transactionTypeLabel(recurring.type);
+    final amount = recurring.isVariableIncome
+        ? '??? ?????'
+        : recurring.amount.toStringAsFixed(2);
+    final debtLabel = recurring.isDebtOrSubscription
+        ? recurring.expensePlanKind == 'installment'
+            ? ' · ?????'
+            : recurring.expensePlanKind == 'subscription'
+                ? ' · ??????'
+                : ' · ??? ?? ??????'
+        : '';
+    return '$action: ${recurring.name} · ?????: $type · ??????: $amount · ???????: ${_recurrenceLabel(recurring.recurrencePattern)} · ???????: ${_executionTypeLabel(recurring.executionType)} · ${_budgetScopeLabel(recurring.budgetScope)}$debtLabel';
   }
 }
+
 
