@@ -38,6 +38,58 @@ class TransactionMutationService {
     );
   }
 
+  static TransactionMutationResult reverseTransaction({
+  required List<WalletEntity> wallets,
+  required List<TransactionEntity> transactions,
+  required BudgetSetupEntity budgetSetup,
+  required TransactionEntity transaction,
+}) {
+  final remainingTransactions = transactions
+      .where((item) => item.id != transaction.id)
+      .toList();
+
+  var nextWallets = List<WalletEntity>.from(wallets);
+
+  if (transaction.type == 'transfer' &&
+      transaction.fromWalletId != null &&
+      transaction.toWalletId != null) {
+    nextWallets = nextWallets.map((wallet) {
+      if (wallet.id == transaction.fromWalletId) {
+        return wallet.copyWith(
+          balance: wallet.balance + transaction.amount,
+        );
+      }
+
+      if (wallet.id == transaction.toWalletId) {
+        return wallet.copyWith(
+          balance: wallet.balance - transaction.amount,
+        );
+      }
+
+      return wallet;
+    }).toList();
+  } else {
+    nextWallets = nextWallets.map((wallet) {
+      if (wallet.id != transaction.walletId) {
+        return wallet;
+      }
+
+      final nextBalance = transaction.type == 'income'
+          ? wallet.balance - transaction.amount
+          : wallet.balance + transaction.amount;
+
+      return wallet.copyWith(balance: nextBalance);
+    }).toList();
+  }
+
+  return TransactionMutationResult(
+    wallets: nextWallets,
+    transactions: remainingTransactions,
+    budgetSetup: budgetSetup,
+  );
+}
+
+
   static TransactionMutationResult applyTransaction({
     required List<WalletEntity> wallets,
     required List<TransactionEntity> transactions,
