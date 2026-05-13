@@ -16,6 +16,12 @@ import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dar
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../sections/budget_tracking_overview_content.dart';
+import '../sheets/draggable_filterable_tx_sheet.dart';
+import '../widgets/budget_lent_pending_card.dart';
+import '../widgets/budget_static_info_card.dart';
+import '../widgets/budget_tracking_overview_widgets.dart';
+import '../widgets/installment_payments_card.dart';
 import 'budget_setup_screen.dart';
 import 'cycle_analysis_screen.dart';
 
@@ -26,34 +32,6 @@ class BudgetTrackingScreen extends StatefulWidget {
 
   @override
   State<BudgetTrackingScreen> createState() => _BudgetTrackingScreenState();
-}
-
-class _StaticInfoCard extends StatelessWidget {
-  const _StaticInfoCard({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
 }
 
 class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
@@ -169,112 +147,93 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             hasPendingIncome && _dismissedAutoIncomeMonthKey != monthKey;
         final isIncomeExpanded = _isIncomeExpanded || shouldAutoExpandIncome;
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _monthBar(context),
-            const SizedBox(height: 12),
-            _heroSummaryCard(
-              totalIncomeActual: totalIncomeActual,
-              totalExpenseActual: totalExpenseActual,
-              remainingIncome: remainingIncome,
-            ),
-            if (pastMonth) ...[
-              const SizedBox(height: 14),
-              _pastMonthSummaryCard(
-                totalIncomeActual: totalIncomeActual,
-                totalExpenseActual: totalExpenseActual,
-                remainingIncome: remainingIncome,
-              ),
-            ],
-            if (showSetupPromptOnly) ...[
-              const SizedBox(height: 18),
-              _budgetSetupPromptCard(futureMonth: futureMonth),
-            ] else ...[
-              const SizedBox(height: 18),
-              _sectionTitle('الدخل'),
-              const SizedBox(height: 12),
-              _inlineSectionCard(
-                title: 'الدخل الكلي',
-                subtitle: incomeSectionChildren.length == 1 &&
-                        incomeSectionChildren.first is _StaticInfoCard
-                    ? 'لا توجد مصادر دخل مضافة في هذه الدورة بعد'
-                    : 'كل مصادر الدخل المخطط لها لهذا الشهر',
-                amount: totalIncomeActual,
-                isExpanded: isIncomeExpanded,
-                incomeTotalLayout: true,
-                onTap: () {
-                  setState(() {
-                    if (isIncomeExpanded) {
-                      _isIncomeExpanded = false;
-                      if (hasPendingIncome) {
-                        _dismissedAutoIncomeMonthKey = monthKey;
-                      }
-                    } else {
-                      _isIncomeExpanded = true;
-                      _dismissedAutoIncomeMonthKey = null;
-                    }
-                  });
-                },
-                expandedChildren: incomeSectionChildren,
-              ),
-              const SizedBox(height: 18),
-              _sectionTitle('المخصصات'),
-              const SizedBox(height: 12),
-              ...budget.allocations.isEmpty
-                  ? <Widget>[
-                      _sectionEmptyCard(
-                        text: 'لا يوجد مخصص في هذه الدورة.',
-                        onTap: futureMonth || !pastMonth
-                            ? _openBudgetSetupScreen
-                            : null,
-                      ),
-                    ]
-                  : budget.allocations.map((allocation) =>
-                      _allocationSummaryTile(state, allocation, monthTx)),
-              const SizedBox(height: 18),
-              _sectionTitle('الحصالات'),
-              const SizedBox(height: 12),
-              ...budgetJars.isEmpty
-                  ? const <Widget>[
-                      _StaticInfoCard(
-                          text: 'لا توجد حصالات ممولة في هذا الشهر.')
-                    ]
-                  : budgetJars
-                      .map((jar) => _jarSummaryTile(state, jar, monthTx)),
-              const SizedBox(height: 18),
-              _sectionTitle('الديون والأقساط'),
-              const SizedBox(height: 12),
-              ..._installmentCards(state, budget, monthTx),
-              ..._lentCards(state, monthTx),
-              const SizedBox(height: 18),
-              _sectionTitle('الاشتراكات'),
-              const SizedBox(height: 12),
-              ..._subscriptionCards(state, budget, monthTx),
-              const SizedBox(height: 18),
-              _sectionTitle('ملخص الدورة'),
-              const SizedBox(height: 12),
-              _cycleSummaryCard(
-                state: state,
-                budget: budget,
-                totalIncomeActual: totalIncomeActual,
-                totalExpenseActual: totalExpenseActual,
-                remainingIncome: remainingIncome,
-              ),
-              if (!pastMonth) ...[
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _openBudgetSetupScreen,
-                  icon: Icon(futureMonth
-                      ? Icons.add_task_outlined
-                      : Icons.edit_outlined),
-                  label: Text(futureMonth
-                      ? 'إعداد الميزانية الشهرية'
-                      : 'تعديل الميزانية الشهرية'),
-                ),
-              ],
-            ],
+        return BudgetTrackingOverviewContent(
+          monthBar: _monthBar(context),
+          heroSummaryCard: _heroSummaryCard(
+            totalIncomeActual: totalIncomeActual,
+            totalExpenseActual: totalExpenseActual,
+            remainingIncome: remainingIncome,
+          ),
+          pastMonthSummaryCard: pastMonth
+              ? _pastMonthSummaryCard(
+                  totalIncomeActual: totalIncomeActual,
+                  totalExpenseActual: totalExpenseActual,
+                  remainingIncome: remainingIncome,
+                )
+              : null,
+          showSetupPromptOnly: showSetupPromptOnly,
+          budgetSetupPromptCard: _budgetSetupPromptCard(futureMonth: futureMonth),
+          incomeSectionTitle: _sectionTitle('الدخل'),
+          incomeSectionCard: _inlineSectionCard(
+            title: 'الدخل الكلي',
+            subtitle: incomeSectionChildren.length == 1 &&
+                    incomeSectionChildren.first is BudgetStaticInfoCard
+                ? 'لا توجد مصادر دخل مضافة في هذه الدورة بعد'
+                : 'كل مصادر الدخل المخطط لها لهذا الشهر',
+            amount: totalIncomeActual,
+            isExpanded: isIncomeExpanded,
+            incomeTotalLayout: true,
+            onTap: () {
+              setState(() {
+                if (isIncomeExpanded) {
+                  _isIncomeExpanded = false;
+                  if (hasPendingIncome) {
+                    _dismissedAutoIncomeMonthKey = monthKey;
+                  }
+                } else {
+                  _isIncomeExpanded = true;
+                  _dismissedAutoIncomeMonthKey = null;
+                }
+              });
+            },
+            expandedChildren: incomeSectionChildren,
+          ),
+          allocationsSectionTitle: _sectionTitle('المخصصات'),
+          allocationTiles: budget.allocations.isEmpty
+              ? <Widget>[
+                  _sectionEmptyCard(
+                    text: 'لا يوجد مخصص في هذه الدورة.',
+                    onTap: futureMonth || !pastMonth
+                        ? _openBudgetSetupScreen
+                        : null,
+                  ),
+                ]
+              : budget.allocations
+                  .map((allocation) =>
+                      _allocationSummaryTile(state, allocation, monthTx))
+                  .toList(),
+          jarsSectionTitle: _sectionTitle('الحصالات'),
+          jarTiles: budgetJars.isEmpty
+              ? const <Widget>[
+                  BudgetStaticInfoCard(
+                    text: 'لا توجد حصالات ممولة في هذا الشهر.',
+                  ),
+                ]
+              : budgetJars
+                  .map((jar) => _jarSummaryTile(state, jar, monthTx))
+                  .toList(),
+          debtsSectionTitle: _sectionTitle('الديون والأقساط'),
+          debtCards: [
+            ..._installmentCards(state, budget, monthTx),
+            ..._lentCards(state, monthTx),
           ],
+          subscriptionsSectionTitle: _sectionTitle('الاشتراكات'),
+          subscriptionCards: _subscriptionCards(state, budget, monthTx),
+          cycleSummarySectionTitle: _sectionTitle('ملخص الدورة'),
+          cycleSummaryCard: _cycleSummaryCard(
+            state: state,
+            budget: budget,
+            totalIncomeActual: totalIncomeActual,
+            totalExpenseActual: totalExpenseActual,
+            remainingIncome: remainingIncome,
+          ),
+          showBudgetSetupButton: !pastMonth,
+          budgetSetupButtonIcon:
+              futureMonth ? Icons.add_task_outlined : Icons.edit_outlined,
+          budgetSetupButtonLabel: futureMonth
+              ? 'إعداد الميزانية الشهرية'
+              : 'تعديل الميزانية الشهرية',
+          onOpenBudgetSetupScreen: _openBudgetSetupScreen,
         );
       },
     );
@@ -282,65 +241,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   Widget _monthBar(BuildContext context) {
     final budget = widget.cubit.state.budgetSetup;
-    final cycleEnd = _cycleEnd;
-    final startLabel = DateFormat('d MMM', 'ar').format(_cycleStart);
-    final endLabel = DateFormat('d MMM yyyy', 'ar').format(cycleEnd);
-    final rangeLabel = '$startLabel — $endLabel';
-    final isCurrent = _isCurrentCycle(budget);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF165B47).withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(18),
-        border:
-            Border.all(color: const Color(0xFF165B47).withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => _goToPreviousCycle(budget),
-            icon: const Icon(Icons.chevron_right_rounded,
-                color: Color(0xFF165B47)),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  rangeLabel,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    color: Color(0xFF165B47),
-                  ),
-                ),
-                if (isCurrent)
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF165B47).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'الدورة الحالية',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF165B47)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _goToNextCycle(budget),
-            icon: const Icon(Icons.chevron_left_rounded,
-                color: Color(0xFF165B47)),
-          ),
-        ],
-      ),
+    return BudgetTrackingMonthBar(
+      rangeLabel: '${DateFormat('d MMM', 'ar').format(_cycleStart)} — ${DateFormat('d MMM yyyy', 'ar').format(_cycleEnd)}',
+      isCurrent: _isCurrentCycle(budget),
+      onPrevious: () => _goToPreviousCycle(budget),
+      onNext: () => _goToNextCycle(budget),
     );
   }
 
@@ -435,169 +340,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     required double totalExpenseActual,
     required double remainingIncome,
   }) {
-    final theme = Theme.of(context);
-
-    // نسبة الصحة المالية: 1.0 = كل الدخل متبقٍ، 0.0 = خلصت الفلوس، سالب = عجز
-    final healthRatio = totalIncomeActual <= 0
-        ? 1.0
-        : (remainingIncome / totalIncomeActual).clamp(-0.5, 1.0);
-
-    const cGreen1 = Color(0xFF165B47);
-    const cGreen2 = Color(0xFF2F7D5E);
-    const cGreen3 = Color(0xFF8DCB9B);
-    const cYellow1 = Color(0xFF8B6C14);
-    const cYellow2 = Color(0xFFAA8C20);
-    const cYellow3 = Color(0xFFD4B040);
-    const cRed1 = Color(0xFF8E4A37);
-    const cRed2 = Color(0xFFC96B47);
-    const cRed3 = Color(0xFFE07055);
-
-    Color g1, g2, g3, shadow;
-    if (healthRatio <= 0.0) {
-      g1 = cRed1;
-      g2 = cRed2;
-      g3 = cRed3;
-      shadow = cRed1;
-    } else if (healthRatio < 0.35) {
-      final t = healthRatio / 0.35;
-      g1 = Color.lerp(cRed1, cYellow1, t)!;
-      g2 = Color.lerp(cRed2, cYellow2, t)!;
-      g3 = Color.lerp(cRed3, cYellow3, t)!;
-      shadow = g1;
-    } else if (healthRatio < 0.65) {
-      final t = (healthRatio - 0.35) / 0.30;
-      g1 = Color.lerp(cYellow1, cGreen1, t)!;
-      g2 = Color.lerp(cYellow2, cGreen2, t)!;
-      g3 = Color.lerp(cYellow3, cGreen3, t)!;
-      shadow = g1;
-    } else {
-      g1 = cGreen1;
-      g2 = cGreen2;
-      g3 = cGreen3;
-      shadow = cGreen1;
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [g1, g2, g3],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: shadow.withValues(alpha: 0.22),
-            blurRadius: 26,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          PositionedDirectional(
-            top: -14,
-            start: -4,
-            child: Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 92,
-              color: Colors.white.withValues(alpha: 0.14),
-            ),
-          ),
-          PositionedDirectional(
-            bottom: -18,
-            end: -4,
-            child: Icon(
-              Icons.auto_graph_rounded,
-              size: 82,
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'الباقي من الدخل الشهري',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                remainingIncome.toStringAsFixed(2),
-                style: theme.textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _heroMiniStat(
-                      label: 'الدخل',
-                      value: totalIncomeActual,
-                      icon: Icons.south_west_rounded,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _heroMiniStat(
-                      label: 'المصروف',
-                      value: totalExpenseActual,
-                      icon: Icons.north_east_rounded,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _heroMiniStat({
-    required String label,
-    required double value,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value.toStringAsFixed(2),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+    return BudgetTrackingHeroSummaryCard(
+      totalIncomeActual: totalIncomeActual,
+      totalExpenseActual: totalExpenseActual,
+      remainingIncome: remainingIncome,
     );
   }
 
@@ -644,145 +390,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Widget _budgetSetupPromptCard({required bool futureMonth}) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE8F5E9), Color(0xFFD8F3E5)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              size: 42,
-              color: Color(0xFF0F9D7A),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            futureMonth
-                ? 'خطط لهذا الشهر بشكل مسبق'
-                : 'ابدأ إعداد الميزانية الشهرية',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            futureMonth
-                ? 'هذا الشهر لم يبدأ بعد. يمكنك تجهيز خطته الآن، لكنها لن تتحول إلى عرض الميزانية والمعاملات إلا عندما يبدأ الشهر فعليًا.'
-                : 'أضف أي عنصر في الخطة مثل دخل أو مخصص أو حصالة أو التزام، وبعدها ستظهر لك شاشة متابعة الميزانية هنا.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: _isPastMonth() ? null : _openBudgetSetupScreen,
-            icon: const Icon(Icons.tune_rounded),
-            label: Text(
-              futureMonth
-                  ? 'إعداد هذا الشهر مسبقًا'
-                  : 'إعداد الميزانية الشهرية',
-            ),
-          ),
-        ],
-      ),
+    return BudgetTrackingSetupPromptCard(
+      futureMonth: futureMonth,
+      isDisabled: _isPastMonth(),
+      onTap: _openBudgetSetupScreen,
     );
   }
 
   Widget _sectionTitle(String title) {
-    const accent = Color(0xFF165B47);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: accent,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              height: 1,
-              color: accent.withValues(alpha: 0.10),
-            ),
-          ),
-        ],
-      ),
-    );
+    return BudgetTrackingSectionTitle(title: title);
   }
 
   Widget _sectionEmptyCard({
     required String text,
     VoidCallback? onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.open_in_new_rounded),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  text,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              const Icon(Icons.chevron_left_rounded),
-            ],
-          ),
-        ),
-      ),
-    );
+    return BudgetTrackingSectionEmptyCard(text: text, onTap: onTap);
   }
 
   Widget _cycleSummaryCard({
@@ -2143,7 +1766,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           ),
     ];
     if (children.isEmpty) {
-      children.add(const _StaticInfoCard(
+        children.add(const BudgetStaticInfoCard(
           text: 'لا يوجد دخل مسجل أو مخطط في هذه الدورة.'));
     }
     return children;
@@ -2750,7 +2373,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) {
     final installments = budget.debts.where((d) => d.isInstallment).toList();
     if (installments.isEmpty) {
-      return [const _StaticInfoCard(text: 'لا توجد ديون أو أقساط مسجلة.')];
+      return [const BudgetStaticInfoCard(text: 'لا توجد ديون أو أقساط مسجلة.')];
     }
     final widgets = <Widget>[];
     for (final debt in installments) {
@@ -3032,7 +2655,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: allPersonTxs,
@@ -3134,7 +2757,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           .cast<RecurringTransactionEntity?>()
                           .firstWhere((_) => true, orElse: () => null) ??
                       person;
-                  return _BudgetLentPendingCard(
+    return BudgetLentPendingCard(
                     theme: theme,
                     accent: accent,
                     person: cur,
@@ -3441,7 +3064,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) {
     final subscriptions = budget.debts.where((d) => d.isSubscription).toList();
     if (subscriptions.isEmpty) {
-      return [const _StaticInfoCard(text: 'لا توجد اشتراكات مسجلة.')];
+      return [const BudgetStaticInfoCard(text: 'لا توجد اشتراكات مسجلة.')];
     }
     final widgets = <Widget>[];
     for (final debt in subscriptions) {
@@ -3557,7 +3180,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
     if (widgets.isEmpty) {
       return [
-        const _StaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')
+        const BudgetStaticInfoCard(text: 'لا توجد اشتراكات مستحقة هذه الدورة.')
       ];
     }
     return widgets;
@@ -3587,7 +3210,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: tx,
@@ -3732,7 +3355,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: tx,
@@ -3870,7 +3493,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: tx,
@@ -3983,7 +3606,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: cycleTx,
@@ -4222,7 +3845,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _DraggableFilterableTxSheet(
+        builder: (sheetContext) => DraggableFilterableTxSheet(
         theme: theme,
         accent: accent,
         transactions: sortedTx,
@@ -4308,7 +3931,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               // ── قسم الدفعات القابل للتوسع ────────────────────────────
               if (debt.isInstallment && recurring != null) ...[
                 const SizedBox(height: 14),
-                _InstallmentPaymentsCard(
+          InstallmentPaymentsCard(
                   theme: theme,
                   debt: debt,
                   recurring: recurring,
@@ -5004,899 +4627,3 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 }
 
-class _BudgetLentPendingCard extends StatelessWidget {
-  const _BudgetLentPendingCard({
-    super.key,
-    required this.theme,
-    required this.accent,
-    required this.person,
-    required this.cubit,
-    required this.sheetCtx,
-  });
-
-  final ThemeData theme;
-  final Color accent;
-  final RecurringTransactionEntity person;
-  final AppCubit cubit;
-  final BuildContext sheetCtx;
-
-  @override
-  Widget build(BuildContext context) {
-    final pendingEntries = person.lentEntries
-        .where((entry) => entry['isSettled'] != true)
-        .toList();
-    final pendingCount = pendingEntries.length;
-    final overdueCount = pendingEntries.where((entry) {
-      final date =
-          DateTime.tryParse(entry['expectedReturnDate'] as String? ?? '');
-      return date != null && date.isBefore(DateTime.now());
-    }).length;
-    final totalPending = pendingEntries.fold<double>(0, (sum, entry) {
-      final amount = entry['amount'];
-      if (amount is num) return sum + amount.toDouble();
-      if (amount is String) return sum + (double.tryParse(amount) ?? 0);
-      return sum;
-    });
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'السلفات المعلقة',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (overdueCount > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFC65D2E).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'متأخر $overdueCount',
-                    style: const TextStyle(
-                      color: Color(0xFFC65D2E),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '$pendingCount سلفة معلقة · غير مسترد ${totalPending.toStringAsFixed(2)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (pendingEntries.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: pendingEntries.take(3).map((entry) {
-                final amount = entry['amount'];
-                final amountText = amount is num
-                    ? amount.toStringAsFixed(2)
-                    : (amount is String ? amount : '0.00');
-                final retDate = entry['expectedReturnDate'] as String?;
-                final dateText = retDate != null && retDate.isNotEmpty
-                    ? 'استحقاق ${retDate.split('T').first}'
-                    : 'بدون موعد';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.pending_outlined,
-                          size: 18, color: Color(0xFF165B47)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '$amountText ج.م · $dateText',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── ويدجت قسم الدفعات القابل للتوسع ──────────────────────────────────────
-
-class _InstallmentPaymentsCard extends StatefulWidget {
-  const _InstallmentPaymentsCard({
-    required this.theme,
-    required this.debt,
-    required this.recurring,
-    required this.installmentAmt,
-    required this.currentPaid,
-    required this.nextPaid,
-    required this.showNextPayment,
-    required this.dueDate,
-    required this.onPayCurrent,
-    required this.onPayNext,
-  });
-
-  final ThemeData theme;
-  final DebtEntity debt;
-  final RecurringTransactionEntity recurring;
-  final double installmentAmt;
-  final bool currentPaid;
-  final bool nextPaid;
-  final bool showNextPayment;
-  final DateTime dueDate;
-  final VoidCallback onPayCurrent;
-  final VoidCallback onPayNext;
-
-  @override
-  State<_InstallmentPaymentsCard> createState() =>
-      _InstallmentPaymentsCardState();
-}
-
-class _InstallmentPaymentsCardState extends State<_InstallmentPaymentsCard> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final accent = const Color(0xFFC65D2E);
-    final now = DateTime.now();
-    final nextMonth = DateTime(
-      now.year,
-      now.month + 1,
-      widget.debt.executionDay.clamp(1, 28),
-    );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Column(
-        children: [
-          // رأس القسم
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.credit_card_rounded,
-                        color: accent, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'دفعات هذه الدورة',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // المحتوى القابل للتوسع
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: _expandedContent(theme, accent, nextMonth),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _expandedContent(ThemeData theme, Color accent, DateTime nextMonth) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-      child: Column(
-        children: [
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-
-          // ── الدفعة الحالية ─────────────────────────────────────
-          _paymentRow(
-            theme: theme,
-            label: widget.showNextPayment ? 'الدفعة الحالية' : 'دفعة واحدة',
-            date: DateFormat('d MMMM yyyy', 'ar').format(widget.dueDate),
-            amount: widget.installmentAmt,
-            isPaid: widget.currentPaid,
-            buttonLabel: 'دفع الآن',
-            onPay: widget.currentPaid ? null : widget.onPayCurrent,
-          ),
-          if (widget.showNextPayment) ...[
-            const SizedBox(height: 10),
-            _paymentRow(
-              theme: theme,
-              label: 'الدفعة القادمة',
-              date: DateFormat('d MMMM yyyy', 'ar').format(nextMonth),
-              amount: widget.installmentAmt,
-              isPaid: widget.nextPaid,
-              buttonLabel: 'تسديد الآن',
-              onPay: widget.nextPaid ? null : widget.onPayNext,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _paymentRow({
-    required ThemeData theme,
-    required String label,
-    required String date,
-    required double amount,
-    required bool isPaid,
-    required String buttonLabel,
-    required VoidCallback? onPay,
-  }) {
-    final accent = const Color(0xFFC65D2E);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isPaid
-            ? Colors.green.withValues(alpha: 0.07)
-            : theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isPaid
-              ? Colors.green.withValues(alpha: 0.3)
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: isPaid
-                  ? Colors.green.withValues(alpha: 0.12)
-                  : accent.withValues(alpha: 0.09),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isPaid
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isPaid ? Colors.green : accent,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 13)),
-                Text(date,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-          Text(
-            amount.toStringAsFixed(2),
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-          ),
-          if (!isPaid && onPay != null) ...[
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: onPay,
-              style: FilledButton.styleFrom(
-                backgroundColor: accent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle:
-                    const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-              ),
-              child: Text(buttonLabel),
-            ),
-          ] else if (isPaid) ...[
-            const SizedBox(width: 8),
-            Text(
-              'مدفوعة ✓',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: Colors.green.shade700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-enum _TxKindFilter { all, expense, income, transfer }
-
-enum _TxDateFilter { day, week, month, year, custom, all }
-
-class _TrackingPostponeChoice {
-  static final DateTime skip = DateTime(1);
-}
-
-class _DraggableFilterableTxSheet extends StatefulWidget {
-  const _DraggableFilterableTxSheet({
-    required this.theme,
-    required this.accent,
-    required this.topSectionAfterGrab,
-    required this.transactions,
-    required this.initialMonth,
-    required this.emptyMessage,
-    required this.sheetContext,
-    required this.tileBuilder,
-  });
-
-  final ThemeData theme;
-  final Color accent;
-  final List<Widget> topSectionAfterGrab;
-  final List<TransactionEntity> transactions;
-  final DateTime initialMonth;
-  final String emptyMessage;
-  final BuildContext sheetContext;
-  final Widget Function(TransactionEntity item) tileBuilder;
-
-  @override
-  State<_DraggableFilterableTxSheet> createState() =>
-      _DraggableFilterableTxSheetState();
-}
-
-class _DraggableFilterableTxSheetState
-    extends State<_DraggableFilterableTxSheet> {
-  bool _newestFirst = true;
-  _TxKindFilter _kind = _TxKindFilter.all;
-  _TxDateFilter _dateFilter = _TxDateFilter.month;
-  DateTime? _selectedDay;
-  DateTime? _selectedWeekStart;
-  DateTimeRange? _customRange;
-
-  static bool _isTransfer(TransactionEntity t) {
-    return t.type != 'expense' && t.type != 'income';
-  }
-
-  List<TransactionEntity> get _visible {
-    var list = List<TransactionEntity>.from(widget.transactions);
-    switch (_kind) {
-      case _TxKindFilter.all:
-        break;
-      case _TxKindFilter.expense:
-        list = list.where((t) => t.type == 'expense').toList();
-        break;
-      case _TxKindFilter.income:
-        list = list.where((t) => t.type == 'income').toList();
-        break;
-      case _TxKindFilter.transfer:
-        list = list.where(_isTransfer).toList();
-        break;
-    }
-    list = list.where(_matchesDateFilter).toList();
-    list.sort((a, b) => _newestFirst
-        ? b.createdAt.compareTo(a.createdAt)
-        : a.createdAt.compareTo(b.createdAt));
-    return list;
-  }
-
-  bool _matchesDateFilter(TransactionEntity transaction) {
-    final date = transaction.createdAt;
-    switch (_dateFilter) {
-      case _TxDateFilter.all:
-        return true;
-      case _TxDateFilter.month:
-        return date.year == widget.initialMonth.year &&
-            date.month == widget.initialMonth.month;
-      case _TxDateFilter.year:
-        return date.year == widget.initialMonth.year;
-      case _TxDateFilter.day:
-        final day = _selectedDay ?? widget.initialMonth;
-        return date.year == day.year &&
-            date.month == day.month &&
-            date.day == day.day;
-      case _TxDateFilter.week:
-        final start = _selectedWeekStart ?? widget.initialMonth;
-        final normalizedStart = DateTime(start.year, start.month, start.day);
-        final normalizedEnd = normalizedStart
-            .add(const Duration(days: 6, hours: 23, minutes: 59));
-        return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
-      case _TxDateFilter.custom:
-        final range = _customRange;
-        if (range == null) {
-          return true;
-        }
-        final start = DateTime(
-          range.start.year,
-          range.start.month,
-          range.start.day,
-        );
-        final end = DateTime(
-          range.end.year,
-          range.end.month,
-          range.end.day,
-          23,
-          59,
-          59,
-        );
-        return !date.isBefore(start) && !date.isAfter(end);
-    }
-  }
-
-  String get _dateFilterLabel {
-    switch (_dateFilter) {
-      case _TxDateFilter.day:
-        final day = _selectedDay ?? widget.initialMonth;
-        return 'يوم ${DateFormat('d MMMM yyyy', 'ar').format(day)}';
-      case _TxDateFilter.week:
-        final start = _selectedWeekStart ?? widget.initialMonth;
-        final end = start.add(const Duration(days: 6));
-        return 'أسبوع ${DateFormat('d/M', 'ar').format(start)} - ${DateFormat('d/M', 'ar').format(end)}';
-      case _TxDateFilter.month:
-        return DateFormat('MMMM yyyy', 'ar').format(widget.initialMonth);
-      case _TxDateFilter.year:
-        return 'سنة ${widget.initialMonth.year}';
-      case _TxDateFilter.custom:
-        if (_customRange == null) return 'مدى مخصص';
-        return '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}';
-      case _TxDateFilter.all:
-        return 'كل المعاملات';
-    }
-  }
-
-  String get _kindFilterLabel {
-    switch (_kind) {
-      case _TxKindFilter.expense:
-        return 'مصروفات فقط';
-      case _TxKindFilter.income:
-        return 'دخل فقط';
-      case _TxKindFilter.transfer:
-        return 'تحويلات فقط';
-      case _TxKindFilter.all:
-        return 'كل الأنواع';
-    }
-  }
-
-  String get _sortLabel => _newestFirst ? 'الأحدث أولًا' : 'الأقدم أولًا';
-
-  Future<void> _openFilterSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (ctx) {
-        Widget sectionTitle(String title, IconData icon) {
-          return Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: widget.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: widget.accent, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: widget.theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          );
-        }
-
-        Widget optionTile({
-          required String title,
-          String? subtitle,
-          required bool selected,
-          required VoidCallback onTap,
-        }) {
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? widget.accent.withValues(alpha: 0.10)
-                      : widget.theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selected
-                        ? widget.accent.withValues(alpha: 0.34)
-                        : widget.theme.colorScheme.outlineVariant
-                            .withValues(alpha: 0.55),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              subtitle,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    widget.theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(
-                      selected
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: selected
-                          ? widget.accent
-                          : widget.theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'تصفية المعاملات',
-                    style: widget.theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'اختر نوع المعاملات والفترة المناسبة، ويمكنك تغيير الترتيب من الشاشة الرئيسية مباشرة.',
-                    style: widget.theme.textTheme.bodySmall?.copyWith(
-                      color: widget.theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  sectionTitle('نوع المعاملة', Icons.tune_rounded),
-                  const SizedBox(height: 10),
-                  optionTile(
-                    title: 'كل المعاملات',
-                    selected: _kind == _TxKindFilter.all,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.all);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'مصروفات فقط',
-                    selected: _kind == _TxKindFilter.expense,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.expense);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'دخل فقط',
-                    selected: _kind == _TxKindFilter.income,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.income);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'تحويلات فقط',
-                    selected: _kind == _TxKindFilter.transfer,
-                    onTap: () {
-                      setState(() => _kind = _TxKindFilter.transfer);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  sectionTitle('الفترة', Icons.date_range_rounded),
-                  const SizedBox(height: 10),
-                  optionTile(
-                    title: 'الشهر المعروض',
-                    subtitle: DateFormat('MMMM yyyy', 'ar')
-                        .format(widget.initialMonth),
-                    selected: _dateFilter == _TxDateFilter.month,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.month);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'السنة المعروضة',
-                    subtitle: '${widget.initialMonth.year}',
-                    selected: _dateFilter == _TxDateFilter.year,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.year);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'يوم محدد',
-                    subtitle: _selectedDay == null
-                        ? 'اختر يومًا بعينه'
-                        : DateFormat('d MMMM yyyy', 'ar').format(_selectedDay!),
-                    selected: _dateFilter == _TxDateFilter.day,
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedDay ?? widget.initialMonth,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _selectedDay = picked;
-                        _dateFilter = _TxDateFilter.day;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'أسبوع',
-                    subtitle: _selectedWeekStart == null
-                        ? 'اختر بداية الأسبوع'
-                        : '${DateFormat('d/M', 'ar').format(_selectedWeekStart!)} - ${DateFormat('d/M', 'ar').format(_selectedWeekStart!.add(const Duration(days: 6)))}',
-                    selected: _dateFilter == _TxDateFilter.week,
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _selectedWeekStart ?? widget.initialMonth,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _selectedWeekStart = picked;
-                        _dateFilter = _TxDateFilter.week;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'من تاريخ إلى تاريخ',
-                    subtitle: _customRange == null
-                        ? 'حدد مدى زمني مخصص'
-                        : '${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.start)} - ${DateFormat('d MMMM yyyy', 'ar').format(_customRange!.end)}',
-                    selected: _dateFilter == _TxDateFilter.custom,
-                    onTap: () async {
-                      final picked = await showDateRangePicker(
-                        context: context,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                        initialDateRange: _customRange,
-                      );
-                      if (picked == null) return;
-                      setState(() {
-                        _customRange = picked;
-                        _dateFilter = _TxDateFilter.custom;
-                      });
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  optionTile(
-                    title: 'كل الفترات',
-                    selected: _dateFilter == _TxDateFilter.all,
-                    onTap: () {
-                      setState(() => _dateFilter = _TxDateFilter.all);
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = _visible;
-    final theme = widget.theme;
-
-    return SizedBox(
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.76,
-        minChildSize: 0.38,
-        maxChildSize: 1.0,
-        snap: true,
-        snapSizes: const [0.76, 1.0],
-        builder: (context, scrollController) {
-          return ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Material(
-              color: theme.colorScheme.surface,
-              child: ListView(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 14),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  ...widget.topSectionAfterGrab,
-                  Divider(
-                    height: 32,
-                    thickness: 1,
-                    color: theme.colorScheme.outlineVariant,
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'المعاملات',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _dateFilterLabel,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _kindFilterLabel,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: widget.accent,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor:
-                              widget.accent.withValues(alpha: 0.10),
-                          foregroundColor: widget.accent,
-                        ),
-                        onPressed: () {
-                          setState(() => _newestFirst = !_newestFirst);
-                        },
-                        icon: Icon(
-                          _newestFirst
-                              ? Icons.arrow_downward_rounded
-                              : Icons.arrow_upward_rounded,
-                          size: 20,
-                        ),
-                        tooltip: _sortLabel,
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        style: IconButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor:
-                              widget.accent.withValues(alpha: 0.10),
-                          foregroundColor: widget.accent,
-                        ),
-                        onPressed: _openFilterSheet,
-                        icon: const Icon(Icons.filter_list_rounded, size: 22),
-                        tooltip: 'تصفية',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ...visible.map(widget.tileBuilder),
-                  if (visible.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        widget.emptyMessage,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
