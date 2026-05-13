@@ -7,6 +7,7 @@ import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
+import 'features/budget/presentation/cubits/budget_cubit.dart';
 import 'features/transactions/presentation/cubits/transaction_cubit.dart';
 import 'features/wallets/presentation/cubits/wallet_cubit.dart';
 
@@ -30,6 +31,9 @@ class MezanyaApp extends StatelessWidget {
         ),
         BlocProvider<WalletCubit>(
           create: (_) => sl<WalletCubit>()..initialize(),
+        ),
+        BlocProvider<BudgetCubit>(
+          create: (_) => sl<BudgetCubit>()..initialize(),
         ),
       ],
       child: MaterialApp(
