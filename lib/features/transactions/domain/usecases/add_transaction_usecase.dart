@@ -51,6 +51,19 @@ class AddTransactionUseCase {
     final transactions = await _transactionRepository!.loadTransactions();
     final budget = await _budgetRepository!.loadBudget();
 
+    final alreadyExists = transactions.any((existing) =>
+        existing.id == transaction.id ||
+        (existing.type == transaction.type &&
+            existing.amount == transaction.amount &&
+            existing.walletId == transaction.walletId &&
+            existing.fromWalletId == transaction.fromWalletId &&
+            existing.toWalletId == transaction.toWalletId &&
+            existing.createdAt.difference(transaction.createdAt).inSeconds.abs() <= 1));
+
+    if (alreadyExists) {
+      return transactions;
+    }
+
     final next = TransactionMutationService.applyTransaction(
       wallets: wallets,
       transactions: transactions,
