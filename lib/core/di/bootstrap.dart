@@ -27,8 +27,25 @@ class AppControllers {
 class AppBootstrap {
   static Future<AppCubit> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    final SharedPrefsAppRepository repository = SharedPrefsAppRepository(prefs);
-    final cubit = AppCubit(repository);
+    final SharedPrefsAppRepository repository =
+    SharedPrefsAppRepository(prefs);
+
+final walletRepository = WalletSharedPrefsRepository(prefs);
+final transactionRepository = TransactionSharedPrefsRepository(prefs);
+final budgetRepository = BudgetSharedPrefsRepository(prefs);
+
+final transactionController = TransactionController(
+  transactionRepository,
+  walletRepository,
+  budgetRepository,
+);
+
+await transactionController.initialize();
+
+final cubit = AppCubit(
+  repository,
+  transactionController,
+);
     await cubit.initialize();
     return cubit;
   }

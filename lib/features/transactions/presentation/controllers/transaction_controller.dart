@@ -118,4 +118,17 @@ class TransactionController extends ChangeNotifier {
       _isSubmittingTransaction = false;
     }
   }
+
+  Future<void> deleteTransaction(String transactionId) async {
+    final updated = _transactions
+        .where((transaction) => transaction.id != transactionId)
+        .toList();
+
+    await _repository.saveTransactions(updated);
+
+    _transactions = updated;
+
+    notifyListeners();
+  }
 }
+

@@ -12,11 +12,16 @@ import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
+import '../../../transactions/presentation/controllers/transaction_controller.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
-  AppCubit(this._repository) : super(AppStateEntity.initial());
+  AppCubit(
+    this._repository,
+    this._transactionController,
+  ) : super(AppStateEntity.initial());
 
   final AppRepository _repository;
+  final TransactionController _transactionController;
 
   Future<void> initialize() async {
     emit(await _repository.loadState());
@@ -263,7 +268,25 @@ class AppCubit extends Cubit<AppStateEntity> {
       titleOverride: notes?.isNotEmpty == true
           ? notes
           : incomeName ?? walletName ?? (type == 'income' ? 'دخل' : 'مصروف'),
-      apply: () => _repository.addTransaction(transaction),
+      apply: () async {
+  await _transactionController.addTransaction(
+    walletId: walletId,
+    fromWalletId: fromWalletId,
+    toWalletId: toWalletId,
+    amount: amount,
+    type: type,
+    allocationId: allocationId,
+    toAllocationId: toAllocationId,
+    budgetScope: budgetScope,
+    incomeSourceId: incomeSourceId,
+    categoryId: categoryId,
+    transferType: transferType,
+    notes: notes,
+    createdAt: createdAt,
+  );
+
+  return await _repository.loadState();
+},
     );
   }
 
@@ -290,6 +313,7 @@ class AppCubit extends Cubit<AppStateEntity> {
     return 'معاملة تحويل بقيمة ${amount.toStringAsFixed(2)}';
   }
 
+  @Deprecated('Use TransactionController instead')
   Future<void> deleteTransaction(String transactionId) async {
     final target =
         state.transactions.where((t) => t.id == transactionId).toList();
@@ -401,15 +425,16 @@ class AppCubit extends Cubit<AppStateEntity> {
       }
     }
 
-    final next = state.copyWith(
-      wallets: wallets,
-      budgetSetup: state.budgetSetup.copyWith(
-        linkedWallets: linkedWallets,
-        allocations: allocations,
-      ),
-      transactions:
-          state.transactions.where((t) => t.id != transactionId).toList(),
-    );
+    await _transactionController.deleteTransaction(transactionId);
+
+  final next = state.copyWith(
+    wallets: wallets,
+    budgetSetup: state.budgetSetup.copyWith(
+      linkedWallets: linkedWallets,
+      allocations: allocations,
+    ),
+    transactions: _transactionController.transactions,
+  );
 
     await _applyAndLog(
       action: 'delete',
