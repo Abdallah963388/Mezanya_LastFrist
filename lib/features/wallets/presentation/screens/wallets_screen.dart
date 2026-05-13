@@ -11,8 +11,8 @@ import '../widgets/wallets_empty_state_card.dart';
 import '../widgets/wallets_inline_note.dart';
 import '../widgets/wallets_overview_section.dart';
 import '../widgets/wallets_transaction_tile.dart';
-import 'jars_list_page.dart';
 import 'jar_editor_screen.dart';
+import 'jars_list_page.dart';
 import 'wallets_list_page.dart';
 
 class WalletsScreen extends StatefulWidget {
@@ -681,7 +681,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ...walletTx.take(30).map(
                           (t) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                          child: WalletsTransactionTile(
+                            child: WalletsTransactionTile(
                               transaction: t,
                               state: state,
                               onTap: () => openTransactionDetailsSheet(
@@ -1110,7 +1110,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
                     ...relevantTransactions.map(
                       (t) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                          child: WalletsTransactionTile(
+                        child: WalletsTransactionTile(
                           transaction: t,
                           state: state,
                           onTap: () => openTransactionDetailsSheet(
@@ -2432,7 +2432,6 @@ class _WalletsScreenState extends State<WalletsScreen> {
     final value = int.tryParse(normalized, radix: 16) ?? 0xFF165B47;
     return Color(0xFF000000 | value);
   }
-
 
   List<LinkedWalletEntity> _orderedJars(List<LinkedWalletEntity> jars) {
     final sorted = List<LinkedWalletEntity>.from(jars);

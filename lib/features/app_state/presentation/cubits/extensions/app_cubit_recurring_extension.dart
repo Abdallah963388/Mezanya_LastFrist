@@ -1,6 +1,8 @@
+import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
+
+import '../../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../../transactions/domain/entities/transaction_entity.dart';
-import '../../../../budget/domain/entities/budget_setup_entity.dart';
 import '../app_cubit.dart';
 
 extension AppCubitRecurringExtension on AppCubit {
@@ -200,7 +202,8 @@ extension AppCubitRecurringExtension on AppCubit {
   }
 
   Future<void> deleteRecurringTransaction(String id) async {
-    final target = state.recurringTransactions.where((item) => item.id == id).toList();
+    final target =
+        state.recurringTransactions.where((item) => item.id == id).toList();
     final deleted = target.isEmpty ? null : target.first;
 
     final nextBudget = state.budgetSetup.copyWith(
@@ -310,13 +313,11 @@ extension AppCubitRecurringExtension on AppCubit {
         : recurring.amount.toStringAsFixed(2);
     final debtLabel = recurring.isDebtOrSubscription
         ? recurring.expensePlanKind == 'installment'
-            ? ' · ?????'
+            ? ' ï¿½ ?????'
             : recurring.expensePlanKind == 'subscription'
-                ? ' · ??????'
-                : ' · ??? ?? ??????'
+                ? ' ï¿½ ??????'
+                : ' ï¿½ ??? ?? ??????'
         : '';
-    return '$action: ${recurring.name} · ?????: $type · ??????: $amount · ???????: ${_recurrenceLabel(recurring.recurrencePattern)} · ???????: ${_executionTypeLabel(recurring.executionType)} · ${_budgetScopeLabel(recurring.budgetScope)}$debtLabel';
+    return '$action: ${recurring.name} ï¿½ ?????: $type ï¿½ ??????: $amount ï¿½ ???????: ${_recurrenceLabel(recurring.recurrencePattern)} ï¿½ ???????: ${_executionTypeLabel(recurring.executionType)} ï¿½ ${_budgetScopeLabel(recurring.budgetScope)}$debtLabel';
   }
 }
-
-

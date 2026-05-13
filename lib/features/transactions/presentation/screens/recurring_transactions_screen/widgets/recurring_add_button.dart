@@ -18,7 +18,8 @@ class RecurringAddButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isExpense = tab == 'expense';
     final color = isExpense ? expenseAccent : incomeAccent;
-    final icon = isExpense ? Icons.north_east_rounded : Icons.south_west_rounded;
+    final icon =
+        isExpense ? Icons.north_east_rounded : Icons.south_west_rounded;
     final label = isExpense ? 'إضافة مصروف متكرر' : 'إضافة دخل متكرر';
 
     return GestureDetector(

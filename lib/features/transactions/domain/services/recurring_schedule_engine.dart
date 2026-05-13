@@ -349,17 +349,19 @@ class RecurringScheduleEngine {
 
     if (dueOccurrence != null &&
         !wasOccurrenceHandled(recurring, dueOccurrence)) {
-      
       // If it has never been handled (newly created), and the most recent past occurrence is too old,
       // the user probably doesn't want to be nagged about it. We should just wait for the next one.
       bool ignoreDue = false;
-      if (recurring.lastHandledOccurrenceAt == null || recurring.lastHandledOccurrenceAt!.isEmpty) {
+      if (recurring.lastHandledOccurrenceAt == null ||
+          recurring.lastHandledOccurrenceAt!.isEmpty) {
         final ageDays = now.difference(dueOccurrence).inDays;
         if (recurring.recurrencePattern == 'yearly' && ageDays > 30) {
           ignoreDue = true;
-        } else if (recurring.recurrencePattern.contains('month') && ageDays > 15) {
+        } else if (recurring.recurrencePattern.contains('month') &&
+            ageDays > 15) {
           ignoreDue = true;
-        } else if (recurring.recurrencePattern.contains('week') && ageDays > 7) {
+        } else if (recurring.recurrencePattern.contains('week') &&
+            ageDays > 7) {
           ignoreDue = true;
         } else if (recurring.recurrencePattern == 'daily' && ageDays > 2) {
           ignoreDue = true;
@@ -433,9 +435,6 @@ class RecurringScheduleEngine {
     final time = parseScheduledTime(recurring.scheduledTime, start) ?? start;
     final hour = time.hour;
     final minute = time.minute;
-
-    DateTime atDate(DateTime d) =>
-        DateTime(d.year, d.month, d.day, hour, minute);
 
     switch (recurring.recurrencePattern) {
       case 'daily':

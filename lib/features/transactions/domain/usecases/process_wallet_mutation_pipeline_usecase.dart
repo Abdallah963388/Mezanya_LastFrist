@@ -30,8 +30,7 @@ class ProcessWalletMutationPipelineUseCase {
 
     if (result.isFailure) {
       return Result.failure(
-        result.failure ??
-            const WalletFailure('Expense wallet mutation failed'),
+        result.failure ?? const WalletFailure('Expense wallet mutation failed'),
       );
     }
 
@@ -53,8 +52,7 @@ class ProcessWalletMutationPipelineUseCase {
 
     if (result.isFailure) {
       return Result.failure(
-        result.failure ??
-            const WalletFailure('Income wallet mutation failed'),
+        result.failure ?? const WalletFailure('Income wallet mutation failed'),
       );
     }
 

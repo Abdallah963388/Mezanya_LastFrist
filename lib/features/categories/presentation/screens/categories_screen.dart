@@ -31,7 +31,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           children: [
             _typeSwitcher(),
             const SizedBox(height: 16),
-            if (sections.isEmpty) _emptySetupCard() else ...sections.map(_sectionCard),
+            if (sections.isEmpty)
+              _emptySetupCard()
+            else
+              ...sections.map(_sectionCard),
           ],
         );
       },
@@ -43,7 +46,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final generalExpense = state.categories
         .where((c) => c.scope == 'expense' && c.incomeSourceId == null)
         .toList();
-    final generalIncome = state.categories.where((c) => c.scope == 'income').toList();
+    final generalIncome =
+        state.categories.where((c) => c.scope == 'income').toList();
 
     if (_tab == 'income') {
       return [
@@ -94,79 +98,13 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     ];
   }
 
-  Widget _heroCard(int totalCategories) {
-    final theme = Theme.of(context);
-    final accent =
-        _tab == 'income' ? const Color(0xFF2F6F5E) : const Color(0xFF7A5D34);
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          colors: [
-            accent.withValues(alpha: 0.96),
-            accent.withValues(alpha: 0.72),
-          ],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: const Icon(
-              Icons.category_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tab == 'income' ? 'فئات الدخل' : 'فئات المصروف',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '$totalCategories فئة منظمة داخل الأقسام الحالية',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _typeSwitcher() {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
@@ -293,8 +231,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 ),
                 const SizedBox(height: 14),
                 Divider(
-                  color: theme.colorScheme.outlineVariant
-                      .withValues(alpha: 0.5),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
                   height: 1,
                 ),
                 const SizedBox(height: 14),
@@ -513,7 +451,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final budget = state.budgetSetup;
 
     if (target.kind == 'allocation') {
-      final allocation = budget.allocations.firstWhere((a) => a.id == target.id);
+      final allocation =
+          budget.allocations.firstWhere((a) => a.id == target.id);
       final next = editing == null
           ? [...allocation.categories, category]
           : allocation.categories
@@ -572,7 +511,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final budget = state.budgetSetup;
 
     if (target.kind == 'allocation') {
-      final allocation = budget.allocations.firstWhere((a) => a.id == target.id);
+      final allocation =
+          budget.allocations.firstWhere((a) => a.id == target.id);
       await widget.cubit.updateAllocationCategories(
         allocationId: target.id,
         categories:
@@ -585,7 +525,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       final wallet = budget.linkedWallets.firstWhere((w) => w.id == target.id);
       await widget.cubit.updateLinkedWalletCategories(
         linkedWalletId: target.id,
-        categories: wallet.categories.where((c) => c.id != category.id).toList(),
+        categories:
+            wallet.categories.where((c) => c.id != category.id).toList(),
       );
       return;
     }
@@ -660,7 +601,8 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
     }
     Navigator.of(context).pop(
       CategoryEntity(
-        id: widget.current?.id ?? 'cat-${DateTime.now().microsecondsSinceEpoch}',
+        id: widget.current?.id ??
+            'cat-${DateTime.now().microsecondsSinceEpoch}',
         name: name,
         icon: _selectedIcon,
         color: _selectedColor,
@@ -694,7 +636,8 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
               color: const Color(0xFFEEEDE6),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Color(0xFF555550)),
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                size: 16, color: Color(0xFF555550)),
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -711,7 +654,8 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -824,7 +768,8 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
                       ),
                       const SizedBox(height: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(999),
@@ -1006,54 +951,6 @@ class _CategoryEditorScreenState extends State<_CategoryEditorScreen> {
   Color _parseColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
     return Color(0xFF000000 | (value ?? 0x2F6F5E));
-  }
-}
-
-class _EditorSection extends StatelessWidget {
-  const _EditorSection({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
   }
 }
 

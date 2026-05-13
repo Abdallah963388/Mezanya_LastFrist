@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../../../domain/entities/app_state_entity.dart';
 import '../../../../wallets/domain/entities/wallet_entity.dart';
+import '../../../domain/entities/app_state_entity.dart';
 import '../app_cubit.dart';
 
 extension AppCubitBackupExtension on AppCubit {
@@ -31,7 +31,8 @@ extension AppCubitBackupExtension on AppCubit {
     final local = state;
 
     final mergedWallets = {
-      for (final wallet in [...local.wallets, ...remote.wallets]) wallet.id: wallet,
+      for (final wallet in [...local.wallets, ...remote.wallets])
+        wallet.id: wallet,
     }.values.toList();
     final mergedTransactions = {
       for (final transaction in [...local.transactions, ...remote.transactions])
@@ -156,4 +157,3 @@ extension AppCubitBackupExtension on AppCubit {
     );
   }
 }
-

@@ -20,8 +20,7 @@ class ProcessRecurringPipelineUseCase {
     required this.executeRecurringTransactionUseCase,
   });
 
-  final ExecuteRecurringTransactionUseCase
-      executeRecurringTransactionUseCase;
+  final ExecuteRecurringTransactionUseCase executeRecurringTransactionUseCase;
 
   Future<Result<ProcessRecurringPipelineResult>> execute({
     required TransactionSubmissionRequest request,
@@ -31,8 +30,7 @@ class ProcessRecurringPipelineUseCase {
     required String transactionName,
     required double amount,
   }) async {
-    final recurringResult =
-        await executeRecurringTransactionUseCase.execute(
+    final recurringResult = await executeRecurringTransactionUseCase.execute(
       request: request,
       isEnabled: isEnabled,
       isDue: isDue,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../app_state/domain/entities/app_state_entity.dart';
+import '../../../app_state/presentation/cubits/app_cubit.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../screens/add_transaction_screen.dart';
@@ -35,9 +35,6 @@ Future<void> openTransactionDetailsSheet(
   final rows = _detailRows(cubit, transaction);
   final state = cubit.state;
   final accent = _accentForTransaction(theme, transaction);
-  final isNegative = transaction.type == 'expense' ||
-      transaction.transferType == 'jar-allocation-cancel' ||
-      transaction.transferType == 'jar-allocation-spend';
 
   final category = getCategoryForTransaction(state, transaction.categoryId);
   final displayTitle = category?.name ??
@@ -47,9 +44,8 @@ Future<void> openTransactionDetailsSheet(
   final displayIcon = category != null
       ? parseCategoryIcon(category.icon)
       : _iconForTransaction(transaction);
-  final displayColor = category != null
-      ? parseCategoryColor(category.color)
-      : accent;
+  final displayColor =
+      category != null ? parseCategoryColor(category.color) : accent;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -169,21 +165,25 @@ Future<void> openTransactionDetailsSheet(
   );
 }
 
-List<MapEntry<String, String>> _detailRows(AppCubit cubit, TransactionEntity tx) {
+List<MapEntry<String, String>> _detailRows(
+    AppCubit cubit, TransactionEntity tx) {
   final state = cubit.state;
-  String walletName(String? id) => state.wallets
+  String walletName(String? id) =>
+      state.wallets
           .where((w) => w.id == id)
           .map((w) => w.name)
           .cast<String?>()
           .firstWhere((_) => true, orElse: () => id) ??
       '-';
-  String jarName(String? id) => state.budgetSetup.linkedWallets
+  String jarName(String? id) =>
+      state.budgetSetup.linkedWallets
           .where((j) => j.id == id)
           .map((j) => j.name)
           .cast<String?>()
           .firstWhere((_) => true, orElse: () => id) ??
       '-';
-  String allocName(String? id) => state.budgetSetup.allocations
+  String allocName(String? id) =>
+      state.budgetSetup.allocations
           .where((a) => a.id == id)
           .map((a) => a.name)
           .cast<String?>()
@@ -260,22 +260,38 @@ Color _accentForTransaction(ThemeData theme, TransactionEntity tx) {
 IconData parseCategoryIcon(String name) {
   // Simple mapping, add logic if there's a specific package used for icons
   switch (name) {
-    case 'home': return Icons.home_rounded;
-    case 'shopping_cart': return Icons.shopping_cart_rounded;
-    case 'restaurant': return Icons.restaurant_rounded;
-    case 'directions_car': return Icons.directions_car_rounded;
-    case 'medical_services': return Icons.medical_services_rounded;
-    case 'school': return Icons.school_rounded;
-    case 'electrical_services': return Icons.electrical_services_rounded;
-    case 'water_drop': return Icons.water_drop_rounded;
-    case 'flight': return Icons.flight_rounded;
-    case 'fitness_center': return Icons.fitness_center_rounded;
-    case 'category': return Icons.category_rounded;
-    case 'checkroom': return Icons.checkroom_rounded;
-    case 'payments': return Icons.payments_rounded;
-    case 'receipt': return Icons.receipt_rounded;
-    case 'sports_esports': return Icons.sports_esports_rounded;
-    default: return Icons.category_rounded;
+    case 'home':
+      return Icons.home_rounded;
+    case 'shopping_cart':
+      return Icons.shopping_cart_rounded;
+    case 'restaurant':
+      return Icons.restaurant_rounded;
+    case 'directions_car':
+      return Icons.directions_car_rounded;
+    case 'medical_services':
+      return Icons.medical_services_rounded;
+    case 'school':
+      return Icons.school_rounded;
+    case 'electrical_services':
+      return Icons.electrical_services_rounded;
+    case 'water_drop':
+      return Icons.water_drop_rounded;
+    case 'flight':
+      return Icons.flight_rounded;
+    case 'fitness_center':
+      return Icons.fitness_center_rounded;
+    case 'category':
+      return Icons.category_rounded;
+    case 'checkroom':
+      return Icons.checkroom_rounded;
+    case 'payments':
+      return Icons.payments_rounded;
+    case 'receipt':
+      return Icons.receipt_rounded;
+    case 'sports_esports':
+      return Icons.sports_esports_rounded;
+    default:
+      return Icons.category_rounded;
   }
 }
 

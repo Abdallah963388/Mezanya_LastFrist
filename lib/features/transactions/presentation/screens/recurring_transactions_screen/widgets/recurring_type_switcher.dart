@@ -18,7 +18,8 @@ class RecurringTypeSwitcher extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),

@@ -1,8 +1,8 @@
 import '../../../../core/results/result.dart';
+import '../../../app_state/domain/failures/app_failure.dart';
 import '../../../app_state/domain/services/transaction_mutation_service.dart';
 import '../../../budget/domain/repositories/budget_repository.dart';
 import '../../../wallets/domain/repositories/wallet_repository.dart';
-import '../../../app_state/domain/failures/app_failure.dart';
 import '../entities/transaction_entity.dart';
 import '../repositories/transaction_repository.dart';
 import '../services/financial_transaction_engine.dart';
@@ -58,7 +58,11 @@ class AddTransactionUseCase {
             existing.walletId == transaction.walletId &&
             existing.fromWalletId == transaction.fromWalletId &&
             existing.toWalletId == transaction.toWalletId &&
-            existing.createdAt.difference(transaction.createdAt).inSeconds.abs() <= 1));
+            existing.createdAt
+                    .difference(transaction.createdAt)
+                    .inSeconds
+                    .abs() <=
+                1));
 
     if (alreadyExists) {
       return transactions;

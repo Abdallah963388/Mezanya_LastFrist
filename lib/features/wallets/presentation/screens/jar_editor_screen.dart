@@ -627,7 +627,8 @@ class _JarFundingCard extends StatelessWidget {
   final LinkedWalletEntityFunding item;
   final List<IncomeSourceEntity> incomeSources;
   final bool canDelete;
-  final void Function({String? incomeSourceId, double? amount, bool? isPhysical}) onChanged;
+  final void Function(
+      {String? incomeSourceId, double? amount, bool? isPhysical}) onChanged;
   final VoidCallback onDelete;
 
   @override

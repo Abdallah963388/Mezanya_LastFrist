@@ -111,8 +111,8 @@ extension AppCubitWalletsExtension on AppCubit {
     if (nextReserved < 0) nextReserved = 0;
 
     walletList[index] = wallet.copyWith(reservedForSavings: nextReserved);
-    final totalReserved =
-        walletList.fold<double>(0, (sum, item) => sum + item.reservedForSavings);
+    final totalReserved = walletList.fold<double>(
+        0, (sum, item) => sum + item.reservedForSavings);
     final linked = state.budgetSetup.linkedWallets
         .map(
           (jar) => jar.id == 'linked-savings-default'
@@ -151,4 +151,3 @@ extension AppCubitWalletsExtension on AppCubit {
     );
   }
 }
-

@@ -7,9 +7,9 @@ import '../../../logs/domain/entities/log_entry_entity.dart';
 import '../../../notifications/domain/entities/notification_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
+import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
-import '../../../transactions/presentation/controllers/transaction_controller.dart';
 import 'extensions/app_cubit_spaces_extension.dart';
 
 export 'extensions/app_cubit_backup_extension.dart';
@@ -388,7 +388,8 @@ class AppCubit extends Cubit<AppStateEntity> {
   }
 
   Future<void> deleteRecurringTransaction(String id) async {
-    final target = state.recurringTransactions.where((item) => item.id == id).toList();
+    final target =
+        state.recurringTransactions.where((item) => item.id == id).toList();
     final deleted = target.isEmpty ? null : target.first;
 
     final nextBudget = state.budgetSetup.copyWith(
@@ -506,4 +507,3 @@ class AppCubit extends Cubit<AppStateEntity> {
     };
   }
 }
-

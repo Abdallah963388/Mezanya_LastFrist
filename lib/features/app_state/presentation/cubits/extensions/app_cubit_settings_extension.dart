@@ -30,13 +30,13 @@ extension AppCubitSettingsExtension on AppCubit {
 
   Future<void> markNotificationRead(String notificationId) async {
     final updated = state.notifications
-        .map((notification) => notification.id == notificationId && !notification.isRead
-            ? notification.copyWith(readAt: DateTime.now())
-            : notification)
+        .map((notification) =>
+            notification.id == notificationId && !notification.isRead
+                ? notification.copyWith(readAt: DateTime.now())
+                : notification)
         .toList();
     final next = state.copyWith(notifications: updated);
     await repository.saveState(next);
     emitState(next);
   }
 }
-

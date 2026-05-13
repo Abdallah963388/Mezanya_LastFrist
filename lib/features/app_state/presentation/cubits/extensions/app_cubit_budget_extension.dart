@@ -39,7 +39,8 @@ extension AppCubitBudgetExtension on AppCubit {
             ? item.copyWith(categories: categories)
             : item)
         .toList();
-    await updateBudgetSetup(state.budgetSetup.copyWith(allocations: allocations));
+    await updateBudgetSetup(
+        state.budgetSetup.copyWith(allocations: allocations));
   }
 
   Future<void> updateLinkedWalletCategories({
@@ -51,7 +52,7 @@ extension AppCubitBudgetExtension on AppCubit {
             ? item.copyWith(categories: categories)
             : item)
         .toList();
-    await updateBudgetSetup(state.budgetSetup.copyWith(linkedWallets: linkedWallets));
+    await updateBudgetSetup(
+        state.budgetSetup.copyWith(linkedWallets: linkedWallets));
   }
 }
-

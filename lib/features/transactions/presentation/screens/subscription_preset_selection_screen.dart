@@ -63,8 +63,8 @@ class _SubscriptionPresetSelectionScreenState
                         )
                       : null,
                   filled: true,
-                  fillColor:
-                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  fillColor: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.3),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none,

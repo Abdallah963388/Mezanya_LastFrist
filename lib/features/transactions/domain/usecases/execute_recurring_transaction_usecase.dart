@@ -32,7 +32,8 @@ class ExecuteRecurringTransactionUseCase {
 
     if (!result.success) {
       return Result.failure(
-        TransactionFailure(result.errorMessage ?? 'Transaction execution failed'),
+        TransactionFailure(
+            result.errorMessage ?? 'Transaction execution failed'),
       );
     }
 

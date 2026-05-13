@@ -73,7 +73,8 @@ class CurrencySettingsCard extends StatelessWidget {
               items: const [
                 DropdownMenuItem(value: 'EGP', child: Text('جنيه مصري (EGP)')),
                 DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي (SAR)')),
-                DropdownMenuItem(value: 'USD', child: Text('دولار أمريكي (USD)')),
+                DropdownMenuItem(
+                    value: 'USD', child: Text('دولار أمريكي (USD)')),
                 DropdownMenuItem(value: 'EUR', child: Text('يورو (EUR)')),
               ],
               onChanged: onChanged,

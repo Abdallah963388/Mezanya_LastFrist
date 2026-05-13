@@ -110,12 +110,15 @@ extension AppCubitLendingExtension on AppCubit {
 
     final entryAmount = (entry['amount'] as num?)?.toDouble() ?? 0;
     final updatedEntries = person.lentEntries
-        .map((item) => item['id'] == entryId ? {...item, 'isSettled': true} : item)
+        .map((item) =>
+            item['id'] == entryId ? {...item, 'isSettled': true} : item)
         .toList();
-    final allSettled = updatedEntries.every((item) => item['isSettled'] == true);
+    final allSettled =
+        updatedEntries.every((item) => item['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
 
@@ -161,12 +164,15 @@ extension AppCubitLendingExtension on AppCubit {
         0;
 
     final updatedEntries = person.lentEntries
-        .map((item) => item['id'] == entryId ? {...item, 'isSettled': true} : item)
+        .map((item) =>
+            item['id'] == entryId ? {...item, 'isSettled': true} : item)
         .toList();
-    final allSettled = updatedEntries.every((item) => item['isSettled'] == true);
+    final allSettled =
+        updatedEntries.every((item) => item['isSettled'] == true);
     final updatedPerson = person.copyWith(
       lentEntries: updatedEntries,
-      amount: (person.outstandingLentAmount - entryAmount).clamp(0, double.infinity),
+      amount: (person.outstandingLentAmount - entryAmount)
+          .clamp(0, double.infinity),
       isLentArchived: allSettled,
     );
     final next = state.copyWith(
@@ -245,4 +251,3 @@ extension AppCubitLendingExtension on AppCubit {
   Future<void> writeOffLentRecord(String id) async {}
   Future<void> postponeLentRecord(String id, DateTime date) async {}
 }
-

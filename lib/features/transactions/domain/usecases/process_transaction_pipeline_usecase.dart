@@ -1,6 +1,5 @@
 import '../../../../core/results/result.dart';
 import '../../../app_state/domain/failures/app_failure.dart';
-import '../services/financial_transaction_engine.dart';
 import 'add_transaction_usecase.dart';
 import 'build_transaction_request_usecase.dart';
 import 'validate_transaction_usecase.dart';
@@ -30,8 +29,7 @@ class ProcessTransactionPipelineUseCase {
       );
     }
 
-    final requestResult =
-        buildTransactionRequestUseCase.execute(requestParams);
+    final requestResult = buildTransactionRequestUseCase.execute(requestParams);
 
     if (requestResult.isFailure) {
       return Result.failure(

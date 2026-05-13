@@ -131,4 +131,3 @@ class TransactionController extends ChangeNotifier {
     notifyListeners();
   }
 }
-

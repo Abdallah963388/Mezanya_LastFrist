@@ -68,8 +68,7 @@ class TransactionSubmissionService {
       budgetScope: type == 'income'
           ? incomeBudgetScope
           : (budgetTargetId.isEmpty ? 'outside-budget' : 'within-budget'),
-      incomeSourceId:
-          incomeSourceId == 'wallet-only' ? null : incomeSourceId,
+      incomeSourceId: incomeSourceId == 'wallet-only' ? null : incomeSourceId,
       notes: notes.trim().isEmpty ? null : notes.trim(),
       categoryId: categoryId,
     );

@@ -97,7 +97,8 @@ extension AppCubitTransactionsExtension on AppCubit {
 
   @Deprecated('Use TransactionController instead')
   Future<void> deleteTransaction(String transactionId) async {
-    final target = state.transactions.where((item) => item.id == transactionId).toList();
+    final target =
+        state.transactions.where((item) => item.id == transactionId).toList();
     if (target.isEmpty) return;
     final transaction = target.first;
 
@@ -141,7 +142,8 @@ extension AppCubitTransactionsExtension on AppCubit {
     if (type == 'expense') {
       final budgetLabel =
           budgetScope == 'within-budget' ? '???? ?????????' : '???? ?????????';
-      final allocation = allocationName == null ? '' : ' ??? ???? $allocationName';
+      final allocation =
+          allocationName == null ? '' : ' ??? ???? $allocationName';
       final wallet = walletName ?? '????? ??? ?????';
       return '?????? ????? ????? ${amount.toStringAsFixed(2)} ?? $wallet ($budgetLabel)$allocation';
     }
@@ -157,4 +159,3 @@ extension AppCubitTransactionsExtension on AppCubit {
     };
   }
 }
-

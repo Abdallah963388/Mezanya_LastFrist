@@ -30,14 +30,17 @@ class RecurringScopeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final total = records.where((item) => !item.isVariableIncome).fold<double>(0, (sum, item) => sum + item.amount);
+    final total = records
+        .where((item) => !item.isVariableIncome)
+        .fold<double>(0, (sum, item) => sum + item.amount);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,16 +61,20 @@ class RecurringScopeSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(title,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 16)),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
-              Text(total.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900)),
+              Text(total.toStringAsFixed(2),
+                  style: const TextStyle(fontWeight: FontWeight.w900)),
             ],
           ),
           const SizedBox(height: 12),
@@ -101,7 +108,10 @@ class _RecurringEmptyCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.28),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(
@@ -130,11 +140,16 @@ class _RecurringCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = RecurringTransactionsScreenHelper.parseColor(record.iconColor);
-    final amountLabel = record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2);
-    final wallet = RecurringTransactionsScreenHelper.walletName(state, record.walletId);
-    final execution = RecurringTransactionsScreenHelper.executionLabel(record.executionType);
-    final scope = record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام';
+    final accent =
+        RecurringTransactionsScreenHelper.parseColor(record.iconColor);
+    final amountLabel =
+        record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2);
+    final wallet =
+        RecurringTransactionsScreenHelper.walletName(state, record.walletId);
+    final execution =
+        RecurringTransactionsScreenHelper.executionLabel(record.executionType);
+    final scope =
+        record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -147,7 +162,10 @@ class _RecurringCard extends StatelessWidget {
             color: cardBackground,
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.55),
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.55),
             ),
           ),
           child: Row(
@@ -160,7 +178,8 @@ class _RecurringCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Center(
-                  child: AppIconPickerDialog.iconWidgetForName(record.icon, color: accent, size: 26),
+                  child: AppIconPickerDialog.iconWidgetForName(record.icon,
+                      color: accent, size: 26),
                 ),
               ),
               const SizedBox(width: 12),
@@ -175,12 +194,15 @@ class _RecurringCard extends StatelessWidget {
                             record.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 15),
                           ),
                         ),
                         Text(
                           amountLabel,
-                          style: const TextStyle(color: Color(0xFF254034), fontWeight: FontWeight.w900),
+                          style: const TextStyle(
+                              color: Color(0xFF254034),
+                              fontWeight: FontWeight.w900),
                         ),
                       ],
                     ),
@@ -203,14 +225,18 @@ class _RecurringCard extends StatelessWidget {
                         _MiniTag(text: execution),
                         _MiniTag(text: scope),
                         if (wallet != '-') _MiniTag(text: wallet),
-                        if (record.type == 'expense') _MiniTag(text: RecurringTransactionsScreenHelper.expensePlanKindLabel(record)),
+                        if (record.type == 'expense')
+                          _MiniTag(
+                              text: RecurringTransactionsScreenHelper
+                                  .expensePlanKindLabel(record)),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_left_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              Icon(Icons.chevron_left_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -232,13 +258,16 @@ class _MiniTag extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.65)),
+        border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.65)),
       ),
       child: Text(
         text,
-        style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800, fontSize: 11),
+        style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w800,
+            fontSize: 11),
       ),
     );
   }
 }
-

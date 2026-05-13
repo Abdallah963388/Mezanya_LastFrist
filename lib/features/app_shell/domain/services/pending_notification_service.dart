@@ -39,10 +39,10 @@ class PendingNotificationService {
             item.budgetScope == 'within-budget' &&
             item.incomeSourceId == income.id,
       );
-      final recurring = recurringTransactions.isEmpty
-          ? null
-          : recurringTransactions.first;
-      final dueDate = DateTime(month.year, month.month, income.date.clamp(1, 28));
+      final recurring =
+          recurringTransactions.isEmpty ? null : recurringTransactions.first;
+      final dueDate =
+          DateTime(month.year, month.month, income.date.clamp(1, 28));
       final reminderLeadDays = (recurring?.reminderLeadDays ?? 0).clamp(0, 3);
       final today = DateTime(now.year, now.month, now.day);
       final reminderDate = dueDate.subtract(Duration(days: reminderLeadDays));
@@ -65,7 +65,8 @@ class PendingNotificationService {
         continue;
       }
       final paidAmount = cycleTransactions
-          .where((transaction) => transaction.notes?.contains(debt.name) == true)
+          .where(
+              (transaction) => transaction.notes?.contains(debt.name) == true)
           .fold<double>(0, (sum, transaction) => sum + transaction.amount);
       final prompt = RecurringScheduleEngine.expensePrompt(recurring, now);
       final remaining = BudgetRecurringPlanService.pendingDecisionAmount(

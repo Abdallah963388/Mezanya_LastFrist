@@ -17,7 +17,8 @@ Future<void> showRecurringTransactionDetailsSheet({
   required Future<void> Function() onEdit,
 }) async {
   final accent = RecurringTransactionsScreenHelper.parseColor(record.iconColor);
-  final relatedTransactions = RecurringTransactionsScreenHelper.relatedTransactions(state, record);
+  final relatedTransactions =
+      RecurringTransactionsScreenHelper.relatedTransactions(state, record);
 
   await showModalBottomSheet<void>(
     context: context,
@@ -45,7 +46,10 @@ Future<void> showRecurringTransactionDetailsSheet({
               color: cardBackground,
               borderRadius: BorderRadius.circular(26),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.7),
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withValues(alpha: 0.7),
               ),
             ),
             child: Row(
@@ -58,7 +62,8 @@ Future<void> showRecurringTransactionDetailsSheet({
                     borderRadius: BorderRadius.circular(22),
                   ),
                   child: Center(
-                    child: AppIconPickerDialog.iconWidgetForName(record.icon, color: accent, size: 31),
+                    child: AppIconPickerDialog.iconWidgetForName(record.icon,
+                        color: accent, size: 31),
                   ),
                 ),
                 const SizedBox(width: 13),
@@ -68,13 +73,18 @@ Future<void> showRecurringTransactionDetailsSheet({
                     children: [
                       Text(
                         record.name,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 5),
                       Text(
                         '${RecurringTransactionsScreenHelper.typeLabel(record)} · ${RecurringTransactionsScreenHelper.executionLabel(record.executionType)}',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
@@ -82,16 +92,24 @@ Future<void> showRecurringTransactionDetailsSheet({
                   ),
                 ),
                 Text(
-                  record.isVariableIncome ? 'متغير' : record.amount.toStringAsFixed(2),
-                  style: const TextStyle(color: Color(0xFF254034), fontWeight: FontWeight.w900, fontSize: 18),
+                  record.isVariableIncome
+                      ? 'متغير'
+                      : record.amount.toStringAsFixed(2),
+                  style: const TextStyle(
+                      color: Color(0xFF254034),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          _DetailsTable(rows: RecurringTransactionsScreenHelper.detailsRows(state, record)),
+          _DetailsTable(
+              rows:
+                  RecurringTransactionsScreenHelper.detailsRows(state, record)),
           const SizedBox(height: 14),
-          _RelatedTransactionsSection(transactions: relatedTransactions, cubit: cubit),
+          _RelatedTransactionsSection(
+              transactions: relatedTransactions, cubit: cubit),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -125,7 +143,8 @@ Future<void> showRecurringTransactionDetailsSheet({
 }
 
 class _RelatedTransactionsSection extends StatelessWidget {
-  const _RelatedTransactionsSection({required this.transactions, required this.cubit});
+  const _RelatedTransactionsSection(
+      {required this.transactions, required this.cubit});
 
   final List<TransactionEntity> transactions;
   final AppCubit cubit;
@@ -138,25 +157,29 @@ class _RelatedTransactionsSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('المعاملات المرتبطة', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const Text('المعاملات المرتبطة',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           const SizedBox(height: 6),
           Text(
             transactions.isEmpty
                 ? 'لا توجد معاملات مسجلة لهذه العملية المتكررة حتى الآن.'
                 : 'آخر المعاملات المسجلة المرتبطة بهذه العملية.',
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           if (transactions.isNotEmpty) ...[
             const SizedBox(height: 12),
             ...transactions.map((transaction) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _RelatedTransactionTile(transaction: transaction, cubit: cubit),
-            )),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _RelatedTransactionTile(
+                      transaction: transaction, cubit: cubit),
+                )),
           ],
         ],
       ),
@@ -165,23 +188,32 @@ class _RelatedTransactionsSection extends StatelessWidget {
 }
 
 class _RelatedTransactionTile extends StatelessWidget {
-  const _RelatedTransactionTile({required this.transaction, required this.cubit});
+  const _RelatedTransactionTile(
+      {required this.transaction, required this.cubit});
 
   final TransactionEntity transaction;
   final AppCubit cubit;
 
   @override
   Widget build(BuildContext context) {
-    final date = '${transaction.createdAt.day.toString().padLeft(2, '0')}/${transaction.createdAt.month.toString().padLeft(2, '0')}/${transaction.createdAt.year}';
+    final date =
+        '${transaction.createdAt.day.toString().padLeft(2, '0')}/${transaction.createdAt.month.toString().padLeft(2, '0')}/${transaction.createdAt.year}';
     return ListTile(
-      tileColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+      tileColor: Theme.of(context)
+          .colorScheme
+          .surfaceContainerHighest
+          .withValues(alpha: 0.28),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      title: Text(transaction.amount.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.w900)),
-      subtitle: Text(transaction.notes?.trim().isNotEmpty == true ? '${transaction.notes}\n$date' : date),
+      title: Text(transaction.amount.toStringAsFixed(2),
+          style: const TextStyle(fontWeight: FontWeight.w900)),
+      subtitle: Text(transaction.notes?.trim().isNotEmpty == true
+          ? '${transaction.notes}\n$date'
+          : date),
       isThreeLine: transaction.notes?.trim().isNotEmpty == true,
       trailing: const Icon(Icons.chevron_left_rounded),
-      onTap: () => openTransactionDetailsSheet(context, cubit: cubit, transaction: transaction),
+      onTap: () => openTransactionDetailsSheet(context,
+          cubit: cubit, transaction: transaction),
     );
   }
 }
@@ -198,7 +230,11 @@ class _DetailsTable extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.7)),
+        border: Border.all(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.7)),
       ),
       child: Column(
         children: rows.entries.map((entry) {
@@ -208,12 +244,16 @@ class _DetailsTable extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(entry.value, textAlign: TextAlign.start, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  child: Text(entry.value,
+                      textAlign: TextAlign.start,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 12),
                 Text(
                   entry.key,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -223,4 +263,3 @@ class _DetailsTable extends StatelessWidget {
     );
   }
 }
-

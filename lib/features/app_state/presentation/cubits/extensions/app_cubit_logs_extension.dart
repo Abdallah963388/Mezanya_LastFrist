@@ -53,4 +53,3 @@ extension AppCubitLogsExtension on AppCubit {
     emitState(next);
   }
 }
-

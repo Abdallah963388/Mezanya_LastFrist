@@ -7,7 +7,11 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../data/subscription_service_presets.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/services/recurring_schedule_engine.dart';
-import '../widgets/subscription_service_picker_sheet.dart';
+import 'recurring_transaction_composer_screen/widgets/recurring_composer_type_switcher.dart';
+import 'recurring_transaction_composer_screen/widgets/recurring_day_picker_tile.dart';
+import 'recurring_transaction_composer_screen/widgets/recurring_editor_section.dart';
+import 'recurring_transaction_composer_screen/widgets/recurring_scope_divider.dart';
+import 'recurring_transaction_composer_screen/widgets/recurring_scope_option_tile.dart';
 
 class RecurringTransactionComposerResult {
   const RecurringTransactionComposerResult._({
@@ -88,8 +92,7 @@ class _RecurringTransactionComposerScreenState
   final _lentAmountController = TextEditingController();
   final _lentNotesController = TextEditingController();
   String _lentWalletId = '';
-  DateTime _lentReturnDate =
-      DateTime.now().add(const Duration(days: 30));
+  DateTime _lentReturnDate = DateTime.now().add(const Duration(days: 30));
   bool _lentIsMonthly = false;
   int _monthlyDay = 1;
   int _yearlyMonth = 1;
@@ -100,7 +103,6 @@ class _RecurringTransactionComposerScreenState
   final Set<String> _selectedCategoryIds = <String>{};
   String? _allocationId;
   String? _targetJarId;
-  String? _selectedSubscriptionPresetId;
 
   @override
   void initState() {
@@ -110,8 +112,7 @@ class _RecurringTransactionComposerScreenState
     _type = recurring?.type ?? widget.initialType;
     _walletId = recurring?.walletId ??
         (state.wallets.isNotEmpty ? state.wallets.first.id : '');
-    _lentWalletId =
-        state.wallets.isNotEmpty ? state.wallets.first.id : '';
+    _lentWalletId = state.wallets.isNotEmpty ? state.wallets.first.id : '';
     _withinBudget = recurring != null
         ? recurring.budgetScope == 'within-budget'
         : widget.initialWithinBudget;
@@ -162,8 +163,6 @@ class _RecurringTransactionComposerScreenState
               : <int>{DateTime.now().weekday},
     );
     _selectedTime = _parseStoredTime(recurring?.scheduledTime);
-    _selectedSubscriptionPresetId =
-        subscriptionPresetByName(recurring?.name)?.id;
 
     // تاريخ أول دفعة
     final anchor = recurring?.anchorDate != null
@@ -185,7 +184,6 @@ class _RecurringTransactionComposerScreenState
         _nameController.text = preset.name;
         _iconName = preset.iconName;
         _iconColor = preset.colorHex;
-        _selectedSubscriptionPresetId = preset.id;
       }
     }
 
@@ -355,7 +353,30 @@ class _RecurringTransactionComposerScreenState
             ] else ...[
               // ── النموذج العادي ────────────────────────────────────────
               if (!isSubscriptionOnly && !widget.debtOnlyMode) ...[
-                _typeSwitcher(theme),
+                RecurringComposerTypeSwitcher(
+                isIncome: _type == 'income',
+                onSelectExpense: () {
+                  setState(() {
+                    _type = 'expense';
+                    if (_withinBudget) {
+                      _expensePlanKind = widget.initialExpensePlanKind ??
+                          (_expensePlanKind == 'normal'
+                              ? 'installment'
+                              : _expensePlanKind);
+                      _isDebtOrSubscription = _expensePlanKind != 'normal';
+                    }
+                  });
+                },
+                onSelectIncome: () {
+                  setState(() {
+                    _type = 'income';
+                    _allocationId = null;
+                    _targetJarId = null;
+                    _expensePlanKind = 'normal';
+                    _isDebtOrSubscription = false;
+                  });
+                },
+              ),
                 const SizedBox(height: 14),
               ],
               TextField(
@@ -569,7 +590,8 @@ class _RecurringTransactionComposerScreenState
     return Container(
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
@@ -683,8 +705,8 @@ class _RecurringTransactionComposerScreenState
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Center(
-              child: Icon(Icons.handshake_outlined,
-                  color: Colors.white, size: 28),
+              child:
+                  Icon(Icons.handshake_outlined, color: Colors.white, size: 28),
             ),
           ),
           const SizedBox(width: 14),
@@ -798,8 +820,7 @@ class _RecurringTransactionComposerScreenState
           if (d != null) setState(() => _lentReturnDate = d);
         },
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             border: Border.all(
               color: Theme.of(context).colorScheme.outlineVariant,
@@ -827,8 +848,8 @@ class _RecurringTransactionComposerScreenState
         value: _lentIsMonthly,
         title: const Text('يردها أقساط شهرية',
             style: TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: const Text('سيظهر تذكير شهري',
-            style: TextStyle(fontSize: 12)),
+        subtitle:
+            const Text('سيظهر تذكير شهري', style: TextStyle(fontSize: 12)),
         onChanged: (v) => setState(() => _lentIsMonthly = v),
       ),
 
@@ -977,7 +998,7 @@ class _RecurringTransactionComposerScreenState
 
     return [
       // القسم الأول: البيانات الأساسية
-      _EditorSection(
+      RecurringEditorSection(
         title: 'البيانات الأساسية',
         subtitle: 'حدد اسم القسط واختر له أيقونة تميزه في الميزانية.',
         child: Column(
@@ -1018,7 +1039,7 @@ class _RecurringTransactionComposerScreenState
       const SizedBox(height: 16),
 
       // القسم الثاني: تفاصيل المبلغ والجدولة
-      _EditorSection(
+      RecurringEditorSection(
         title: 'تفاصيل القسط',
         subtitle: 'أدخل المبالغ وتاريخ أول دفعة لنقوم بجدولة الأقساط تلقائياً.',
         child: Column(
@@ -1136,7 +1157,7 @@ class _RecurringTransactionComposerScreenState
       const SizedBox(height: 16),
 
       // القسم الثالث: الإعدادات والمحفظة
-      _EditorSection(
+      RecurringEditorSection(
         title: 'الإعدادات والمحفظة',
         subtitle: 'حدد المحفظة التي سيتم الخصم منها وطريقة تنفيذ العملية.',
         child: Column(
@@ -1289,93 +1310,6 @@ class _RecurringTransactionComposerScreenState
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  Widget _typeSwitcher(ThemeData theme) {
-    final isIncome = _type == 'income';
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color:
-            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _switcherItem(
-              selected: !isIncome,
-              label: 'مصروف',
-              icon: Icons.arrow_outward_rounded,
-              onTap: () {
-                setState(() {
-                  _type = 'expense';
-                  if (_withinBudget) {
-                    _expensePlanKind = widget.initialExpensePlanKind ??
-                        (_expensePlanKind == 'normal'
-                            ? 'installment'
-                            : _expensePlanKind);
-                    _isDebtOrSubscription = _expensePlanKind != 'normal';
-                  }
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _switcherItem(
-              selected: isIncome,
-              label: 'دخل',
-              icon: Icons.arrow_downward_rounded,
-              onTap: () {
-                setState(() {
-                  _type = 'income';
-                  _allocationId = null;
-                  _targetJarId = null;
-                  _expensePlanKind = 'normal';
-                  _isDebtOrSubscription = false;
-                  _selectedSubscriptionPresetId = null;
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _switcherItem({
-    required bool selected,
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected ? theme.colorScheme.primary : Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            children: [
-              Icon(icon,
-                  color: selected ? Colors.white : theme.colorScheme.onSurface),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? Colors.white : theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _surfaceSection({required Widget child}) {
     final theme = Theme.of(context);
     return Container(
@@ -1483,7 +1417,7 @@ class _RecurringTransactionComposerScreenState
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
-            _ScopeOptionTile(
+            RecurringScopeOptionTile(
               isSelected: !_withinBudget,
               icon: _type == 'income'
                   ? Icons.account_balance_wallet_rounded
@@ -1510,7 +1444,7 @@ class _RecurringTransactionComposerScreenState
             ),
             if (_type == 'income') ...[
               const SizedBox(height: 8),
-              _ScopeOptionTile(
+              RecurringScopeOptionTile(
                 isSelected: _withinBudget &&
                     _allocationId == null &&
                     _targetJarId == null,
@@ -1532,12 +1466,12 @@ class _RecurringTransactionComposerScreenState
               ),
               if (budget.linkedWallets.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                const _ScopeDivider(label: 'الحصالات'),
+                const RecurringScopeDivider(label: 'الحصالات'),
                 const SizedBox(height: 8),
                 ...budget.linkedWallets.map((jar) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _ScopeOptionTile(
+                    child: RecurringScopeOptionTile(
                       isSelected: _withinBudget &&
                           _targetJarId == jar.id &&
                           _allocationId == null,
@@ -1562,14 +1496,14 @@ class _RecurringTransactionComposerScreenState
               ],
             ] else if (_type == 'expense') ...[
               const SizedBox(height: 14),
-              const _ScopeDivider(label: 'المخصصات'),
+              const RecurringScopeDivider(label: 'المخصصات'),
               const SizedBox(height: 8),
               ...budget.allocations.map((a) {
                 final planned =
                     a.funding.fold<double>(0, (s, f) => s + f.plannedAmount);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _ScopeOptionTile(
+                  child: RecurringScopeOptionTile(
                     isSelected: _withinBudget &&
                         _allocationId == a.id &&
                         _targetJarId == null,
@@ -1592,12 +1526,12 @@ class _RecurringTransactionComposerScreenState
                 );
               }),
               const SizedBox(height: 8),
-              const _ScopeDivider(label: 'الحصالات'),
+              const RecurringScopeDivider(label: 'الحصالات'),
               const SizedBox(height: 8),
               ...budget.linkedWallets.map((jar) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _ScopeOptionTile(
+                  child: RecurringScopeOptionTile(
                     isSelected: _withinBudget &&
                         _targetJarId == jar.id &&
                         _allocationId == null,
@@ -1792,7 +1726,7 @@ class _RecurringTransactionComposerScreenState
     if (_isMonthPattern) {
       return Column(
         children: [
-          _DayPickerTile(
+          RecurringDayPickerTile(
             label: 'اليوم الشهري',
             selectedDay: _monthlyDay,
             onDaySelected: (day) {
@@ -1832,7 +1766,7 @@ class _RecurringTransactionComposerScreenState
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _DayPickerTile(
+                child: RecurringDayPickerTile(
                   label: 'اليوم',
                   selectedDay: _yearlyDay,
                   onDaySelected: (day) {
@@ -1926,25 +1860,6 @@ class _RecurringTransactionComposerScreenState
       }
     }
     return allCategories.where((category) => category.scope == _type).toList();
-  }
-
-  void _applySubscriptionPreset({
-    required String name,
-    required String icon,
-    required String color,
-    String? presetId,
-  }) {
-    setState(() {
-      if (_nameController.text.trim().isEmpty || _isExpenseSubscription) {
-        _nameController.text = name;
-      }
-      _iconName = icon;
-      _iconColor = color;
-      _selectedSubscriptionPresetId = presetId;
-      _withinBudget = true;
-      _expensePlanKind = 'subscription';
-      _isDebtOrSubscription = true;
-    });
   }
 
   Future<void> _pickIcon() async {
@@ -2248,343 +2163,3 @@ class _RecurringTransactionComposerScreenState
   }
 }
 
-// ── Scope picker helpers ───────────────────────────────────────────────────
-class _ScopeOptionTile extends StatelessWidget {
-  const _ScopeOptionTile({
-    required this.isSelected,
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.progress,
-    required this.onTap,
-  });
-  final bool isSelected;
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final double? progress;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: isSelected
-          ? theme.colorScheme.primary.withValues(alpha: 0.08)
-          : theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? theme.colorScheme.primary.withValues(alpha: 0.45)
-                  : theme.colorScheme.outlineVariant,
-              width: isSelected ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text(title,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w800)),
-                      ),
-                      if (isSelected)
-                        Icon(Icons.check_circle_rounded,
-                            color: theme.colorScheme.primary, size: 18),
-                    ]),
-                    Text(subtitle,
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600)),
-                    if (progress != null) ...[
-                      const SizedBox(height: 5),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 4,
-                          backgroundColor: iconColor.withValues(alpha: 0.12),
-                          valueColor: AlwaysStoppedAnimation<Color>(iconColor),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScopeDivider extends StatelessWidget {
-  const _ScopeDivider({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-            child:
-                Divider(color: Theme.of(context).colorScheme.outlineVariant)),
-        const SizedBox(width: 8),
-        Text(label,
-            style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        const SizedBox(width: 8),
-        Expanded(
-            child:
-                Divider(color: Theme.of(context).colorScheme.outlineVariant)),
-      ],
-    );
-  }
-}
-
-class _DayPickerTile extends StatelessWidget {
-  const _DayPickerTile({
-    this.label,
-    required this.selectedDay,
-    required this.onDaySelected,
-  });
-
-  final String? label;
-  final int selectedDay;
-  final ValueChanged<int> onDaySelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (label != null) ...[
-          Text(
-            label!,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-        GestureDetector(
-          onTap: () => _showDaySheet(context),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today_rounded,
-                    size: 20, color: colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'اليوم $selectedDay من كل شهر',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                Icon(Icons.unfold_more_rounded,
-                    size: 20, color: colorScheme.onSurfaceVariant),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showDaySheet(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'اختر اليوم الشهري',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 20),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1,
-                ),
-                itemCount: 28,
-                itemBuilder: (_, index) {
-                  final day = index + 1;
-                  final isSelected = day == selectedDay;
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      onDaySelected(day);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? colorScheme.primary
-                            : colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? colorScheme.primary
-                              : colorScheme.outlineVariant
-                                  .withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$day',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            color: isSelected
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _EditorSection extends StatelessWidget {
-  const _EditorSection({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-    this.trailing,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget child;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (trailing != null) trailing!,
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-}

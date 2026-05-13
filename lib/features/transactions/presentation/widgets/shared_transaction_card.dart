@@ -63,7 +63,8 @@ class SharedTransactionCard extends StatelessWidget {
     final displayTitle = cat?.name ?? label;
 
     final catColor = cat != null
-        ? Color(0xFF000000 | int.parse(cat.color.replaceFirst('#', ''), radix: 16))
+        ? Color(
+            0xFF000000 | int.parse(cat.color.replaceFirst('#', ''), radix: 16))
         : color;
 
     // Resolve Wallet
@@ -71,9 +72,12 @@ class SharedTransactionCard extends StatelessWidget {
     Color? walletColor;
     if (transaction.walletId != null) {
       try {
-        final w = appState.wallets.firstWhere((w) => w.id == transaction.walletId);
+        final w =
+            appState.wallets.firstWhere((w) => w.id == transaction.walletId);
         walletName = w.name;
-        walletColor = Color(0xFF000000 | int.parse((w.iconColor ?? '#165B47').replaceFirst('#', ''), radix: 16));
+        walletColor = Color(0xFF000000 |
+            int.parse((w.iconColor ?? '#165B47').replaceFirst('#', ''),
+                radix: 16));
       } catch (_) {}
     }
 
@@ -81,13 +85,15 @@ class SharedTransactionCard extends StatelessWidget {
     String allocationName = 'خارج الميزانية';
     if (transaction.allocationId != null) {
       try {
-        final alloc = appState.budgetSetup.allocations.firstWhere((a) => a.id == transaction.allocationId);
+        final alloc = appState.budgetSetup.allocations
+            .firstWhere((a) => a.id == transaction.allocationId);
         allocationName = alloc.name;
       } catch (_) {}
     }
 
     // Formatting date and time
-    final dateStr = DateFormat('d MMM yyyy • HH:mm', 'ar').format(transaction.createdAt);
+    final dateStr =
+        DateFormat('d MMM yyyy • HH:mm', 'ar').format(transaction.createdAt);
 
     return InkWell(
       onTap: onTap,
@@ -128,7 +134,7 @@ class SharedTransactionCard extends StatelessWidget {
                   : Icon(_fallbackIcon(), color: color, size: 24),
             ),
             const SizedBox(width: 14),
-            
+
             // Middle: Title, Notes, Tags
             Expanded(
               child: Column(
@@ -142,7 +148,8 @@ class SharedTransactionCard extends StatelessWidget {
                       color: Color(0xFF1A1A1A),
                     ),
                   ),
-                  if (transaction.notes != null && transaction.notes!.trim().isNotEmpty) ...[
+                  if (transaction.notes != null &&
+                      transaction.notes!.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       transaction.notes!.trim(),
@@ -160,9 +167,11 @@ class SharedTransactionCard extends StatelessWidget {
                     children: [
                       if (walletName != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: walletColor?.withValues(alpha: 0.1) ?? const Color(0xFFF3EEDF),
+                            color: walletColor?.withValues(alpha: 0.1) ??
+                                const Color(0xFFF3EEDF),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -175,7 +184,8 @@ class SharedTransactionCard extends StatelessWidget {
                           ),
                         ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3EEDF),
                           borderRadius: BorderRadius.circular(8),
@@ -195,7 +205,7 @@ class SharedTransactionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            
+
             // Left Side (End in RTL): Amount and Date
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,

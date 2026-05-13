@@ -16,10 +16,12 @@ class RecurringTransactionsScreen extends StatefulWidget {
   final AppCubit cubit;
 
   @override
-  State<RecurringTransactionsScreen> createState() => _RecurringTransactionsScreenState();
+  State<RecurringTransactionsScreen> createState() =>
+      _RecurringTransactionsScreenState();
 }
 
-class _RecurringTransactionsScreenState extends State<RecurringTransactionsScreen> {
+class _RecurringTransactionsScreenState
+    extends State<RecurringTransactionsScreen> {
   static const Color _incomeAccent = Color(0xFF2F6F5E);
   static const Color _expenseAccent = Color(0xFFC65D2E);
   static const Color _sharedCardBackground = Color(0xFFF9F3E7);
@@ -39,8 +41,12 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
             if (nameCompare != 0) return nameCompare;
             return a.dayOfMonth.compareTo(b.dayOfMonth);
           });
-        final inBudget = records.where((item) => item.budgetScope == 'within-budget').toList();
-        final outBudget = records.where((item) => item.budgetScope != 'within-budget').toList();
+        final inBudget = records
+            .where((item) => item.budgetScope == 'within-budget')
+            .toList();
+        final outBudget = records
+            .where((item) => item.budgetScope != 'within-budget')
+            .toList();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -61,9 +67,11 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
             RecurringScopeSection(
               state: state,
               title: 'داخل الميزانية',
-              subtitle: RecurringTransactionsScreenHelper.scopeSubtitle(tab: _tab, withinBudget: true),
+              subtitle: RecurringTransactionsScreenHelper.scopeSubtitle(
+                  tab: _tab, withinBudget: true),
               records: inBudget,
-              emptyLabel: RecurringTransactionsScreenHelper.emptyScopeLabel(tab: _tab, withinBudget: true),
+              emptyLabel: RecurringTransactionsScreenHelper.emptyScopeLabel(
+                  tab: _tab, withinBudget: true),
               accent: _currentAccent,
               cardBackground: _sharedCardBackground,
               onRecordTap: (record) => _openDetailsSheet(state, record),
@@ -72,9 +80,11 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
             RecurringScopeSection(
               state: state,
               title: 'عام',
-              subtitle: RecurringTransactionsScreenHelper.scopeSubtitle(tab: _tab, withinBudget: false),
+              subtitle: RecurringTransactionsScreenHelper.scopeSubtitle(
+                  tab: _tab, withinBudget: false),
               records: outBudget,
-              emptyLabel: RecurringTransactionsScreenHelper.emptyScopeLabel(tab: _tab, withinBudget: false),
+              emptyLabel: RecurringTransactionsScreenHelper.emptyScopeLabel(
+                  tab: _tab, withinBudget: false),
               accent: _currentAccent,
               cardBackground: _sharedCardBackground,
               onRecordTap: (record) => _openDetailsSheet(state, record),
@@ -87,7 +97,9 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
 
   bool _matchesTab(RecurringTransactionEntity item) {
     if (_tab == 'income') return item.type == 'income';
-    return item.type == 'expense' && item.expensePlanKind != 'subscription' && item.expensePlanKind != 'installment';
+    return item.type == 'expense' &&
+        item.expensePlanKind != 'subscription' &&
+        item.expensePlanKind != 'installment';
   }
 
   Color get _currentAccent => _tab == 'income' ? _incomeAccent : _expenseAccent;
@@ -96,7 +108,8 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
     _openRecurringComposer(mode: _tab);
   }
 
-  Future<void> _openDetailsSheet(AppStateEntity state, RecurringTransactionEntity record) async {
+  Future<void> _openDetailsSheet(
+      AppStateEntity state, RecurringTransactionEntity record) async {
     await showRecurringTransactionDetailsSheet(
       context: context,
       cubit: widget.cubit,
@@ -127,7 +140,8 @@ class _RecurringTransactionsScreenState extends State<RecurringTransactionsScree
           initialType: mode,
           initialRecurring: editing,
           initialWithinBudget: editing?.budgetScope == 'within-budget',
-          initialExpensePlanKind: editing?.expensePlanKind ?? initialExpensePlanKind,
+          initialExpensePlanKind:
+              editing?.expensePlanKind ?? initialExpensePlanKind,
           allowDelete: editing != null,
           subscriptionOnlyMode: subscriptionOnlyMode,
           debtOnlyMode: debtOnlyMode,

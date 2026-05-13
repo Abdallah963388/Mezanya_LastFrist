@@ -2,18 +2,17 @@
 import 'dart:developer';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:mezanya_app/features/app_state/domain/entities/app_state_entity.dart';
 import 'package:mezanya_app/features/app_state/presentation/cubits/app_cubit.dart';
 import 'package:mezanya_app/features/backup/backup_service.dart';
 import 'package:mezanya_app/features/backup/restore_prompt_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'backup_settings_screen.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -86,8 +85,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     final ext = result.files.single.extension ?? 'jpg';
     setState(() => _uploadingImage = true);
     try {
-      final uid = _account?.id ??
-          widget.cubit.state.userName.hashCode.toString();
+      final uid =
+          _account?.id ?? widget.cubit.state.userName.hashCode.toString();
       final ref =
           FirebaseStorage.instance.ref().child('profile_images/$uid.$ext');
       await ref.putData(bytes, SettableMetadata(contentType: 'image/$ext'));
@@ -259,7 +258,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     widget.cubit.updateSettings(googleEmail: '');
     setState(() => _account = null);
   }
-
 
   Future<void> _showWipeSheet() async {
     showModalBottomSheet<void>(

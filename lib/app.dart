@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'core/di/bootstrap.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';

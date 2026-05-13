@@ -975,23 +975,6 @@ class _BudgetSetupScreenState extends State<BudgetSetupScreen> {
     await _showDebtDialog();
   }
 
-  Future<void> _openAddLentComposer() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
-          initialType: 'expense',
-          initialWithinBudget: true,
-          debtOnlyMode: true,
-          initialLentMode: true,
-          returnOnSave: false,
-        ),
-      ),
-    );
-    if (mounted) setState(() {});
-  }
-
   Future<void> _openLentSetupManagementSheet(
       RecurringTransactionEntity record) async {
     final personName = record.lentPersonName ?? record.name;

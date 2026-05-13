@@ -50,7 +50,8 @@ class RecurringTransactionsScreenHelper {
       'every_2_months' => 'كل شهرين يوم ${record.dayOfMonth}$timeSuffix',
       'every_3_months' => 'كل 3 شهور يوم ${record.dayOfMonth}$timeSuffix',
       'every_6_months' => 'كل 6 شهور يوم ${record.dayOfMonth}$timeSuffix',
-      'yearly' => 'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
+      'yearly' =>
+        'سنوي ${record.dayOfMonth}/${record.monthOfYear ?? 1}$timeSuffix',
       'manual-variable' => 'يدوي متغير',
       _ => 'شهري يوم ${record.dayOfMonth}$timeSuffix',
     };
@@ -103,19 +104,22 @@ class RecurringTransactionsScreenHelper {
 
   static String incomeName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.incomeSources.where((item) => item.id == id).toList();
+    final items =
+        state.budgetSetup.incomeSources.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
 
   static String allocationName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.allocations.where((item) => item.id == id).toList();
+    final items =
+        state.budgetSetup.allocations.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
 
   static String jarName(AppStateEntity state, String? id) {
     if (id == null || id.isEmpty) return '-';
-    final items = state.budgetSetup.linkedWallets.where((item) => item.id == id).toList();
+    final items =
+        state.budgetSetup.linkedWallets.where((item) => item.id == id).toList();
     return items.isEmpty ? id : items.first.name;
   }
 
@@ -136,27 +140,40 @@ class RecurringTransactionsScreenHelper {
     return Color(0xFF000000 | (value ?? 0x2F6F5E));
   }
 
-  static Map<String, String> detailsRows(AppStateEntity state, RecurringTransactionEntity record) {
+  static Map<String, String> detailsRows(
+      AppStateEntity state, RecurringTransactionEntity record) {
     return {
       'اسم المعاملة': record.name,
       'النوع': typeLabel(record),
-      'القيمة': record.isVariableIncome ? 'دخل متغير' : record.amount.toStringAsFixed(2),
+      'القيمة': record.isVariableIncome
+          ? 'دخل متغير'
+          : record.amount.toStringAsFixed(2),
       'المحفظة': walletName(state, record.walletId),
-      'النطاق': record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام',
+      'النطاق':
+          record.budgetScope == 'within-budget' ? 'داخل الميزانية' : 'عام',
       'التكرار': recurrenceLabel(record),
       'التنفيذ': executionLabel(record.executionType),
       if (record.reminderLeadDays != null) 'التنبيه قبل': reminderLabel(record),
-      if (record.incomeSourceId != null) 'مصدر الدخل': incomeName(state, record.incomeSourceId),
-      if (record.allocationId != null) 'المخصص': allocationName(state, record.allocationId),
-      if (record.targetJarId != null) 'الحصالة': jarName(state, record.targetJarId),
-      if (record.categoryIds.isNotEmpty) 'الفئات': record.categoryIds.map((id) => categoryName(state, id)).join('، '),
+      if (record.incomeSourceId != null)
+        'مصدر الدخل': incomeName(state, record.incomeSourceId),
+      if (record.allocationId != null)
+        'المخصص': allocationName(state, record.allocationId),
+      if (record.targetJarId != null)
+        'الحصالة': jarName(state, record.targetJarId),
+      if (record.categoryIds.isNotEmpty)
+        'الفئات':
+            record.categoryIds.map((id) => categoryName(state, id)).join('، '),
       if (record.type == 'expense') 'التصنيف': expensePlanKindLabel(record),
-      if (record.expensePlanKind == 'installment' && record.debtPrincipalTotal != null) 'إجمالي الأصل': record.debtPrincipalTotal!.toStringAsFixed(2),
-      if (record.notes?.trim().isNotEmpty == true) 'الملاحظات': record.notes!.trim(),
+      if (record.expensePlanKind == 'installment' &&
+          record.debtPrincipalTotal != null)
+        'إجمالي الأصل': record.debtPrincipalTotal!.toStringAsFixed(2),
+      if (record.notes?.trim().isNotEmpty == true)
+        'الملاحظات': record.notes!.trim(),
     };
   }
 
-  static List<TransactionEntity> relatedTransactions(AppStateEntity state, RecurringTransactionEntity record) {
+  static List<TransactionEntity> relatedTransactions(
+      AppStateEntity state, RecurringTransactionEntity record) {
     final items = state.transactions.where((transaction) {
       if (transaction.type != record.type) return false;
       if (record.type == 'income') {
@@ -170,17 +187,20 @@ class RecurringTransactionsScreenHelper {
         return transaction.allocationId == record.allocationId;
       }
       if ((record.targetJarId ?? '').isNotEmpty) {
-        return transaction.toWalletId == record.targetJarId || transaction.walletId == record.targetJarId;
+        return transaction.toWalletId == record.targetJarId ||
+            transaction.walletId == record.targetJarId;
       }
-      if (record.categoryIds.isNotEmpty && transaction.categoryId != null && record.categoryIds.contains(transaction.categoryId)) {
+      if (record.categoryIds.isNotEmpty &&
+          transaction.categoryId != null &&
+          record.categoryIds.contains(transaction.categoryId)) {
         return true;
       }
       final notes = (transaction.notes ?? '').toLowerCase();
       final recurringName = record.name.trim().toLowerCase();
       if (notes.contains(recurringName)) return true;
       return (transaction.amount - record.amount).abs() < 0.01;
-    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return items.take(12).toList();
   }
 }
-

@@ -33,7 +33,8 @@ extension AppCubitGoalsExtension on AppCubit {
 
   Future<void> updateGoal(GoalEntity goal) async {
     final next = state.copyWith(
-      goals: state.goals.map((item) => item.id == goal.id ? goal : item).toList(),
+      goals:
+          state.goals.map((item) => item.id == goal.id ? goal : item).toList(),
     );
     await applyAndLog(
       action: 'edit',
@@ -45,7 +46,8 @@ extension AppCubitGoalsExtension on AppCubit {
   }
 
   Future<void> deleteGoal(String id) async {
-    final next = state.copyWith(goals: state.goals.where((item) => item.id != id).toList());
+    final next = state.copyWith(
+        goals: state.goals.where((item) => item.id != id).toList());
     await applyAndLog(
       action: 'delete',
       entityType: 'goal',
@@ -55,4 +57,3 @@ extension AppCubitGoalsExtension on AppCubit {
     );
   }
 }
-

@@ -1,6 +1,5 @@
 import '../../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../../../wallets/domain/entities/wallet_entity.dart';
-import 'app_cubit_budget_extension.dart';
 import '../app_cubit.dart';
 
 extension AppCubitSpacesExtension on AppCubit {
@@ -57,11 +56,11 @@ extension AppCubitSpacesExtension on AppCubit {
     );
 
     if (jar.pendingDistributionWalletId.isNotEmpty) {
-      final walletIndex =
-          wallets.indexWhere((wallet) => wallet.id == jar.pendingDistributionWalletId);
+      final walletIndex = wallets
+          .indexWhere((wallet) => wallet.id == jar.pendingDistributionWalletId);
       if (walletIndex != -1) {
-        wallets[walletIndex] =
-            wallets[walletIndex].copyWith(balance: wallets[walletIndex].balance - amount);
+        wallets[walletIndex] = wallets[walletIndex]
+            .copyWith(balance: wallets[walletIndex].balance - amount);
       }
     }
 
@@ -106,9 +105,11 @@ extension AppCubitSpacesExtension on AppCubit {
   }
 
   Future<void> confirmAllocationDistribution(String allocationId) async {
-    final allocations = List<AllocationEntity>.from(state.budgetSetup.allocations);
+    final allocations =
+        List<AllocationEntity>.from(state.budgetSetup.allocations);
     var wallets = List<WalletEntity>.from(state.wallets);
-    final index = allocations.indexWhere((allocation) => allocation.id == allocationId);
+    final index =
+        allocations.indexWhere((allocation) => allocation.id == allocationId);
     if (index == -1) return;
     final allocation = allocations[index];
     final amount = allocation.pendingDistribution;
@@ -132,8 +133,8 @@ extension AppCubitSpacesExtension on AppCubit {
         (wallet) => wallet.id == allocation.pendingDistributionWalletId,
       );
       if (walletIndex != -1) {
-        wallets[walletIndex] =
-            wallets[walletIndex].copyWith(balance: wallets[walletIndex].balance - amount);
+        wallets[walletIndex] = wallets[walletIndex]
+            .copyWith(balance: wallets[walletIndex].balance - amount);
       }
     }
 
@@ -183,7 +184,8 @@ extension AppCubitSpacesExtension on AppCubit {
     required List<JarWalletSource> sources,
   }) async {
     final linkedWallets = state.budgetSetup.linkedWallets
-        .map((jar) => jar.id == jarId ? jar.copyWith(walletSources: sources) : jar)
+        .map((jar) =>
+            jar.id == jarId ? jar.copyWith(walletSources: sources) : jar)
         .toList();
     final next = state.copyWith(
       budgetSetup: state.budgetSetup.copyWith(linkedWallets: linkedWallets),
@@ -203,10 +205,13 @@ extension AppCubitSpacesExtension on AppCubit {
     required double amount,
     String? physicalWalletId,
   }) async {
-    var linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    var linkedWallets =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
 
-    final sourceIndex = linkedWallets.indexWhere((jar) => jar.id == sourceJarId);
-    final targetIndex = linkedWallets.indexWhere((jar) => jar.id == targetJarId);
+    final sourceIndex =
+        linkedWallets.indexWhere((jar) => jar.id == sourceJarId);
+    final targetIndex =
+        linkedWallets.indexWhere((jar) => jar.id == targetJarId);
     if (sourceIndex == -1 || targetIndex == -1) return;
 
     final sourceJar = linkedWallets[sourceIndex];
@@ -266,8 +271,9 @@ extension AppCubitSpacesExtension on AppCubit {
     }
     await updateBudgetSetup(
       state.budgetSetup.copyWith(
-        linkedWallets:
-            state.budgetSetup.linkedWallets.where((wallet) => wallet.id != id).toList(),
+        linkedWallets: state.budgetSetup.linkedWallets
+            .where((wallet) => wallet.id != id)
+            .toList(),
       ),
     );
   }
@@ -278,7 +284,8 @@ extension AppCubitSpacesExtension on AppCubit {
     if (defaultIndex != -1) {
       final current = state.budgetSetup.linkedWallets[defaultIndex];
       if (current.name != '???????') {
-        final linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+        final linkedWallets =
+            List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
         linkedWallets[defaultIndex] = LinkedWalletEntity(
           id: current.id,
           name: '???????',
@@ -338,8 +345,8 @@ extension AppCubitSpacesExtension on AppCubit {
   }
 
   Future<void> syncSavingsJarWithReserved() async {
-    final totalReserved =
-        state.wallets.fold<double>(0, (sum, wallet) => sum + wallet.reservedForSavings);
+    final totalReserved = state.wallets
+        .fold<double>(0, (sum, wallet) => sum + wallet.reservedForSavings);
     final index = state.budgetSetup.linkedWallets
         .indexWhere((wallet) => wallet.id == 'linked-savings-default');
     if (index == -1) return;
@@ -347,7 +354,8 @@ extension AppCubitSpacesExtension on AppCubit {
     if ((current.balance - totalReserved).abs() < 0.0001) {
       return;
     }
-    final linkedWallets = List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
+    final linkedWallets =
+        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
     linkedWallets[index] = LinkedWalletEntity(
       id: current.id,
       name: current.name,
@@ -368,4 +376,3 @@ extension AppCubitSpacesExtension on AppCubit {
     emitState(next);
   }
 }
-
