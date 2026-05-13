@@ -13,6 +13,7 @@ import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
+import '../../domain/services/transaction_mutation_service.dart';
 
 class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(
@@ -320,121 +321,21 @@ class AppCubit extends Cubit<AppStateEntity> {
     if (target.isEmpty) return;
     final transaction = target.first;
 
-    var wallets = List<WalletEntity>.from(state.wallets);
-    var linkedWallets =
-        List<LinkedWalletEntity>.from(state.budgetSetup.linkedWallets);
-    var allocations =
-        List<AllocationEntity>.from(state.budgetSetup.allocations);
-
-    // Helper to reverse virtual update
-    void reverseVirtualBalance({
-      required String id,
-      required double delta, // Original delta that was added
-      String? physicalWalletId,
-    }) {
-      final jarIdx = linkedWallets.indexWhere((j) => j.id == id);
-      if (jarIdx != -1) {
-        final jar = linkedWallets[jarIdx];
-        final nextBalances = Map<String, double>.from(jar.walletBalances);
-        if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] =
-              (nextBalances[physicalWalletId] ?? 0) - delta;
-        }
-        linkedWallets[jarIdx] = jar.copyWith(
-          balance: jar.balance - delta,
-          walletBalances: nextBalances,
-        );
-        return;
-      }
-      final allocIdx = allocations.indexWhere((a) => a.id == id);
-      if (allocIdx != -1) {
-        final alloc = allocations[allocIdx];
-        final nextBalances = Map<String, double>.from(alloc.walletBalances);
-        if (physicalWalletId != null) {
-          nextBalances[physicalWalletId] =
-              (nextBalances[physicalWalletId] ?? 0) - delta;
-        }
-        allocations[allocIdx] = alloc.copyWith(
-          balance: alloc.balance - delta,
-          walletBalances: nextBalances,
-        );
-      }
-    }
-
-    if (transaction.type == 'transfer') {
-      final isPhysicalFrom =
-          wallets.any((w) => w.id == transaction.fromWalletId);
-      final isPhysicalTo = wallets.any((w) => w.id == transaction.toWalletId);
-
-      if (isPhysicalFrom && isPhysicalTo) {
-        // Reverse physical transfer
-        wallets = wallets.map((w) {
-          if (w.id == transaction.fromWalletId) {
-            return w.copyWith(balance: w.balance + transaction.amount);
-          }
-          if (w.id == transaction.toWalletId) {
-            return w.copyWith(balance: w.balance - transaction.amount);
-          }
-          return w;
-        }).toList();
-      } else {
-        // Reverse virtual transfer
-        if (transaction.fromWalletId != null) {
-          reverseVirtualBalance(
-            id: transaction.fromWalletId!,
-            delta: -transaction.amount,
-            physicalWalletId: transaction.walletId,
-          );
-        }
-        if (transaction.toWalletId != null) {
-          reverseVirtualBalance(
-            id: transaction.toWalletId!,
-            delta: transaction.amount,
-            physicalWalletId: transaction.walletId,
-          );
-        }
-      }
-    } else if (transaction.type == 'income') {
-      // Reverse physical income
-      wallets = wallets.map((w) {
-        if (w.id != transaction.walletId) return w;
-        return w.copyWith(balance: w.balance - transaction.amount);
-      }).toList();
-
-      // Automatic distribution reversal is usually handled by deleting the auto-transactions themselves
-      // But if we are deleting the main income, we might want to check linked auto-txns?
-      // Actually, auto-txns are separate TransactionEntity objects.
-      // Deleting the parent income should probably NOT automatically delete them unless we want that.
-      // In current logic, they remain. If user wants to delete them, they delete them one by one.
-    } else if (transaction.type == 'expense') {
-      // Reverse physical expense
-      wallets = wallets.map((w) {
-        if (w.id != transaction.walletId) return w;
-        return w.copyWith(balance: w.balance + transaction.amount);
-      }).toList();
-
-      // Reverse virtual reservation
-      final virtualTargetId =
-          transaction.allocationId ?? transaction.toWalletId;
-      if (virtualTargetId != null) {
-        reverseVirtualBalance(
-          id: virtualTargetId,
-          delta: -transaction.amount,
-          physicalWalletId: transaction.walletId,
-        );
-      }
-    }
+    final mutationResult = TransactionMutationService.reverseTransaction(
+    wallets: state.wallets,
+    transactions: state.transactions,
+    budgetSetup: state.budgetSetup,
+    transaction: transaction,
+    );
+    
 
     await _transactionController.deleteTransaction(transactionId);
 
   final next = state.copyWith(
-    wallets: wallets,
-    budgetSetup: state.budgetSetup.copyWith(
-      linkedWallets: linkedWallets,
-      allocations: allocations,
-    ),
-    transactions: _transactionController.transactions,
-  );
+  wallets: mutationResult.wallets,
+  budgetSetup: mutationResult.budgetSetup,
+  transactions: mutationResult.transactions,
+);
 
     await _applyAndLog(
       action: 'delete',
