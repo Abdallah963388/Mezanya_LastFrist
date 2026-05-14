@@ -14,7 +14,7 @@ import 'features/settings/presentation/cubits/settings_cubit.dart';
 import 'features/spaces/presentation/cubits/spaces_cubit.dart';
 import 'features/transactions/presentation/cubits/transaction_cubit.dart';
 import 'features/wallets/presentation/cubits/wallet_cubit.dart';
-
+// بسيوني الملط
 class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
     super.key,
