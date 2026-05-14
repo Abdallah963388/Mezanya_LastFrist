@@ -6,6 +6,7 @@ import '../../../features/app_state/domain/repositories/app_repository.dart';
 import '../../../features/app_state/presentation/controllers/app_controller.dart';
 import '../../../features/app_state/presentation/cubits/app_cubit.dart';
 import '../../../features/transactions/presentation/controllers/transaction_controller.dart';
+import '../../../features/transactions/presentation/cubits/transaction_cubit.dart';
 
 void registerAppDependencies(GetIt sl) {
   if (!sl.isRegistered<AppRepository>()) {
@@ -25,6 +26,7 @@ void registerAppDependencies(GetIt sl) {
       () => AppCubit(
         sl<AppRepository>(),
         sl<TransactionController>(),
+        sl<TransactionCubit>(),
       ),
     );
   }

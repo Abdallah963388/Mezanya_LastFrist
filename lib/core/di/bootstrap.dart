@@ -27,6 +27,7 @@ class AppBootstrap {
     await transactionController.initialize();
 
     final cubit = sl<AppCubit>();
+    await cubit.transactionCubit.initialize();
     await cubit.initialize();
     return cubit;
   }

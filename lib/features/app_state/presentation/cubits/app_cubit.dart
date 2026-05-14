@@ -8,6 +8,7 @@ import '../../../notifications/domain/entities/notification_entity.dart';
 import '../../../transactions/domain/entities/recurring_transaction_entity.dart';
 import '../../../transactions/domain/entities/transaction_entity.dart';
 import '../../../transactions/presentation/controllers/transaction_controller.dart';
+import '../../../transactions/presentation/cubits/transaction_cubit.dart';
 import '../../domain/entities/app_state_entity.dart';
 import '../../domain/repositories/app_repository.dart';
 import 'extensions/app_cubit_spaces_extension.dart';
@@ -26,14 +27,23 @@ class AppCubit extends Cubit<AppStateEntity> {
   AppCubit(
     this._repository,
     this._transactionController,
+    this._transactionCubit,
   ) : super(AppStateEntity.initial());
 
   final AppRepository _repository;
   final TransactionController _transactionController;
+  final TransactionCubit _transactionCubit;
 
   AppRepository get repository => _repository;
   TransactionController get transactionController => _transactionController;
+  TransactionCubit get transactionCubit => _transactionCubit;
   void emitState(AppStateEntity next) => emit(next);
+
+  @override
+  Future<void> close() async {
+    await _transactionCubit.close();
+    return super.close();
+  }
 
   Future<void> initialize() async {
     emit(await _repository.loadState());

@@ -74,7 +74,7 @@ extension AppCubitTransactionsExtension on AppCubit {
           ? notes
           : incomeName ?? walletName ?? (type == 'income' ? '???' : '?????'),
       apply: () async {
-        await transactionController.addTransaction(
+        await transactionCubit.addTransaction(
           walletId: walletId,
           fromWalletId: fromWalletId,
           toWalletId: toWalletId,
@@ -109,11 +109,12 @@ extension AppCubitTransactionsExtension on AppCubit {
       transaction: transaction,
     );
 
+    await transactionCubit.deleteTransaction(transactionId);
     final refreshedState = await repository.loadState();
     final next = refreshedState.copyWith(
       wallets: mutationResult.wallets,
       budgetSetup: mutationResult.budgetSetup,
-      transactions: refreshedState.transactions,
+      transactions: mutationResult.transactions,
     );
 
     await applyAndLog(

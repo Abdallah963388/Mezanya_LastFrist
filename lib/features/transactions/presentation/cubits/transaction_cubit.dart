@@ -3,16 +3,26 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/add_transaction_usecase.dart';
+import '../../domain/usecases/delete_transaction_usecase.dart';
+import '../../domain/usecases/update_transaction_usecase.dart';
 import 'transaction_state.dart';
 
 class TransactionCubit extends Cubit<TransactionState> {
   TransactionCubit(
     this._repository,
-    this._addTransactionUseCase,
-  ) : super(const TransactionState());
+    this._addTransactionUseCase, {
+    DeleteTransactionUseCase? deleteTransactionUseCase,
+    UpdateTransactionUseCase? updateTransactionUseCase,
+  })  : _deleteTransactionUseCase =
+            deleteTransactionUseCase ?? const DeleteTransactionUseCase(),
+        _updateTransactionUseCase =
+            updateTransactionUseCase ?? const UpdateTransactionUseCase(),
+        super(const TransactionState());
 
   final TransactionRepository _repository;
   final AddTransactionUseCase _addTransactionUseCase;
+  final DeleteTransactionUseCase _deleteTransactionUseCase;
+  final UpdateTransactionUseCase _updateTransactionUseCase;
 
   Future<void> initialize() async {
     emit(state.copyWith(isLoading: true));
@@ -77,10 +87,31 @@ class TransactionCubit extends Cubit<TransactionState> {
   }
 
   Future<void> deleteTransaction(String transactionId) async {
-    final updated = state.transactions
-        .where((transaction) => transaction.id != transactionId)
-        .toList();
+    final result = _deleteTransactionUseCase.execute(
+      transactions: state.transactions,
+      transactionId: transactionId,
+    );
 
+    if (!result.isSuccess) {
+      return;
+    }
+
+    final updated = result.data!;
+    await _repository.saveTransactions(updated);
+    emit(state.copyWith(transactions: updated));
+  }
+
+  Future<void> updateTransaction(TransactionEntity transaction) async {
+    final result = _updateTransactionUseCase.execute(
+      transactions: state.transactions,
+      updatedTransaction: transaction,
+    );
+
+    if (!result.isSuccess) {
+      return;
+    }
+
+    final updated = result.data!;
     await _repository.saveTransactions(updated);
     emit(state.copyWith(transactions: updated));
   }

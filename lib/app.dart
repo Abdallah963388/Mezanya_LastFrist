@@ -15,6 +15,7 @@ import 'features/spaces/presentation/cubits/spaces_cubit.dart';
 import 'features/transactions/presentation/cubits/transaction_cubit.dart';
 import 'features/wallets/presentation/cubits/wallet_cubit.dart';
 // بسيوني الملط
+
 class MezanyaApp extends StatelessWidget {
   const MezanyaApp({
     super.key,
@@ -30,9 +31,7 @@ class MezanyaApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AppCubit>.value(value: cubit),
-        BlocProvider<TransactionCubit>(
-          create: (_) => sl<TransactionCubit>()..initialize(),
-        ),
+        BlocProvider<TransactionCubit>.value(value: cubit.transactionCubit),
         BlocProvider<WalletCubit>(
           create: (_) => sl<WalletCubit>()..initialize(),
         ),

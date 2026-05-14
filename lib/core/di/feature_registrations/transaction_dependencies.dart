@@ -7,6 +7,8 @@ import '../../../features/transactions/data/datasources/local/transaction_local_
 import '../../../features/transactions/data/repositories/transaction_repository_impl.dart';
 import '../../../features/transactions/domain/repositories/transaction_repository.dart';
 import '../../../features/transactions/domain/usecases/add_transaction_usecase.dart';
+import '../../../features/transactions/domain/usecases/delete_transaction_usecase.dart';
+import '../../../features/transactions/domain/usecases/update_transaction_usecase.dart';
 import '../../../features/transactions/presentation/controllers/transaction_controller.dart';
 import '../../../features/transactions/presentation/cubits/transaction_cubit.dart';
 import '../../../features/wallets/domain/repositories/wallet_repository.dart';
@@ -34,6 +36,18 @@ void registerTransactionDependencies(GetIt sl) {
     );
   }
 
+  if (!sl.isRegistered<DeleteTransactionUseCase>()) {
+    sl.registerLazySingleton<DeleteTransactionUseCase>(
+      () => const DeleteTransactionUseCase(),
+    );
+  }
+
+  if (!sl.isRegistered<UpdateTransactionUseCase>()) {
+    sl.registerLazySingleton<UpdateTransactionUseCase>(
+      () => const UpdateTransactionUseCase(),
+    );
+  }
+
   if (!sl.isRegistered<TransactionController>()) {
     sl.registerLazySingleton<TransactionController>(
       () => TransactionController(
@@ -50,6 +64,8 @@ void registerTransactionDependencies(GetIt sl) {
       () => TransactionCubit(
         sl<TransactionRepository>(),
         sl<AddTransactionUseCase>(),
+        deleteTransactionUseCase: sl<DeleteTransactionUseCase>(),
+        updateTransactionUseCase: sl<UpdateTransactionUseCase>(),
       ),
     );
   }
