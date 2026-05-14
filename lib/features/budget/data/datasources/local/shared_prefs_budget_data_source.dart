@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../../core/storage/shared_prefs_keys.dart';
 import '../../../../app_state/domain/entities/app_state_entity.dart';
 import '../../../domain/entities/budget_setup_entity.dart';
-import 'budget_local_data_source.dart';
+import 'budget_data_source.dart';
 
-class SharedPrefsBudgetLocalDataSource implements BudgetLocalDataSource {
-  SharedPrefsBudgetLocalDataSource(this._prefs);
+class SharedPrefsBudgetDataSource implements BudgetDataSource {
+  SharedPrefsBudgetDataSource(this._prefs);
 
   final SharedPreferences _prefs;
 

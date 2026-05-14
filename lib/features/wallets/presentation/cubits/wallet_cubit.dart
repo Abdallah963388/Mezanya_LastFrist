@@ -2,22 +2,27 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../app_state/domain/services/wallet_mutation_service.dart';
 import '../../domain/entities/wallet_entity.dart';
-import '../../domain/repositories/wallet_repository.dart';
+import '../../domain/usecases/load_wallets_usecase.dart';
+import '../../domain/usecases/persist_wallets_usecase.dart';
 import 'wallet_state.dart';
 
 class WalletCubit extends Cubit<WalletState> {
-  WalletCubit(this._repository) : super(const WalletState());
+  WalletCubit(
+    this._loadWalletsUseCase,
+    this._persistWalletsUseCase,
+  ) : super(const WalletState());
 
-  final WalletRepository _repository;
+  final LoadWalletsUseCase _loadWalletsUseCase;
+  final PersistWalletsUseCase _persistWalletsUseCase;
 
   Future<void> initialize() async {
     emit(state.copyWith(isLoading: true));
-    final wallets = await _repository.loadWallets();
+    final wallets = await _loadWalletsUseCase();
     emit(state.copyWith(wallets: wallets, isLoading: false));
   }
 
   Future<void> refresh() async {
-    final wallets = await _repository.loadWallets();
+    final wallets = await _loadWalletsUseCase();
     emit(state.copyWith(wallets: wallets));
   }
 
@@ -40,7 +45,7 @@ class WalletCubit extends Cubit<WalletState> {
       wallet: wallet,
     );
 
-    await _repository.saveWallets(wallets);
+    await _persistWalletsUseCase(wallets);
     emit(state.copyWith(wallets: wallets));
   }
 
@@ -63,7 +68,7 @@ class WalletCubit extends Cubit<WalletState> {
       wallet: wallet,
     );
 
-    await _repository.saveWallets(wallets);
+    await _persistWalletsUseCase(wallets);
     emit(state.copyWith(wallets: wallets));
   }
 
@@ -73,12 +78,12 @@ class WalletCubit extends Cubit<WalletState> {
       id: id,
     );
 
-    await _repository.saveWallets(wallets);
+    await _persistWalletsUseCase(wallets);
     emit(state.copyWith(wallets: wallets));
   }
 
   Future<void> reorderWallets(List<WalletEntity> wallets) async {
-    await _repository.saveWallets(wallets);
+    await _persistWalletsUseCase(wallets);
     emit(state.copyWith(wallets: wallets));
   }
 }

@@ -1,14 +1,27 @@
+import '../../../app_state/domain/entities/app_state_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';
+import '../../domain/entities/budget_tracking_dashboard_entity.dart';
 
 class BudgetState {
   BudgetState({
-    BudgetSetupEntity? budgetSetup,
+    AppStateEntity? workspace,
+    DateTime? selectedCycleStart,
+    this.dashboard,
     this.isLoading = false,
-  }) : budgetSetup =
-            budgetSetup ?? BudgetSetupEntity.initial('wallet-cash-default');
+    this.errorMessage,
+  }) : workspace = workspace ?? AppStateEntity.initial(),
+       selectedCycleStart = selectedCycleStart ??
+           (workspace ?? AppStateEntity.initial())
+               .budgetSetup
+               .cycleStartFor(DateTime.now());
 
-  final BudgetSetupEntity budgetSetup;
+  final AppStateEntity workspace;
+  final DateTime selectedCycleStart;
+  final BudgetTrackingDashboardEntity? dashboard;
   final bool isLoading;
+  final String? errorMessage;
+
+  BudgetSetupEntity get budgetSetup => workspace.budgetSetup;
 
   List<AllocationEntity> get allocations => budgetSetup.allocations;
 
@@ -37,12 +50,18 @@ class BudgetState {
   int get debtCount => debts.length;
 
   BudgetState copyWith({
-    BudgetSetupEntity? budgetSetup,
+    AppStateEntity? workspace,
+    DateTime? selectedCycleStart,
+    BudgetTrackingDashboardEntity? dashboard,
     bool? isLoading,
+    String? errorMessage,
   }) {
     return BudgetState(
-      budgetSetup: budgetSetup ?? this.budgetSetup,
+      workspace: workspace ?? this.workspace,
+      selectedCycleStart: selectedCycleStart ?? this.selectedCycleStart,
+      dashboard: dashboard ?? this.dashboard,
       isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
     );
   }
 }

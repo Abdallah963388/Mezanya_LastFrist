@@ -7,7 +7,11 @@ import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'features/app_shell/presentation/screens/main_shell_screen.dart';
 import 'features/app_state/presentation/cubits/app_cubit.dart';
+import 'features/budget/domain/ports/budget_workspace_gateway.dart';
+import 'features/budget/domain/usecases/load_budget_dashboard_usecase.dart';
 import 'features/budget/presentation/cubits/budget_cubit.dart';
+import 'features/budget/domain/usecases/load_budget_setup_usecase.dart';
+import 'features/goals/domain/usecases/load_goals_usecase.dart';
 import 'features/goals/presentation/cubits/goals_cubit.dart';
 import 'features/logs/presentation/cubits/logs_cubit.dart';
 import 'features/settings/presentation/cubits/settings_cubit.dart';
@@ -36,10 +40,18 @@ class MezanyaApp extends StatelessWidget {
           create: (_) => sl<WalletCubit>()..initialize(),
         ),
         BlocProvider<BudgetCubit>(
-          create: (_) => sl<BudgetCubit>()..initialize(),
+          create: (_) => BudgetCubit(
+            workspaceGateway: sl<BudgetWorkspaceGateway>(),
+            appCubitBridge: cubit,
+            loadBudgetDashboardUseCase: sl<LoadBudgetDashboardUseCase>(),
+          )..initialize(),
         ),
         BlocProvider<GoalsCubit>(
-          create: (_) => sl<GoalsCubit>()..initialize(),
+          create: (_) => GoalsCubit(
+            appCubitBridge: cubit,
+            loadGoalsUseCase: sl<LoadGoalsUseCase>(),
+            loadBudgetSetupUseCase: sl<LoadBudgetSetupUseCase>(),
+          )..initialize(),
         ),
         BlocProvider<SpacesCubit>(
           create: (_) => sl<SpacesCubit>()..initialize(),

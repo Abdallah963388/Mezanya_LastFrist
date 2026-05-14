@@ -5,6 +5,8 @@ import '../../../wallets/domain/repositories/wallet_repository.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/add_transaction_usecase.dart';
+import '../../domain/usecases/load_transactions_usecase.dart';
+import '../../domain/usecases/persist_transactions_usecase.dart';
 
 class TransactionController extends ChangeNotifier {
   TransactionController(
@@ -12,7 +14,12 @@ class TransactionController extends ChangeNotifier {
     WalletRepository walletRepository,
     BudgetRepository budgetRepository, {
     AddTransactionUseCase? addTransactionUseCase,
-  })  : _repository = transactionRepository,
+    LoadTransactionsUseCase? loadTransactionsUseCase,
+    PersistTransactionsUseCase? persistTransactionsUseCase,
+  })  : _loadTransactionsUseCase = loadTransactionsUseCase ??
+            LoadTransactionsUseCase(transactionRepository),
+        _persistTransactionsUseCase = persistTransactionsUseCase ??
+            PersistTransactionsUseCase(transactionRepository),
         _addTransactionUseCase = addTransactionUseCase ??
             AddTransactionUseCase.repository(
               walletRepository,
@@ -20,7 +27,8 @@ class TransactionController extends ChangeNotifier {
               budgetRepository,
             );
 
-  final TransactionRepository _repository;
+  final LoadTransactionsUseCase _loadTransactionsUseCase;
+  final PersistTransactionsUseCase _persistTransactionsUseCase;
   final AddTransactionUseCase _addTransactionUseCase;
 
   List<TransactionEntity> _transactions = [];
@@ -64,12 +72,12 @@ class TransactionController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    _transactions = await _repository.loadTransactions();
+    _transactions = await _loadTransactionsUseCase();
     notifyListeners();
   }
 
   Future<void> refresh() async {
-    _transactions = await _repository.loadTransactions();
+    _transactions = await _loadTransactionsUseCase();
     notifyListeners();
   }
 
@@ -124,7 +132,7 @@ class TransactionController extends ChangeNotifier {
         .where((transaction) => transaction.id != transactionId)
         .toList();
 
-    await _repository.saveTransactions(updated);
+    await _persistTransactionsUseCase(updated);
 
     _transactions = updated;
 

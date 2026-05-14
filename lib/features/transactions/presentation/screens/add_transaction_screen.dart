@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
 import '../../../app_state/presentation/cubits/app_cubit.dart';
@@ -7,11 +8,13 @@ import '../../../categories/domain/entities/category_entity.dart';
 import '../../../wallets/domain/entities/wallet_entity.dart';
 import '../../domain/entities/recurring_transaction_entity.dart';
 import '../../domain/entities/transaction_entity.dart';
+import '../cubits/transaction_cubit.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({
     super.key,
     required this.cubit,
+    this.transactionCubit,
     this.initialTransaction,
     this.recurringMode = false,
     this.recurringType,
@@ -19,6 +22,7 @@ class AddTransactionScreen extends StatefulWidget {
   });
 
   final AppCubit cubit;
+  final TransactionCubit? transactionCubit;
   final TransactionEntity? initialTransaction;
   final bool recurringMode;
   final String? recurringType;
@@ -49,6 +53,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isSaving = false;
   String? _selectedCategoryId;
   String? _selectedIncomeCategoryId;
+
+  TransactionCubit get _transactionCubit =>
+      widget.transactionCubit ?? context.read<TransactionCubit>();
 
   @override
   void initState() {
@@ -791,6 +798,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         : _notesController.text.trim(),
                                     categoryId: _selectedCategoryId,
                                   );
+                                  await _transactionCubit.refresh();
                                 }
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(

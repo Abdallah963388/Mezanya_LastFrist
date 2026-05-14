@@ -201,7 +201,7 @@ class _MoreTabContentState extends State<MoreTabContent> {
             MaterialPageRoute(
               builder: (_) => SectionPageScaffold(
                 title: 'الأهداف',
-                child: GoalsScreen(cubit: widget.cubit),
+                child: GoalsScreen(),
               ),
             ),
           );

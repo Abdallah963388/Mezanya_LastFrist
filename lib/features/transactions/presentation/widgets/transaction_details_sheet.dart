@@ -146,6 +146,7 @@ Future<void> openTransactionDetailsSheet(
                     heightFactor: 0.96,
                     child: AddTransactionScreen(
                       cubit: cubit,
+                      transactionCubit: cubit.transactionCubit,
                       initialTransaction: transaction,
                     ),
                   ),

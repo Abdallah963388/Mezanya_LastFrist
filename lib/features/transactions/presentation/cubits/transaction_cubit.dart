@@ -1,15 +1,17 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/transaction_entity.dart';
-import '../../domain/repositories/transaction_repository.dart';
 import '../../domain/usecases/add_transaction_usecase.dart';
 import '../../domain/usecases/delete_transaction_usecase.dart';
+import '../../domain/usecases/load_transactions_usecase.dart';
+import '../../domain/usecases/persist_transactions_usecase.dart';
 import '../../domain/usecases/update_transaction_usecase.dart';
 import 'transaction_state.dart';
 
 class TransactionCubit extends Cubit<TransactionState> {
   TransactionCubit(
-    this._repository,
+    this._loadTransactionsUseCase,
+    this._persistTransactionsUseCase,
     this._addTransactionUseCase, {
     DeleteTransactionUseCase? deleteTransactionUseCase,
     UpdateTransactionUseCase? updateTransactionUseCase,
@@ -19,19 +21,20 @@ class TransactionCubit extends Cubit<TransactionState> {
             updateTransactionUseCase ?? const UpdateTransactionUseCase(),
         super(const TransactionState());
 
-  final TransactionRepository _repository;
+  final LoadTransactionsUseCase _loadTransactionsUseCase;
+  final PersistTransactionsUseCase _persistTransactionsUseCase;
   final AddTransactionUseCase _addTransactionUseCase;
   final DeleteTransactionUseCase _deleteTransactionUseCase;
   final UpdateTransactionUseCase _updateTransactionUseCase;
 
   Future<void> initialize() async {
     emit(state.copyWith(isLoading: true));
-    final transactions = await _repository.loadTransactions();
+    final transactions = await _loadTransactionsUseCase();
     emit(state.copyWith(transactions: transactions, isLoading: false));
   }
 
   Future<void> refresh() async {
-    final transactions = await _repository.loadTransactions();
+    final transactions = await _loadTransactionsUseCase();
     emit(state.copyWith(transactions: transactions));
   }
 
@@ -97,7 +100,7 @@ class TransactionCubit extends Cubit<TransactionState> {
     }
 
     final updated = result.data!;
-    await _repository.saveTransactions(updated);
+    await _persistTransactionsUseCase(updated);
     emit(state.copyWith(transactions: updated));
   }
 
@@ -112,7 +115,7 @@ class TransactionCubit extends Cubit<TransactionState> {
     }
 
     final updated = result.data!;
-    await _repository.saveTransactions(updated);
+    await _persistTransactionsUseCase(updated);
     emit(state.copyWith(transactions: updated));
   }
 

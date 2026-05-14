@@ -1,34 +1,33 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/domain/repositories/app_repository.dart';
+import '../../domain/usecases/load_settings_read_model_usecase.dart';
 import 'settings_state.dart';
 
 class SettingsCubit extends Cubit<SettingsState> {
-  SettingsCubit(this._repository) : super(const SettingsState());
+  SettingsCubit(this._loadSettingsReadModelUseCase) : super(const SettingsState());
 
-  final AppRepository _repository;
+  final LoadSettingsReadModelUseCase _loadSettingsReadModelUseCase;
 
   Future<void> initialize() async {
     emit(state.copyWith(isLoading: true));
-    final appState = await _repository.loadState();
-    emit(_fromAppState(appState).copyWith(isLoading: false));
+    final readModel = await _loadSettingsReadModelUseCase();
+    emit(_fromReadModel(readModel).copyWith(isLoading: false));
   }
 
   Future<void> refresh() async {
-    final appState = await _repository.loadState();
-    emit(_fromAppState(appState));
+    final readModel = await _loadSettingsReadModelUseCase();
+    emit(_fromReadModel(readModel));
   }
 
-  SettingsState _fromAppState(AppStateEntity appState) {
+  SettingsState _fromReadModel(SettingsReadModel readModel) {
     return SettingsState(
-      userName: appState.userName,
-      currencyCode: appState.currencyCode,
-      notificationsEnabled: appState.notificationsEnabled,
-      googleEmail: appState.googleEmail,
-      backupDirectoryPath: appState.backupDirectoryPath,
-      autoBackupMode: appState.autoBackupMode,
-      profileImageUrl: appState.profileImageUrl,
+      userName: readModel.userName,
+      currencyCode: readModel.currencyCode,
+      notificationsEnabled: readModel.notificationsEnabled,
+      googleEmail: readModel.googleEmail,
+      backupDirectoryPath: readModel.backupDirectoryPath,
+      autoBackupMode: readModel.autoBackupMode,
+      profileImageUrl: readModel.profileImageUrl,
     );
   }
 }

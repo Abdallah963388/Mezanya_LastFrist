@@ -1,31 +1,31 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../app_state/domain/repositories/app_repository.dart';
+import '../../domain/usecases/load_logs_feed_usecase.dart';
 import 'logs_state.dart';
 
 class LogsCubit extends Cubit<LogsState> {
-  LogsCubit(this._repository) : super(const LogsState());
+  LogsCubit(this._loadLogsFeedUseCase) : super(const LogsState());
 
-  final AppRepository _repository;
+  final LoadLogsFeedUseCase _loadLogsFeedUseCase;
 
   Future<void> initialize() async {
     emit(state.copyWith(isLoading: true));
-    final appState = await _repository.loadState();
+    final feed = await _loadLogsFeedUseCase();
     emit(
       state.copyWith(
-        logs: appState.logs,
-        notifications: appState.notifications,
+        logs: feed.logs,
+        notifications: feed.notifications,
         isLoading: false,
       ),
     );
   }
 
   Future<void> refresh() async {
-    final appState = await _repository.loadState();
+    final feed = await _loadLogsFeedUseCase();
     emit(
       state.copyWith(
-        logs: appState.logs,
-        notifications: appState.notifications,
+        logs: feed.logs,
+        notifications: feed.notifications,
       ),
     );
   }

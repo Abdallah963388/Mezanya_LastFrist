@@ -8,6 +8,8 @@ import '../../../features/transactions/data/repositories/transaction_repository_
 import '../../../features/transactions/domain/repositories/transaction_repository.dart';
 import '../../../features/transactions/domain/usecases/add_transaction_usecase.dart';
 import '../../../features/transactions/domain/usecases/delete_transaction_usecase.dart';
+import '../../../features/transactions/domain/usecases/load_transactions_usecase.dart';
+import '../../../features/transactions/domain/usecases/persist_transactions_usecase.dart';
 import '../../../features/transactions/domain/usecases/update_transaction_usecase.dart';
 import '../../../features/transactions/presentation/controllers/transaction_controller.dart';
 import '../../../features/transactions/presentation/cubits/transaction_cubit.dart';
@@ -36,6 +38,18 @@ void registerTransactionDependencies(GetIt sl) {
     );
   }
 
+  if (!sl.isRegistered<LoadTransactionsUseCase>()) {
+    sl.registerLazySingleton<LoadTransactionsUseCase>(
+      () => LoadTransactionsUseCase(sl<TransactionRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<PersistTransactionsUseCase>()) {
+    sl.registerLazySingleton<PersistTransactionsUseCase>(
+      () => PersistTransactionsUseCase(sl<TransactionRepository>()),
+    );
+  }
+
   if (!sl.isRegistered<DeleteTransactionUseCase>()) {
     sl.registerLazySingleton<DeleteTransactionUseCase>(
       () => const DeleteTransactionUseCase(),
@@ -55,6 +69,8 @@ void registerTransactionDependencies(GetIt sl) {
         sl<WalletRepository>(),
         sl<BudgetRepository>(),
         addTransactionUseCase: sl<AddTransactionUseCase>(),
+        loadTransactionsUseCase: sl<LoadTransactionsUseCase>(),
+        persistTransactionsUseCase: sl<PersistTransactionsUseCase>(),
       ),
     );
   }
@@ -62,7 +78,8 @@ void registerTransactionDependencies(GetIt sl) {
   if (!sl.isRegistered<TransactionCubit>()) {
     sl.registerFactory<TransactionCubit>(
       () => TransactionCubit(
-        sl<TransactionRepository>(),
+        sl<LoadTransactionsUseCase>(),
+        sl<PersistTransactionsUseCase>(),
         sl<AddTransactionUseCase>(),
         deleteTransactionUseCase: sl<DeleteTransactionUseCase>(),
         updateTransactionUseCase: sl<UpdateTransactionUseCase>(),

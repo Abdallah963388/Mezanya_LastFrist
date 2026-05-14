@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
@@ -16,6 +17,8 @@ import '../../../transactions/presentation/widgets/recurring_postpone_dialog.dar
 import '../../../transactions/presentation/widgets/transaction_details_sheet.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/services/budget_recurring_plan_service.dart';
+import '../cubits/budget_cubit.dart';
+import '../cubits/budget_state.dart';
 import '../sections/budget_tracking_overview_content.dart';
 import '../sheets/draggable_filterable_tx_sheet.dart';
 import '../widgets/budget_lent_pending_card.dart';
@@ -26,9 +29,7 @@ import 'budget_setup_screen.dart';
 import 'cycle_analysis_screen.dart';
 
 class BudgetTrackingScreen extends StatefulWidget {
-  const BudgetTrackingScreen({super.key, required this.cubit});
-
-  final AppCubit cubit;
+  const BudgetTrackingScreen({super.key});
 
   @override
   State<BudgetTrackingScreen> createState() => _BudgetTrackingScreenState();
@@ -51,16 +52,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   @override
   void initState() {
     super.initState();
-    final budget = widget.cubit.state.budgetSetup;
-    _cycleStart = budget.cycleStartFor(DateTime.now());
-    // تشغيل المعاملات التلقائية مرة واحدة عند فتح الصفحة
+    _cycleStart = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final state = widget.cubit.state;
+      final bc = context.read<BudgetCubit>();
+      setState(() {
+        _cycleStart = bc.state.selectedCycleStart;
+      });
+      final state = bc.state.workspace;
       final cycleTx = state.transactions
           .where((t) =>
               !t.createdAt.isBefore(_cycleStart) &&
-              !t.createdAt.isAfter(_cycleEnd))
+              !t.createdAt.isAfter(_cycleEndForWorkspace(state)))
           .toList();
       _processAutomaticDebts(state, state.budgetSetup, cycleTx);
     });
@@ -68,8 +71,8 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   // ── الدورة الحالية ────────────────────────────────────────────────────────
 
-  DateTime get _cycleEnd {
-    final budget = widget.cubit.state.budgetSetup;
+  DateTime _cycleEndForWorkspace(AppStateEntity workspace) {
+    final budget = workspace.budgetSetup;
     return budget.cycleEndFor(_cycleStart);
   }
 
@@ -77,23 +80,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   DateTime get _month => _cycleStart;
 
   void _goToPreviousCycle(BudgetSetupEntity budget) {
-    setState(() {
-      _cycleStart = DateTime(
-        _cycleStart.year,
-        _cycleStart.month - 1,
-        budget.startDay.clamp(1, 28),
-      );
-    });
+    context.read<BudgetCubit>().goToPreviousCycle();
   }
 
   void _goToNextCycle(BudgetSetupEntity budget) {
-    setState(() {
-      _cycleStart = DateTime(
-        _cycleStart.year,
-        _cycleStart.month + 1,
-        budget.startDay.clamp(1, 28),
-      );
-    });
+    context.read<BudgetCubit>().goToNextCycle();
   }
 
   bool _isCurrentCycle(BudgetSetupEntity budget) {
@@ -113,11 +104,18 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AppStateEntity>(
-      stream: widget.cubit.stream,
-      initialData: widget.cubit.state,
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? widget.cubit.state;
+    return BlocConsumer<BudgetCubit, BudgetState>(
+      listenWhen: (previous, current) =>
+          previous.selectedCycleStart != current.selectedCycleStart,
+      listener: (context, budgetState) {
+        if (_cycleStart != budgetState.selectedCycleStart) {
+          setState(() {
+            _cycleStart = budgetState.selectedCycleStart;
+          });
+        }
+      },
+      builder: (context, budgetState) {
+        final state = budgetState.workspace;
         final budget = _budgetForMonth(state);
         final futureMonth = _isFutureMonth();
         final pastMonth = _isPastMonth();
@@ -128,7 +126,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           return jar.funding
               .any((f) => f.incomeSourceId.isNotEmpty && f.plannedAmount > 0);
         }).toList();
-        final monthTx = _monthTransactions(state.transactions);
+        final monthTx = _monthTransactions(state, state.transactions);
         final incomeTx = monthTx.where((t) => t.type == 'income').toList();
         final expenseTx = monthTx.where((t) => t.type == 'expense').toList();
         final incomeSectionChildren =
@@ -241,18 +239,22 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Widget _monthBar(BuildContext context) {
-    final budget = widget.cubit.state.budgetSetup;
+    final workspace = context.read<BudgetCubit>().state.workspace;
+    final budget = workspace.budgetSetup;
     return BudgetTrackingMonthBar(
       rangeLabel:
-          '${DateFormat('d MMM', 'ar').format(_cycleStart)} — ${DateFormat('d MMM yyyy', 'ar').format(_cycleEnd)}',
+          '${DateFormat('d MMM', 'ar').format(_cycleStart)} — ${DateFormat('d MMM yyyy', 'ar').format(_cycleEndForWorkspace(workspace))}',
       isCurrent: _isCurrentCycle(budget),
       onPrevious: () => _goToPreviousCycle(budget),
       onNext: () => _goToNextCycle(budget),
     );
   }
 
-  List<TransactionEntity> _monthTransactions(List<TransactionEntity> tx) {
-    final end = _cycleEnd;
+  List<TransactionEntity> _monthTransactions(
+    AppStateEntity workspace,
+    List<TransactionEntity> tx,
+  ) {
+    final end = _cycleEndForWorkspace(workspace);
     return tx
         .where((t) =>
             !t.createdAt.isBefore(_cycleStart) &&
@@ -284,7 +286,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       return BudgetSetupEntity.fromMap(oldSnapshot);
     }
 
-    final end = _cycleEnd;
+    final end = _cycleEndForWorkspace(state);
     for (final log in state.logs) {
       if (log.timestamp.isAfter(end)) continue;
       try {
@@ -297,9 +299,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     return state.budgetSetup;
   }
 
-  bool _isFutureMonth() => _isFutureCycle(widget.cubit.state.budgetSetup);
+  bool _isFutureMonth() => _isFutureCycle(context.read<BudgetCubit>().state.workspace.budgetSetup);
 
-  bool _isPastMonth() => _isPastCycle(widget.cubit.state.budgetSetup);
+  bool _isPastMonth() => _isPastCycle(context.read<BudgetCubit>().state.workspace.budgetSetup);
 
   bool _hasBudgetPlan(BudgetSetupEntity budget) {
     final hasUserConfiguredJar = budget.linkedWallets.any(
@@ -329,7 +331,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             ),
           ),
           body: BudgetSetupScreen(
-            cubit: widget.cubit,
+            cubit: context.read<AppCubit>(),
             displayMonth: _month,
           ),
         ),
@@ -434,7 +436,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
             debt: d,
             recurring: rec,
             cycleStart: _cycleStart,
-            cycleEnd: _cycleEnd,
+            cycleEnd: _cycleEndForWorkspace(state),
           );
     });
     final netSaving = remainingIncome.clamp(0, double.infinity).toDouble();
@@ -465,9 +467,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => CycleAnalysisScreen(
-                        cubit: widget.cubit,
+                        cubit: context.read<AppCubit>(),
                         cycleStart: _cycleStart,
-                        cycleEnd: _cycleEnd,
+                        cycleEnd: _cycleEndForWorkspace(state),
                         totalIncomeActual: totalIncomeActual,
                         totalExpenseActual: totalExpenseActual,
                         remainingIncome: remainingIncome,
@@ -889,7 +891,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final prefix = isIncome ? '+' : (isExpense ? '-' : '');
 
     // اسم المعاملة: الفئة أولاً → الملاحظات → النوع
-    final categories = widget.cubit.state.categories;
+    final categories = context.read<BudgetCubit>().state.workspace.categories;
     String txTitle = defaultTitle;
     String? txNotes;
     if (item.categoryId != null && item.categoryId!.isNotEmpty) {
@@ -919,7 +921,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               if (!mounted) return;
               openTransactionDetailsSheet(
                 parentContext,
-                cubit: widget.cubit,
+                cubit: context.read<AppCubit>(),
                 transaction: item,
               );
             });
@@ -1175,7 +1177,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     BudgetSetupEntity budget,
     List<TransactionEntity> incomeTx,
   ) {
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     for (final source in budget.incomeSources) {
       final sourceTx =
           incomeTx.where((t) => t.incomeSourceId == source.id).toList();
@@ -1205,7 +1207,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   //   return false;
   // }
 
-  bool _isCurrentMonthView() => _isCurrentCycle(widget.cubit.state.budgetSetup);
+  bool _isCurrentMonthView() => _isCurrentCycle(context.read<BudgetCubit>().state.workspace.budgetSetup);
 
   RecurringTransactionEntity? _linkedRecurringIncome(
     AppStateEntity state,
@@ -1496,12 +1498,12 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                         label: 'إلغاء التأجيل',
                         filled: false,
                         onPressed: () async {
-                          final setup = widget.cubit.state.budgetSetup;
+                          final setup = context.read<BudgetCubit>().state.workspace.budgetSetup;
                           final updated = setup.incomeSources.map((i) {
                             if (i.id != source.id) return i;
                             return i.copyWith(snoozedUntil: '');
                           }).toList();
-                          await widget.cubit.updateBudgetSetup(
+                          await context.read<BudgetCubit>().updateBudgetSetup(
                             setup.copyWith(incomeSources: updated),
                           );
                         },
@@ -1622,7 +1624,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               _compactActionButton(
                 label: 'تأكيد التحويل',
                 onPressed: () async {
-                  await widget.cubit
+                  await context.read<BudgetCubit>()
                       .confirmAllocationDistribution(allocation.id);
                 },
               ),
@@ -1630,7 +1632,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                 label: 'تأجيل',
                 filled: false,
                 onPressed: () async {
-                  await widget.cubit
+                  await context.read<BudgetCubit>()
                       .postponeAllocationDistribution(allocation.id);
                 },
               ),
@@ -1711,14 +1713,14 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               _compactActionButton(
                 label: 'تأكيد التحويل',
                 onPressed: () async {
-                  await widget.cubit.confirmJarDistribution(jar.id);
+                  await context.read<BudgetCubit>().confirmJarDistribution(jar.id);
                 },
               ),
               _compactActionButton(
                 label: 'تأجيل',
                 filled: false,
                 onPressed: () async {
-                  await widget.cubit.postponeJarDistribution(jar.id);
+                  await context.read<BudgetCubit>().postponeJarDistribution(jar.id);
                 },
               ),
             ]
@@ -1727,7 +1729,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _openJarDetailsSheet(LinkedWalletEntity jar) async {
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     final distribution = {
       for (final s in jar.walletSources) s.walletId: s.amount
     };
@@ -1973,7 +1975,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                                   )
                                 else
                                   ...distribution.entries.map((e) {
-                                    final currentState = widget.cubit.state;
+                                    final currentState = context.read<BudgetCubit>().state.workspace;
                                     final matchedWallets = currentState.wallets
                                         .where((w) => w.id == e.key)
                                         .toList();
@@ -2224,7 +2226,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final allLent = state.recurringTransactions.where((r) => r.isLent).toList();
     if (allLent.isEmpty) return [];
 
-    final cycleEnd = _cycleEnd;
+    final cycleEnd = _cycleEndForWorkspace(state);
 
     // الأشخاص اللي حصل ليهم نشاط (سلفة أو استرداد) في الدورة دي
     final cycleLentPersons = allLent.where((r) {
@@ -2450,7 +2452,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               Navigator.pop(sheetContext);
               Future.microtask(() {
                 if (!mounted) return;
-                _openLentSettingsFromBudget(person, widget.cubit.state);
+                _openLentSettingsFromBudget(person, context.read<BudgetCubit>().state.workspace);
               });
             },
             children: [
@@ -2474,11 +2476,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        StreamBuilder<AppStateEntity>(
-                          stream: widget.cubit.stream,
-                          initialData: widget.cubit.state,
-                          builder: (_, snap) {
-                            final s = snap.data ?? widget.cubit.state;
+                        BlocBuilder<BudgetCubit, BudgetState>(
+                          builder: (_, budgetState) {
+                            final s = budgetState.workspace;
                             final cur = s.recurringTransactions
                                     .where((r) => r.id == person.id)
                                     .cast<RecurringTransactionEntity?>()
@@ -2502,11 +2502,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  StreamBuilder<AppStateEntity>(
-                    stream: widget.cubit.stream,
-                    initialData: widget.cubit.state,
-                    builder: (_, snap) {
-                      final s = snap.data ?? widget.cubit.state;
+                  BlocBuilder<BudgetCubit, BudgetState>(
+                    builder: (_, budgetState) {
+                      final s = budgetState.workspace;
                       final cur = s.recurringTransactions
                               .where((r) => r.id == person.id)
                               .cast<RecurringTransactionEntity?>()
@@ -2525,11 +2523,9 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               ),
               const SizedBox(height: 14),
               // ── كارت السلفات المعلقة القابل للتوسيع ─────────────────
-              StreamBuilder<AppStateEntity>(
-                stream: widget.cubit.stream,
-                initialData: widget.cubit.state,
-                builder: (_, snap) {
-                  final s = snap.data ?? widget.cubit.state;
+              BlocBuilder<BudgetCubit, BudgetState>(
+                builder: (_, budgetState) {
+                  final s = budgetState.workspace;
                   final cur = s.recurringTransactions
                           .where((r) => r.id == person.id)
                           .cast<RecurringTransactionEntity?>()
@@ -2539,7 +2535,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                     theme: theme,
                     accent: accent,
                     person: cur,
-                    cubit: widget.cubit,
+                    cubit: context.read<AppCubit>(),
                     sheetCtx: sheetContext,
                   );
                 },
@@ -2757,7 +2753,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                         return;
                       }
                       Navigator.pop(ctx);
-                      await widget.cubit.addLentRecord(
+                      await context.read<BudgetCubit>().addLentRecord(
                         personName: personName,
                         amount: amount,
                         walletId: walletId,
@@ -2802,7 +2798,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         debt: debt,
         recurring: recurring,
         cycleStart: _cycleStart,
-        cycleEnd: _cycleEnd,
+        cycleEnd: _cycleEndForWorkspace(state),
       );
       final isDueThisCycle = cycleDates.isNotEmpty;
       if (!isDueThisCycle) continue;
@@ -3169,7 +3165,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _editAllocation(AllocationEntity _) async {
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     final budget = _budgetForMonth(state);
     final result = await openAllocationEditorScreen(
       context,
@@ -3180,7 +3176,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (result == null) return;
     if (result.deleteRequested) {
       final next = budget.allocations.where((e) => e.id != _.id).toList();
-      await widget.cubit.updateBudgetSetup(
+      await context.read<BudgetCubit>().updateBudgetSetup(
         budget.copyWith(allocations: next),
       );
       return;
@@ -3190,7 +3186,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (updated == null) return;
     final next =
         budget.allocations.map((e) => e.id == _.id ? updated : e).toList();
-    await widget.cubit.updateBudgetSetup(
+    await context.read<BudgetCubit>().updateBudgetSetup(
       budget.copyWith(allocations: next),
     );
   }
@@ -3212,10 +3208,10 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final remProgress =
         _incomeRemainingProgress(source, received, budget, monthTx);
     final pendingMeta =
-        _incomePendingMeta(widget.cubit.state, source, sourceIncomeTx);
+        _incomePendingMeta(context.read<BudgetCubit>().state.workspace, source, sourceIncomeTx);
     final canEarly = pendingMeta?['canEarly'] == true;
     final isDueOrLate = pendingMeta?['isDueOrLate'] == true;
-    final recurring = _linkedRecurringIncome(widget.cubit.state, source);
+    final recurring = _linkedRecurringIncome(context.read<BudgetCubit>().state.workspace, source);
     final cycleTx = _monthTransactionsForIncomeSource(sourceIncomeTx);
 
     await showModalBottomSheet<void>(
@@ -3402,7 +3398,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   ) async {
     final theme = Theme.of(context);
     const accent = Color(0xFFC65D2E);
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     final budget = state.budgetSetup;
     final recurring = _linkedRecurringDebt(state, debt);
     final now = DateTime.now();
@@ -3425,7 +3421,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       debt: debt,
       recurring: recurring,
       cycleStart: _cycleStart,
-      cycleEnd: _cycleEnd,
+      cycleEnd: _cycleEndForWorkspace(state),
     );
     final paidRatio = debt.isSubscription
         ? (dueThisCycle <= 0 ? null : (paid / dueThisCycle).clamp(0.0, 1.0))
@@ -3436,7 +3432,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         .where((t) => _transactionCountsTowardDebt(t, debt))
         .where((t) =>
             !t.createdAt.isBefore(_cycleStart) &&
-            !t.createdAt.isAfter(_cycleEnd))
+            !t.createdAt.isAfter(_cycleEndForWorkspace(state)))
         .toList();
     final monthPaid = monthTx.fold<double>(0, (s, t) => s + t.amount);
     final installmentAmt = debt.amount;
@@ -3574,7 +3570,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _editIncomeDirect(IncomeSourceEntity current) async {
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     final wallets = state.wallets;
     final fallbackWalletId =
         wallets.isNotEmpty ? wallets.first.id : 'wallet-cash-default';
@@ -3603,7 +3599,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         await Navigator.of(context).push<RecurringTransactionComposerResult>(
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
+          cubit: context.read<AppCubit>(),
           initialType: 'income',
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
@@ -3618,20 +3614,20 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       return;
     }
 
-    final setup = widget.cubit.state.budgetSetup;
+    final setup = context.read<BudgetCubit>().state.workspace.budgetSetup;
     if (result.deleteRequested) {
-      final linked = widget.cubit.state.recurringTransactions
+      final linked = context.read<BudgetCubit>().state.workspace.recurringTransactions
           .where((r) => r.incomeSourceId == current.id)
           .toList();
       for (final recurring in linked) {
-        await widget.cubit.deleteRecurringTransaction(recurring.id);
+        await context.read<BudgetCubit>().deleteRecurringTransaction(recurring.id);
       }
       if (linked.isEmpty && linkedRecurring != null) {
-        await widget.cubit.deleteRecurringTransaction(linkedRecurring.id);
+        await context.read<BudgetCubit>().deleteRecurringTransaction(linkedRecurring.id);
       }
       final incomes =
           setup.incomeSources.where((e) => e.id != current.id).toList();
-      await widget.cubit
+      await context.read<BudgetCubit>()
           .updateBudgetSetup(setup.copyWith(incomeSources: incomes));
       return;
     }
@@ -3654,11 +3650,11 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     final incomes = setup.incomeSources
         .map((e) => e.id == current.id ? updated : e)
         .toList();
-    await widget.cubit
+    await context.read<BudgetCubit>()
         .updateBudgetSetup(setup.copyWith(incomeSources: incomes));
 
     if (linkedRecurring == null) {
-      await widget.cubit.addRecurringTransaction(
+      await context.read<BudgetCubit>().addRecurringTransaction(
         name: recurring.name,
         type: recurring.type,
         amount: recurring.amount,
@@ -3681,7 +3677,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         notes: recurring.notes,
       );
     } else {
-      await widget.cubit.updateRecurringTransaction(
+      await context.read<BudgetCubit>().updateRecurringTransaction(
         linkedRecurring.copyWith(
           name: recurring.name,
           amount: recurring.amount,
@@ -3708,7 +3704,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _editDebtDirect(DebtEntity current) async {
-    final state = widget.cubit.state;
+    final state = context.read<BudgetCubit>().state.workspace;
     final linkedRecurring = _linkedRecurringDebt(state, current);
     final fallbackWalletId = state.wallets.isNotEmpty
         ? state.wallets.first.id
@@ -3750,7 +3746,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         await Navigator.of(context).push<RecurringTransactionComposerResult>(
       MaterialPageRoute(
         builder: (_) => RecurringTransactionComposerScreen(
-          cubit: widget.cubit,
+          cubit: context.read<AppCubit>(),
           initialType: 'expense',
           initialWithinBudget: true,
           initialRecurring: draftRecurring,
@@ -3765,16 +3761,16 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       return;
     }
 
-    final setup = widget.cubit.state.budgetSetup;
+    final setup = context.read<BudgetCubit>().state.workspace.budgetSetup;
     if (result.deleteRequested) {
       if ((current.recurringTransactionId ?? '').isNotEmpty) {
-        await widget.cubit
+        await context.read<BudgetCubit>()
             .deleteRecurringTransaction(current.recurringTransactionId!);
       } else if (linkedRecurring != null) {
-        await widget.cubit.deleteRecurringTransaction(linkedRecurring.id);
+        await context.read<BudgetCubit>().deleteRecurringTransaction(linkedRecurring.id);
       }
       final next = setup.debts.where((d) => d.id != current.id).toList();
-      await widget.cubit.updateBudgetSetup(setup.copyWith(debts: next));
+      await context.read<BudgetCubit>().updateBudgetSetup(setup.copyWith(debts: next));
       return;
     }
 
@@ -3806,7 +3802,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     );
     final next =
         setup.debts.map((d) => d.id == current.id ? updated : d).toList();
-    await widget.cubit.updateBudgetSetup(setup.copyWith(debts: next));
+    await context.read<BudgetCubit>().updateBudgetSetup(setup.copyWith(debts: next));
 
     final recurringToSave = recurring.copyWith(
       id: recurringId,
@@ -3817,7 +3813,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       targetJarId: null,
     );
     if (linkedRecurring == null) {
-      await widget.cubit.addRecurringTransaction(
+      await context.read<BudgetCubit>().addRecurringTransaction(
         id: recurringId,
         name: recurringToSave.name,
         type: recurringToSave.type,
@@ -3843,7 +3839,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
         notes: recurringToSave.notes,
       );
     } else {
-      await widget.cubit.updateRecurringTransaction(recurringToSave);
+      await context.read<BudgetCubit>().updateRecurringTransaction(recurringToSave);
     }
   }
 
@@ -3984,7 +3980,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
               .fold<double>(0, (sum, t) => sum + t.amount);
           final remaining = (debt.amount - paid).clamp(0.0, debt.amount);
           if (remaining <= 0) {
-            await widget.cubit.updateRecurringTransaction(
+            await context.read<BudgetCubit>().updateRecurringTransaction(
               recurring.copyWith(
                 lastHandledOccurrenceAt: occurrence.toIso8601String(),
                 snoozedUntil: '',
@@ -4006,7 +4002,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           continue;
         }
 
-        await widget.cubit.addTransaction(
+        await context.read<BudgetCubit>().addTransaction(
           walletId: recurring.walletId,
           amount: recurring.amount,
           type: 'expense',
@@ -4014,7 +4010,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
           createdAt: now,
           notes: 'خصم تلقائي دين: ${debt.name}',
         );
-        await widget.cubit.updateRecurringTransaction(
+        await context.read<BudgetCubit>().updateRecurringTransaction(
           recurring.copyWith(
             lastHandledOccurrenceAt: occurrence.toIso8601String(),
             snoozedUntil: '',
@@ -4061,7 +4057,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       if (amount <= 0) return;
     }
     final now = DateTime.now();
-    await widget.cubit.addTransaction(
+    await context.read<BudgetCubit>().addTransaction(
       walletId: source.targetWalletId,
       amount: amount,
       type: 'income',
@@ -4089,13 +4085,13 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
 
     if (result == null || result is! DateTime) return;
 
-    final setup = widget.cubit.state.budgetSetup;
+    final setup = context.read<BudgetCubit>().state.workspace.budgetSetup;
     final updatedIncomes = setup.incomeSources.map((i) {
       if (i.id != source.id) return i;
       return i.copyWith(snoozedUntil: result.toIso8601String());
     }).toList();
 
-    await widget.cubit.updateBudgetSetup(
+    await context.read<BudgetCubit>().updateBudgetSetup(
       setup.copyWith(incomeSources: updatedIncomes),
       detailsOverride:
           'تأجيل دخل: ${source.name} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(result)}',
@@ -4120,7 +4116,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     if (result == null) return;
 
     if (result == PostponeChoice.skip) {
-      await widget.cubit.updateRecurringTransaction(
+      await context.read<BudgetCubit>().updateRecurringTransaction(
         recurring.copyWith(
           lastHandledOccurrenceAt: occurrence.toIso8601String(),
           snoozedUntil: '',
@@ -4132,7 +4128,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     }
 
     if (result is DateTime) {
-      await widget.cubit.updateRecurringTransaction(
+      await context.read<BudgetCubit>().updateRecurringTransaction(
         recurring.copyWith(snoozedUntil: result.toIso8601String()),
         detailsOverride:
             'تأجيل معاملة متكررة: ${recurring.name} بقيمة ${recurring.amount.toStringAsFixed(2)} حتى ${DateFormat('d MMMM yyyy - HH:mm', 'ar').format(result)}',
@@ -4141,7 +4137,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
   }
 
   Future<void> _clearDebtPostpone(RecurringTransactionEntity recurring) async {
-    await widget.cubit.updateRecurringTransaction(
+    await context.read<BudgetCubit>().updateRecurringTransaction(
       recurring.copyWith(snoozedUntil: ''),
     );
   }
@@ -4151,7 +4147,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
     RecurringTransactionEntity recurring,
     DateTime occurrence,
   ) async {
-    await widget.cubit.addTransaction(
+    await context.read<BudgetCubit>().addTransaction(
       walletId: recurring.walletId,
       amount: debt.amount,
       type: 'expense',
@@ -4160,7 +4156,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
       notes: 'سداد دين: ${debt.name}',
       details: 'سداد دين: ${debt.name} بقيمة ${debt.amount.toStringAsFixed(2)}',
     );
-    await widget.cubit.updateRecurringTransaction(
+    await context.read<BudgetCubit>().updateRecurringTransaction(
       recurring.copyWith(
         lastHandledOccurrenceAt: occurrence.toIso8601String(),
         snoozedUntil: '',
@@ -4203,7 +4199,7 @@ class _BudgetTrackingScreenState extends State<BudgetTrackingScreen> {
                   trailing: Text(item.amount.toStringAsFixed(2)),
                   onTap: () => openTransactionDetailsSheet(
                     context,
-                    cubit: widget.cubit,
+                    cubit: context.read<AppCubit>(),
                     transaction: item,
                   ),
                 )),

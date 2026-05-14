@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/widgets/app_icon_picker_dialog.dart';
-import '../../../app_state/domain/entities/app_state_entity.dart';
-import '../../../app_state/presentation/cubits/app_cubit.dart';
+import '../../../budget/domain/entities/budget_setup_entity.dart';
 import '../../domain/entities/goal_entity.dart';
+import '../cubits/goals_cubit.dart';
+import '../cubits/goals_state.dart';
 
 class GoalsScreen extends StatefulWidget {
-  const GoalsScreen({super.key, required this.cubit});
-
-  final AppCubit cubit;
+  const GoalsScreen({super.key});
 
   @override
   State<GoalsScreen> createState() => _GoalsScreenState();
@@ -17,27 +17,21 @@ class GoalsScreen extends StatefulWidget {
 
 class _GoalsScreenState extends State<GoalsScreen> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.cubit.ensureDefaultSavingsJar();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AppStateEntity>(
-      stream: widget.cubit.stream,
-      initialData: widget.cubit.state,
-      builder: (context, snapshot) {
-        final state = snapshot.data ?? widget.cubit.state;
-        final jar = _savingsJar(state);
+    return BlocBuilder<GoalsCubit, GoalsState>(
+      builder: (context, gState) {
+        if (gState.isLoading || !gState.hasSyncedOnce) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final budget = gState.effectiveBudget;
+        final jar = _savingsJar(budget);
         final savedAmount = jar?.balance ?? 0;
-        final totalTargets = state.goals.fold<double>(
+        final goals = gState.goals;
+        final totalTargets = goals.fold<double>(
           0,
           (sum, goal) => sum + goal.targetAmount,
         );
-        final completed = state.goals
+        final completed = goals
             .where((goal) => _progress(goal, savedAmount) >= 1)
             .length;
 
@@ -45,7 +39,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             _heroCard(
-              goalsCount: state.goals.length,
+              goalsCount: goals.length,
               completedCount: completed,
               totalTargets: totalTargets,
               savedAmount: savedAmount,
@@ -53,13 +47,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
             const SizedBox(height: 14),
             _savingsJarCard(jarName: jar?.name, savedAmount: savedAmount),
             const SizedBox(height: 14),
-            _sectionHeader('الأهداف', '${state.goals.length} هدف'),
+            _sectionHeader('الأهداف', '${goals.length} هدف'),
             const SizedBox(height: 10),
-            if (state.goals.isEmpty)
+            if (goals.isEmpty)
               _emptyGoalsCard()
             else
-              ...state.goals.map(
-                (goal) => _goalCard(state, goal, savedAmount),
+              ...goals.map(
+                (goal) => _goalCard(budget, goal, savedAmount),
               ),
           ],
         );
@@ -67,8 +61,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  dynamic _savingsJar(AppStateEntity state) {
-    final matches = state.budgetSetup.linkedWallets
+  LinkedWalletEntity? _savingsJar(BudgetSetupEntity budget) {
+    final matches = budget.linkedWallets
         .where((wallet) => wallet.id == 'linked-savings-default')
         .toList();
     return matches.isEmpty ? null : matches.first;
@@ -161,7 +155,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () => _openGoalEditor(widget.cubit.state),
+            onPressed: () => _openGoalEditor(),
             icon: const Icon(Icons.add_rounded),
             label: const Text('إضافة هدف جديد'),
             style: FilledButton.styleFrom(
@@ -268,7 +262,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  Widget _goalCard(AppStateEntity state, GoalEntity goal, double savedAmount) {
+  Widget _goalCard(BudgetSetupEntity budget, GoalEntity goal, double savedAmount) {
     final theme = Theme.of(context);
     final accent = _colorFromHex(goal.iconColor);
     final progress = _progress(goal, savedAmount);
@@ -282,7 +276,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () => _openGoalDetails(state, goal, savedAmount),
+        onTap: () => _openGoalDetails(budget, goal, savedAmount),
         borderRadius: BorderRadius.circular(28),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -434,7 +428,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: () => _openGoalEditor(widget.cubit.state),
+            onPressed: () => _openGoalEditor(),
             icon: const Icon(Icons.add_rounded),
             label: const Text('إضافة أول هدف'),
           ),
@@ -443,8 +437,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  Future<void> _openGoalEditor(
-    AppStateEntity state, {
+  Future<void> _openGoalEditor({
     GoalEntity? current,
   }) async {
     final result = await Navigator.of(context).push<_GoalEditorResult>(
@@ -455,13 +448,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
     if (result == null) return;
     if (result.deleteRequested && current != null) {
-      await widget.cubit.deleteGoal(current.id);
+      await context.read<GoalsCubit>().deleteGoal(current.id);
       return;
     }
     final goal = result.goal;
     if (goal == null) return;
     if (current == null) {
-      await widget.cubit.addGoal(
+      await context.read<GoalsCubit>().addGoal(
         name: goal.name,
         targetAmount: goal.targetAmount,
         startDate: goal.startDate,
@@ -471,12 +464,12 @@ class _GoalsScreenState extends State<GoalsScreen> {
         notes: goal.notes,
       );
     } else {
-      await widget.cubit.updateGoal(goal);
+      await context.read<GoalsCubit>().updateGoal(goal);
     }
   }
 
   Future<void> _openGoalDetails(
-    AppStateEntity state,
+    BudgetSetupEntity budget,
     GoalEntity goal,
     double savedAmount,
   ) async {
@@ -540,7 +533,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        _openGoalEditor(state, current: goal);
+                        _openGoalEditor(current: goal);
                       },
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('تعديل'),
@@ -551,7 +544,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     child: FilledButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        _openAchieveSheet(state, goal);
+                        _openAchieveSheet(budget, goal);
                       },
                       icon: const Icon(Icons.emoji_events_outlined),
                       label: const Text('تحقيق الهدف'),
@@ -567,8 +560,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
     );
   }
 
-  Future<void> _openAchieveSheet(AppStateEntity state, GoalEntity goal) async {
-    final jar = _savingsJar(state);
+  Future<void> _openAchieveSheet(BudgetSetupEntity budget, GoalEntity goal) async {
+    final jar = _savingsJar(budget);
     if (jar == null) return;
     final amountController = TextEditingController(
       text: (goal.targetAmount <= jar.balance ? goal.targetAmount : jar.balance)
@@ -637,7 +630,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           );
                           return;
                         }
-                        await widget.cubit.addTransaction(
+                        await context.read<GoalsCubit>().addTransaction(
                           type: 'expense',
                           walletId: jar.id,
                           amount: amount,

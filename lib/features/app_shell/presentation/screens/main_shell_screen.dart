@@ -80,7 +80,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           walletController: widget.controllers.walletController,
         ),
         const SizedBox.shrink(),
-        BudgetTrackingScreen(cubit: widget.cubit),
+        const BudgetTrackingScreen(),
         MoreTabContent(cubit: widget.cubit),
       ];
 

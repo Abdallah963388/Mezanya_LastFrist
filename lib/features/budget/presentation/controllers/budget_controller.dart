@@ -3,17 +3,20 @@ import 'package:flutter/foundation.dart';
 import '../../../categories/domain/entities/category_entity.dart';
 import '../../domain/entities/budget_setup_entity.dart';
 import '../../domain/repositories/budget_repository.dart';
+import '../../domain/usecases/load_budget_setup_usecase.dart';
 import '../../domain/usecases/update_budget_setup_usecase.dart';
 
 class BudgetController extends ChangeNotifier {
   BudgetController(
     BudgetRepository repository, {
     UpdateBudgetSetupUseCase? updateBudgetSetupUseCase,
-  })  : _repository = repository,
-        _updateBudgetSetupUseCase =
-            updateBudgetSetupUseCase ?? UpdateBudgetSetupUseCase(repository);
+    LoadBudgetSetupUseCase? loadBudgetSetupUseCase,
+  })  : _loadBudgetSetupUseCase =
+            loadBudgetSetupUseCase ?? LoadBudgetSetupUseCase(repository),
+        _updateBudgetSetupUseCase = updateBudgetSetupUseCase ??
+            UpdateBudgetSetupUseCase(repository);
 
-  final BudgetRepository _repository;
+  final LoadBudgetSetupUseCase _loadBudgetSetupUseCase;
   final UpdateBudgetSetupUseCase _updateBudgetSetupUseCase;
 
   BudgetSetupEntity _budgetSetup =
@@ -50,12 +53,12 @@ class BudgetController extends ChangeNotifier {
   int get debtCount => debts.length;
 
   Future<void> initialize() async {
-    _budgetSetup = await _repository.loadBudget();
+    _budgetSetup = await _loadBudgetSetupUseCase();
     notifyListeners();
   }
 
   Future<void> refresh() async {
-    _budgetSetup = await _repository.loadBudget();
+    _budgetSetup = await _loadBudgetSetupUseCase();
     notifyListeners();
   }
 

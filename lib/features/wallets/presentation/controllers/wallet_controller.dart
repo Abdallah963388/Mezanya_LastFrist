@@ -3,11 +3,21 @@ import 'package:flutter/foundation.dart';
 import '../../../app_state/domain/services/wallet_mutation_service.dart';
 import '../../domain/entities/wallet_entity.dart';
 import '../../domain/repositories/wallet_repository.dart';
+import '../../domain/usecases/load_wallets_usecase.dart';
+import '../../domain/usecases/persist_wallets_usecase.dart';
 
 class WalletController extends ChangeNotifier {
-  WalletController(this._repository);
+  WalletController(
+    WalletRepository repository, {
+    LoadWalletsUseCase? loadWalletsUseCase,
+    PersistWalletsUseCase? persistWalletsUseCase,
+  })  : _loadWalletsUseCase =
+            loadWalletsUseCase ?? LoadWalletsUseCase(repository),
+        _persistWalletsUseCase =
+            persistWalletsUseCase ?? PersistWalletsUseCase(repository);
 
-  final WalletRepository _repository;
+  final LoadWalletsUseCase _loadWalletsUseCase;
+  final PersistWalletsUseCase _persistWalletsUseCase;
 
   List<WalletEntity> _wallets = [];
 
@@ -36,12 +46,12 @@ class WalletController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    _wallets = await _repository.loadWallets();
+    _wallets = await _loadWalletsUseCase();
     notifyListeners();
   }
 
   Future<void> refresh() async {
-    _wallets = await _repository.loadWallets();
+    _wallets = await _loadWalletsUseCase();
     notifyListeners();
   }
 
@@ -64,7 +74,7 @@ class WalletController extends ChangeNotifier {
       wallet: wallet,
     );
 
-    await _repository.saveWallets(_wallets);
+    await _persistWalletsUseCase(_wallets);
     notifyListeners();
   }
 
@@ -87,7 +97,7 @@ class WalletController extends ChangeNotifier {
       wallet: wallet,
     );
 
-    await _repository.saveWallets(_wallets);
+    await _persistWalletsUseCase(_wallets);
     notifyListeners();
   }
 
@@ -97,13 +107,13 @@ class WalletController extends ChangeNotifier {
       id: id,
     );
 
-    await _repository.saveWallets(_wallets);
+    await _persistWalletsUseCase(_wallets);
     notifyListeners();
   }
 
   Future<void> reorderWallets(List<WalletEntity> wallets) async {
     _wallets = wallets;
-    await _repository.saveWallets(_wallets);
+    await _persistWalletsUseCase(_wallets);
     notifyListeners();
   }
 }
